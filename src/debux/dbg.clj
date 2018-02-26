@@ -62,7 +62,7 @@
   [form & [{:as opts}]]
   (if (list? form)
     (let [ns-sym (ut/ns-symbol (first form) &env)]
-      (condp get ns-sym 
+      (condp get ns-sym
         (:-> dbg*)   `(dbg-> ~form ~opts)
         (:->> dbg*)  `(dbg->> ~form ~opts)
         (:comp dbg*) `(dbg-comp ~form ~opts)

@@ -72,7 +72,7 @@
             (-> (z/replace loc (sk/insert-skip-in-fn node))
                 z/next
                 recur)
-            
+
 
             (or ((:let-type (macro-types env)) sym)
                 ((:loop-type (macro-types env)) sym))
@@ -84,8 +84,8 @@
             (-> (z/replace loc (sk/insert-skip-in-letfn node))
                 z/next
                 recur)
-            
-                        
+
+
             ((:for-type (macro-types env)) sym)
             (-> (z/replace loc (sk/insert-skip-in-for node))
                 z/next
@@ -95,7 +95,7 @@
             (-> (z/replace loc (sk/insert-skip-in-case node))
                 z/next
                 recur)
-            
+
 
             ((:skip-arg-1-type (macro-types env)) sym)
             (-> (z/replace loc (sk/insert-skip-arg-1 node))
@@ -106,27 +106,27 @@
             (-> (z/replace loc (sk/insert-skip-arg-2 node))
                 z/next
                 recur)
-            
+
             ((:skip-arg-1-2-type (macro-types env)) sym)
             (-> (z/replace loc (sk/insert-skip-arg-1-2 node))
                 z/next
                 recur)
-            
+
             ((:skip-arg-2-3-type (macro-types env)) sym)
             (-> (z/replace loc (sk/insert-skip-arg-2-3 node))
                 z/next
                 recur)
-            
+
             ((:skip-arg-1-3-type (macro-types env)) sym)
             (-> (z/replace loc (sk/insert-skip-arg-1-3 node))
                 z/next
                 recur)
-            
+
             ((:skip-form-itself-type (macro-types env)) sym)
             (-> (z/replace loc (sk/insert-skip-form-itself node))
                 ut/right-or-next
                 recur)
-            
+
 
             ((:expand-type (macro-types env)) sym)
             (-> (z/replace loc (seq (if (ut/cljs-env? env)
@@ -145,7 +145,7 @@
         :else (recur (z/next loc)) ))))
 
 
-;;; insert/remove d 
+;;; insert/remove d
 (defn insert-d [form d-sym env]
   (loop [loc (ut/sequential-zip form)]
     (let [node (z/node loc)]
@@ -161,12 +161,12 @@
         (and (seq? node)
              (= `ms/o-skip (first node)))
         (cond
-          ;; <ex> (o-skip [(skip a) ...]) 
+          ;; <ex> (o-skip [(skip a) ...])
           (vector? (second node))
           (recur (-> loc z/down z/next z/down))
 
           ;; <ex> (o-skip (recur ...))
-          :else 
+          :else
           (recur (-> loc z/down z/next z/down ut/right-or-next)))
 
         ;; in case that the first symbol is defn/defn-
@@ -183,7 +183,7 @@
         (vector? node)
         (recur (-> (z/replace loc (concat [d-sym] [node]))
                    z/down z/right z/down))
-               
+
         ;; in case of symbol, map, or set
         (or (symbol? node) (map? node) (set? node))
         (recur (-> (z/replace loc (concat [d-sym] [node]))
@@ -203,16 +203,16 @@
         (and (seq? node)
              (= d-sym (first node)))
         (recur (z/replace loc (second node)))
-      
+
         :else
         (recur (z/next loc)) ))))
 
-   
+
 (defmacro d [form]
   `(let [opts# ~'+debux-dbg-opts+
          msg#  (:msg opts#)
          n#    (or (:n opts#) @ut/print-seq-length*)
-         
+
          result# ~form
          result#  (ut/take-n-if-seq n# result#)]
      (ut/print-form-with-indent (ut/form-header '~(remove-d form 'debux.dbgn/d) msg#)
@@ -244,7 +244,7 @@
         :else
         (recur (z/next loc) )))))
 
- 
+
 ;;; dbgn
 (defmacro dbgn
   "DeBuG every Nested forms of a form.s"
