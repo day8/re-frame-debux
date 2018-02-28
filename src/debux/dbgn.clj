@@ -39,14 +39,32 @@
     @cs.mt/macro-types*
     @mt/macro-types*))
 
+(defmacro dbg-base
+  [form {:keys [msg condition] :as opts} body]
+  `(let [condition# ~condition]
+     (if (or (nil? condition#) condition#)
+       (do
+         (println (str "\ndbg: " (ut/truncate (pr-str '~form))
+                       (and ~msg (str "   <" ~msg ">"))
+                       " =>"))
+         ~body)
+       ~form)))
+
+(defmacro dbg->
+  [[_ & subforms :as form] opts]
+  `(dbg-base ~form ~opts
+             (-> ~@(mapcat (fn [subform] [subform `(ut/spy-first '~subform ~opts)])
+                           subforms))))
 
 ;;; insert skip
 (defn insert-skip
    "Marks the form to skip."
   [form env]
+  (println "INSERT-SKIP" form env)
+  (println "SEQ ZIP" (z/node (ut/sequential-zip form)))
   (loop [loc (ut/sequential-zip form)]
     (let [node (z/node loc)]
-      ;(ut/d node)
+      (ut/d node)
       (cond
         (z/end? loc) (z/root loc)
 
@@ -56,7 +74,7 @@
 
         (and (seq? node) (symbol? (first node)))
         (let [sym (ut/ns-symbol (first node) env)]
-          ;(ut/d sym)
+          (ut/d sym)
           (cond
             ((:def-type (macro-types env)) sym)
             (-> (z/replace loc (sk/insert-skip-in-def node))
@@ -128,6 +146,7 @@
                 recur)
 
 
+            ;; TODO: add comment about this one being different
             ((:expand-type (macro-types env)) sym)
             (-> (z/replace loc (seq (if (ut/cljs-env? env)
                                       (analyzer/macroexpand-1 {} node)
@@ -147,11 +166,21 @@
 
 ;;; insert/remove d
 (defn insert-d [form d-sym env]
+  {:post [(do (println "POST" %)
+              true)]}
+  (println "INSERT-D" form d-sym env)
   (loop [loc (ut/sequential-zip form)]
     (let [node (z/node loc)]
       ;(ut/d node)
       (cond
         (z/end? loc) (z/root loc)
+
+        ;; in case of (spy-first ...) (and more to come)
+        (and (seq? node) (= `ms/skip (first node)))
+        (recur (-> (z/down node)
+                   z/right
+                   z/down))
+
 
         ;; in case of (skip ...)
         (and (seq? node) (= `ms/skip (first node)))
@@ -176,14 +205,24 @@
         (recur (-> loc z/down z/next))
 
         ;; in case of the first symbol except defn/defn-/def
+
+        ;; (cons d-sym node)
+
+        ;; DC: why not def? where is that handled?
         (and (seq? node) (ifn? (first node)))
         (recur (-> (z/replace loc (concat [d-sym] [node]))
                    z/down z/right z/down ut/right-or-next))
+
+        ;; |[1 2 (+ 3 4)]
+        ;; |(d [1 2 (+ 3 4)])
+
 
         (vector? node)
         (recur (-> (z/replace loc (concat [d-sym] [node]))
                    z/down z/right z/down))
 
+
+        ;; DC: We might also want to trace inside maps, especially for fx
         ;; in case of symbol, map, or set
         (or (symbol? node) (map? node) (set? node))
         (recur (-> (z/replace loc (concat [d-sym] [node]))
@@ -249,6 +288,8 @@
 (defmacro dbgn
   "DeBuG every Nested forms of a form.s"
   [form & [{:keys [condition] :as opts}]]
+  ;(println "BEFORE" form opts)
+  ;(println "FULLFORM" &form)
   `(let [~'+debux-dbg-opts+ ~(if (ut/cljs-env? &env)
                                (dissoc opts :style :js :once)
                                opts)
@@ -257,6 +298,7 @@
        (if (or (nil? condition#) condition#)
          (let [title# (str "\ndbgn: " (ut/truncate (pr-str '~form)) " =>")]
            (println title#)
+           (println "FORM" '~form)
            ~(-> (if (ut/include-recur? form)
                   (sk/insert-o-skip-for-recur form &env)
                   form)
