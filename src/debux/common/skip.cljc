@@ -145,6 +145,59 @@
     `(~name ~arg1' (ms/skip ~arg2))))
 
 
+
+(defn insert-spy-first
+  [[name & body]]
+  (list* name (mapcat (fn [subform] [subform `ms/skip-outer `(ut/spy-first '~subform) `ms/skip-outer])
+                      body)
+         #_(interpose '(ut/spy-first '(:quoted-form) {}) body)))
+
+(defn insert-spy-last
+  [[name & body]]
+  (list* name (mapcat (fn [subform] [subform `ms/skip-outer `(ut/spy-last '~subform) `ms/skip-outer])
+                      body)))
+
+(defmacro traced-some->
+  "When expr is not nil, threads it into the first form (via ->),
+  and when that result is not nil, through the next etc"
+  {:added "1.5"}
+  [expr & forms]
+  (let [g     (gensym)
+        steps (map (fn [step] (let [fg (macroexpand-1 `(-> (ms/skip ~g) ~step (ms/skip-outer) (ut/spy-first '~step) (ms/skip-outer)))]
+                                `(ms/skip-outer (if (ms/skip (nil? ~g)) nil ~fg))))
+                   forms)]
+    `(ms/skip-outer
+       (let [~g (ms/skip-outer (ut/spy-first (ms/skip ~expr) '~expr))
+             ~@(interleave (repeat g) (butlast steps))]
+         (ms/skip-outer
+           ~(if (empty? steps)
+              g
+              (last steps)))))))
+
+(defn skip-some-> [[name & body]]
+  `(traced-some-> ~@body))
+
+(defmacro traced-some->>
+  "When expr is not nil, threads it into the first form (via ->>),
+  and when that result is not nil, through the next etc"
+  {:added "1.5"}
+  [expr & forms]
+  (let [g     (gensym)
+        steps (map (fn [step] (let [fg (macroexpand-1 `(->> (ms/skip ~g) ~step (ms/skip-outer) (ut/spy-last '~step) (ms/skip-outer)))]
+                                `(ms/skip-outer (if (ms/skip (nil? ~g)) nil ~fg))))
+                   forms)]
+    `(ms/skip-outer
+       (let [~g (ms/skip-outer (ut/spy-last '~expr (ms/skip ~expr)))
+             ~@(interleave (repeat g) (butlast steps))]
+         (ms/skip-outer
+           ~(if (empty? steps)
+              g
+              (last steps)))))))
+
+(defn skip-some->> [[name & body]]
+  `(traced-some->> ~@body))
+
+
 ;;; insert outermost skip
 (defn insert-o-skip
   [form]

@@ -1,15 +1,14 @@
 (ns debux.dbgn-test
   (:require [clojure.test :refer :all]
-            [debux.core :refer [dbgn]]
-            [debux.dbgn :as dbgn]))
+            [debux.dbgn :as dbgn :refer [mini-dbgn]]))
 
 
 ;; Works in Cursive, fails with lein test
 ;; See https://github.com/technomancy/leiningen/issues/912
 (deftest skip-outer-skip-inner-test
-  (is (= (macroexpand-1 '(dbgn/mini-dbgn
+  (is (= (macroexpand-1 '(mini-dbgn
                            (-> '())))
-         '(clojure.core/let []
+         '(do
             (debux.common.util/spy-first
               (quote ())
               (quote (quote ())))))))

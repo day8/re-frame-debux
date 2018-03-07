@@ -236,20 +236,20 @@
 
 ;;; spy functions
 (def spy-first
-  (fn [result quoted-form {:keys [n] :as opts}]
+  (fn [result quoted-form]
     (print-form-with-indent (form-header quoted-form) 1)
-    (pprint-result-with-indent (take-n-if-seq n result) 1)
+    (pprint-result-with-indent (take-n-if-seq 100 result) 1)
     result))
 
 (def spy-last
-  (fn [quoted-form {:keys [n] :as opts} result]
+  (fn [quoted-form result]
     (print-form-with-indent (form-header quoted-form) 1)
-    (pprint-result-with-indent (take-n-if-seq n result) 1)
+    (pprint-result-with-indent (take-n-if-seq 100 result) 1)
     result))
 
-(defn spy-comp [quoted-form form {:keys [n] :as opts}]
+(defn spy-comp [quoted-form form]
   (fn [& arg]
     (let [result (apply form arg)]
       (print-form-with-indent (form-header quoted-form) 1)
-      (pprint-result-with-indent (take-n-if-seq n result) 1)
+      (pprint-result-with-indent (take-n-if-seq 100 result) 1)
       result)))

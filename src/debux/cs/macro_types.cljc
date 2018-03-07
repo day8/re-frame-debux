@@ -17,6 +17,11 @@
          :for-type '#{cljs.core/for cljs.core/doseq}
          :case-type '#{cljs.core/case}
 
+         :thread-first-type `#{cljs.core/->}
+         :thread-last-type `#{cljs.core/->>}
+         :some-first-type `#{cljs.core/some->}
+         :some-last-type `#{cljs.core/some->>}
+
          :skip-arg-1-type '#{set!}
          :skip-arg-2-type '#{cljs.core/as->}
          :skip-arg-1-2-type '#{}

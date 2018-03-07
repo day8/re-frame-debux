@@ -17,6 +17,11 @@
          :for-type `#{for doseq}
          :case-type `#{case}
 
+         :thread-first-type `#{->}
+         :thread-last-type `#{->>}
+         :some-first-type `#{some->}
+         :some-last-type `#{some->>}
+
          :skip-arg-1-type `#{set! with-precision}
          :skip-arg-2-type `#{as->}
          :skip-arg-1-2-type `#{}

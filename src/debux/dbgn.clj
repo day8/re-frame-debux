@@ -5,7 +5,8 @@
             [debux.common.skip :as sk]
             [debux.common.util :as ut]
             [debux.macro-types :as mt]
-            [debux.cs.macro-types :as cs.mt]))
+            [debux.cs.macro-types :as cs.mt]
+            #_[zprint.core :as zp]))
 
 ;;; Basic strategy for dbgn
 
@@ -38,23 +39,6 @@
   (if (ut/cljs-env? env)
     @cs.mt/macro-types*
     @mt/macro-types*))
-
-(defmacro dbg-base
-  [form {:keys [msg condition] :as opts} body]
-  `(let [condition# ~condition]
-     (if (or (nil? condition#) condition#)
-       (do
-         (println (str "\ndbg: " (ut/truncate (pr-str '~form))
-                       (and ~msg (str "   <" ~msg ">"))
-                       " =>"))
-         ~body)
-       ~form)))
-
-(defmacro dbg->
-  [[_ & subforms :as form] opts]
-  `(dbg-base ~form ~opts
-             (-> ~@(mapcat (fn [subform] [subform `(ut/spy-first '~subform ~opts)])
-                           subforms))))
 
 ;;; insert skip
 (defn insert-skip
@@ -145,9 +129,36 @@
                 ut/right-or-next
                 recur)
 
+            ((:thread-first-type (macro-types env)) sym)
+            (do #_(println "SYMLOCNODE" loc node)
+              (let [new-node (sk/insert-spy-first node)]
+                ;(zp/czprint new-node)
+                ;(println "NEW" (macroexpand-1 new-node))
+                (recur (z/replace loc (if (ut/cljs-env? env)
+                                        (analyzer/macroexpand-1 {} new-node)
+                                        (macroexpand-1 new-node))))))
 
-            ;; TODO: add comment about this one being different
+            ((:thread-last-type (macro-types env)) sym)
+            (let [new-node (sk/insert-spy-last node)]
+              (recur (z/replace loc (if (ut/cljs-env? env)
+                                      (analyzer/macroexpand-1 {} new-node)
+                                      (macroexpand-1 new-node)))))
+
+            ((:some-first-type (macro-types env)) sym)
+            (let [new-node (sk/skip-some-> node)]
+              (recur (z/replace loc (if (ut/cljs-env? env)
+                                      (analyzer/macroexpand-1 {} new-node)
+                                      (macroexpand-1 new-node)))))
+
+            ((:some-last-type (macro-types env)) sym)
+            (let [new-node (sk/skip-some->> node)]
+              (recur (z/replace loc (if (ut/cljs-env? env)
+                                      (analyzer/macroexpand-1 {} new-node)
+                                      (macroexpand-1 new-node)))))
+
+            ; TODO: add comment about this one being different
             ((:expand-type (macro-types env)) sym)
+            ;; Why do we add a seq call here?
             (-> (z/replace loc (seq (if (ut/cljs-env? env)
                                       (analyzer/macroexpand-1 {} node)
                                       (macroexpand-1 node))))
@@ -174,12 +185,14 @@
       (cond
         (z/end? loc) (z/root loc)
 
-        ;; in case of (spy-first ...) (and more to come)
-        (and (seq? node) (= `ms/skip (first node)))
-        (recur (-> (z/down node)
-                   z/right
-                   z/down))
+        ;;; in case of (spy-first ...) (and more to come)
+        ;(and (seq? node) (= `ms/skip (first node)))
+        ;(recur (-> (z/down node)
+        ;           z/right
+        ;           z/down))
 
+        ;; TODO: is it more efficient to remove the skips here
+        ;; rather than taking another pass through the form?
 
         ;; in case of (skip ...)
         (and (seq? node) (= `ms/skip (first node)))
@@ -197,15 +210,61 @@
           :else
           (recur (-> loc z/down z/next z/down ut/right-or-next)))
 
+        ;; TODO: handle lists that are just lists, not function calls
+
+
+        ;; in case of (skip-outer ...)
+        (and (seq? node)
+             (= `ms/skip-outer (first node)))
+        (let [inner-loc  (-> loc z/down z/right)
+              inner-node (z/node inner-loc)]
+          (cond
+            (and (seq? inner-node)
+                 (= `ms/skip (first inner-node)))
+            ;; Recur once and let skip handle case
+            (recur inner-loc)
+
+            (seq? inner-node)
+            (recur (-> inner-loc z/down ut/right-or-next))
+
+            (vector? inner-node)
+            (recur (-> inner-loc z/down))
+
+            :else
+            (recur (-> inner-loc ut/right-or-next))
+
+
+            ;true (throw (ex-info "Pause" {}))
+            ;; vector
+            ;; map
+            ;; form
+
+            ))
+
+
         ;; in case that the first symbol is defn/defn-
         (and (seq? node)
              (symbol? (first node))
              (`#{defn defn-} (ut/ns-symbol (first node) env)))
         (recur (-> loc z/down z/next))
 
-        ;; in case of the first symbol except defn/defn-/def
+        ;;; in case the first symbol is ut/spy-first
+        ;(and (seq? node)
+        ;     (symbol? (first node))
+        ;     (`#{ut/spy-first} (ut/ns-symbol (first node) env)))
+        ;;; we need to z/replace of the next argument to spy-first with outer-skip
+        ;;; then move onto skip-outer
+        ;(recur (-> loc z/down z/next))
 
-        ;; (cons d-sym node)
+        #_(let [new-loc  (-> loc z/down z/next)
+                new-node (z/node new-loc)]
+            (if (and (seq? node)
+                     (symbol? (first node)))
+              (recur (-> new-loc z/down z/next))
+              (recur (-> new-loc ut/right-or-next))
+              ))
+
+        ;; in case of the first symbol except defn/defn-/def
 
         ;; DC: why not def? where is that handled?
         (and (seq? node) (ifn? (first node)))
@@ -241,6 +300,11 @@
         (and (seq? node)
              (= d-sym (first node)))
         (recur (z/replace loc (second node)))
+
+        ;; in case of spy-last
+        (and (seq? node)
+             (= `ut/spy-last (first node)))
+        (recur (z/replace loc (last node)))
 
         :else
         (recur (z/next loc))))))
@@ -279,6 +343,11 @@
         (recur (-> (z/replace loc (second node))
                    z/next))
 
+        ;; in case of (skip-outer ...)
+        (and (seq? node)
+             (= `ms/skip-outer (first node)))
+        (recur (-> (z/replace loc (second node))))
+
         :else
         (recur (z/next loc))))))
 
@@ -306,3 +375,64 @@
                 remove-skip))
          ~form)
        (catch Exception ~'e (throw ~'e)))))
+
+(defn spy [x]
+  ;(zp/czprint x)
+  x)
+
+(defmacro mini-dbgn
+  "DeBuG every Nested forms of a form.s"
+  [form]
+  `(do ~(-> (if (ut/include-recur? form)
+            (sk/insert-o-skip-for-recur form &env)
+            form)
+          (insert-skip &env)
+          (insert-d 'debux.dbgn/d &env)
+          remove-skip)))
+
+
+;; Two phase approach
+;; add skips (+ macroexpansion)
+;; add d's
+
+;; macros create lots of code which we don't want to see
+;; we want to output forms and form values at particular points, but not the rest of the stuff injected by the macros
+;; Difficulty in two phase adding is that we do macroexpansion in first phase, so we have to annotate all macro code with skips.
+
+
+;(conj :d)
+;(conj [:a :b] :d)
+
+;; We handle use of macros within macros then we macro-expand them before returning them out.
+;; pre-emptive macroexpansion
+
+
+
+
+;(dbgn (-> {:a 1}
+;          (assoc :a 3)
+;          frequencies))
+;
+;(dbgn (-> :a (cons '(1 2 3))))
+
+;(defn c-kw []
+;  :c)
+;
+;(dbgn (some-> [:a :b (c-kw)]
+;              (conj :d)
+;              (distinct)))
+;
+;(dbgn (->> [:a :b (c-kw)]
+;             (cons :d)
+;             (distinct)))
+
+#_(defn my-fun [a b c]
+    (dbgn (+ a b c
+             (->> (range a b)
+                  (map (fn [x] (* x x)))
+                  (filter even?)
+                  (take a)
+                  (reduce +)))))
+
+;(reduce + (take a (filter even? (map (fn [x] (* x x)) (range a b)))))
+

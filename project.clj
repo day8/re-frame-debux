@@ -1,5 +1,5 @@
 (defproject day8.re-frame/debux "0.5.0-SNAPSHOT"
-  :description "Debux library for debugging Clojure and ClojureScript"
+  :description "A tool for inspecting code execution for re-frame applications"
   :url "https://github.com/philoskim/debux"
   :license {"Eclipse Public License"
             "http://www.eclipse.org/legal/epl-v10.html"}
@@ -11,6 +11,8 @@
 
   :plugins [[lein-cljsbuild "1.1.6"]
             [lein-figwheel "0.5.10"]]
+
+  :profiles {:dev {:dependencies [[zprint "0.4.7"]]}}
 
   :source-paths ["src"]
 
@@ -31,4 +33,4 @@
                 :optimizations :none
                 :source-map true
                 :pretty-print true} }]})
-                
+

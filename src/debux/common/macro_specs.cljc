@@ -5,7 +5,7 @@
     #?(:clj
                     [clojure.future :refer :all])))
 
-(declare skip o-skip)
+(declare skip o-skip skip-outer)
 ; skip => full skip
 ; o-skip => outermost skip
 
