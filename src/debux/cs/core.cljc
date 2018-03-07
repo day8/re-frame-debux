@@ -1,5 +1,5 @@
 (ns debux.cs.core
-  #?(:cljs (:require-macros [debux.dbg :as dbg]
+  #?(:cljs (:require-macros
              [debux.dbgn :as dbgn]
              [debux.cs.macro-types :as mt]))
   (:require [debux.common.util :as ut]
@@ -12,10 +12,6 @@
 
 
 ;;; debugging APIs
-(defmacro dbg [form & opts]
-  (let [opts' (ut/parse-opts opts)]
-    `(debux.dbg/dbg ~form ~opts')))
-
 (defmacro dbgn [form & opts]
   (let [opts' (ut/parse-opts opts)]
     `(debux.dbgn/dbgn ~form ~opts')))

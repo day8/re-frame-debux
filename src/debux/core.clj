@@ -1,6 +1,5 @@
 (ns debux.core
-  (:require [debux.dbg :as dbg]
-            [debux.dbgn :as dbgn]
+  (:require [debux.dbgn :as dbgn]
             [debux.macro-types :as mt]
             [debux.common.util :as ut]))
 
@@ -8,9 +7,6 @@
 (def set-print-seq-length! ut/set-print-seq-length!)
 
 ;;; debugging APIs
-(defmacro dbg [form & opts]
-  (let [opts' (ut/parse-opts opts)]
-    `(dbg/dbg ~form ~opts')))
 
 (defmacro dbgn [form & opts]
   (let [opts' (ut/parse-opts opts)]

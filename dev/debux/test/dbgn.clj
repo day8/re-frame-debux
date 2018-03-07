@@ -1,5 +1,5 @@
 (ns debux.test.dbgn
-  (:require [debux.dbg :refer :all]))
+  (:require [debux.dbgn :refer :all]))
 
 
 ;;; simple example
@@ -56,7 +56,7 @@
 
 ;;; :let-type
 (dbgn (let [a (+ 1 2)
-            [b c] [(+ a 10) (* a 2)]] 
+            [b c] [(+ a 10) (* a 2)]]
          (- (+ a b) c)))
 
 
@@ -125,10 +125,10 @@
 
 
 ;;; :skip-form-itself-type example
-(dbgn (-> "a b c d" 
-          .toUpperCase 
-          (.replace "A" "X") 
-          (.split " ") 
+(dbgn (-> "a b c d"
+          .toUpperCase
+          (.replace "A" "X")
+          (.split " ")
           first))
 
 (dbgn (.. "fooBAR"  toLowerCase  (contains "ooba")))
