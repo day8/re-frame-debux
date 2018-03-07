@@ -1,6 +1,6 @@
 (ns debux.dbgn-test
   (:require [clojure.test :refer :all]
-            [debux.dbgn :as dbgn :refer [mini-dbgn]]))
+            [debux.dbgn :as dbgn :refer [dbgn mini-dbgn]]))
 
 
 ;; Works in Cursive, fails with lein test
@@ -13,6 +13,24 @@
               (quote ())
               (quote (quote ())))))))
 
+(def ->-test-output-2
+"
+dbgn: (-> {} (assoc :a 1) (get :a (identity :missing))) =>
+| {} =>
+|   {}
+| (assoc :a 1) =>
+|   {:a 1}
+| (identity :missing) =>
+|   :missing
+| (get :a (identity :missing)) =>
+|   1
+")
+
+(deftest ->-test
+  (is (= "\ndbgn: (-> (quote ())) =>\n| (quote ()) =>\n|   ()\n"
+         (with-out-str (dbgn (-> '())))))
+  (is (= ->-test-output-2
+         (with-out-str (dbgn (-> {} (assoc :a 1) (get :a (identity :missing))))))))
 
 #_(deftest thread-first-test
     (is
