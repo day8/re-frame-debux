@@ -1,6 +1,6 @@
 (ns debux.macro-types
   (:require [clojure.set :as set]
-            [debux.common.util :as ut] ))
+            [debux.common.util :as ut]))
 
 (def macro-types*
   (atom {:def-type `#{def defonce}
@@ -13,7 +13,7 @@
             with-redefs}
          :letfn-type `#{letfn}
          :loop-type `#{loop}
-         
+
          :for-type `#{for doseq}
          :case-type `#{case}
 
@@ -30,14 +30,14 @@
             var throw debux.core/dbg debux.core/dbgn}
 
          :expand-type
-         `#{clojure.core/.. -> ->> doto cond-> cond->> condp import 
+         `#{clojure.core/.. -> ->> doto cond-> cond->> condp import
             some-> some->>}
-         :dot-type `#{.} }))
+         :dot-type `#{.}}))
 
 (defn merge-symbols [old-symbols new-symbols]
   (->> (map #(ut/ns-symbol %) new-symbols)
        set
-       (set/union old-symbols) ))
+       (set/union old-symbols)))
 
 (defmacro register-macros! [macro-type new-symbols]
   (-> (swap! macro-types* update macro-type
@@ -48,7 +48,7 @@
   ([] (-> @macro-types*
           ut/quote-vals))
   ([macro-type] (-> (select-keys @macro-types* [macro-type])
-                   ut/quote-vals)))
+                    ut/quote-vals)))
 
 
 

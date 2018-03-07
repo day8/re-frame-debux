@@ -5,7 +5,7 @@
             [debux.common.skip :as sk]
             [debux.common.util :as ut]
             [debux.macro-types :as mt]
-            [debux.cs.macro-types :as cs.mt] ))
+            [debux.cs.macro-types :as cs.mt]))
 
 ;;; Basic strategy for dbgn
 
@@ -58,7 +58,7 @@
 
 ;;; insert skip
 (defn insert-skip
-   "Marks the form to skip."
+  "Marks the form to skip."
   [form env]
   (println "INSERT-SKIP" form env)
   (println "SEQ ZIP" (z/node (ut/sequential-zip form)))
@@ -150,7 +150,7 @@
             ((:expand-type (macro-types env)) sym)
             (-> (z/replace loc (seq (if (ut/cljs-env? env)
                                       (analyzer/macroexpand-1 {} node)
-                                      (macroexpand-1 node) )))
+                                      (macroexpand-1 node))))
                 recur)
 
             ((:dot-type (macro-types env)) sym)
@@ -159,9 +159,9 @@
                 recur)
 
             :else
-            (recur (z/next loc)) ))
+            (recur (z/next loc))))
 
-        :else (recur (z/next loc)) ))))
+        :else (recur (z/next loc))))))
 
 
 ;;; insert/remove d
@@ -229,7 +229,7 @@
                    ut/right-or-next))
 
         :else
-        (recur (z/next loc) )))))
+        (recur (z/next loc))))))
 
 (defn remove-d [form d-sym]
   (loop [loc (ut/sequential-zip form)]
@@ -244,16 +244,16 @@
         (recur (z/replace loc (second node)))
 
         :else
-        (recur (z/next loc)) ))))
+        (recur (z/next loc))))))
 
 
 (defmacro d [form]
-  `(let [opts# ~'+debux-dbg-opts+
-         msg#  (:msg opts#)
-         n#    (or (:n opts#) @ut/print-seq-length*)
+  `(let [opts#   ~'+debux-dbg-opts+
+         msg#    (:msg opts#)
+         n#      (or (:n opts#) @ut/print-seq-length*)
 
          result# ~form
-         result#  (ut/take-n-if-seq n# result#)]
+         result# (ut/take-n-if-seq n# result#)]
      (ut/print-form-with-indent (ut/form-header '~(remove-d form 'debux.dbgn/d) msg#)
                                 @ut/indent-level*)
      (ut/pprint-result-with-indent result# @ut/indent-level*)
@@ -281,7 +281,7 @@
                    z/next))
 
         :else
-        (recur (z/next loc) )))))
+        (recur (z/next loc))))))
 
 
 ;;; dbgn
@@ -293,7 +293,7 @@
   `(let [~'+debux-dbg-opts+ ~(if (ut/cljs-env? &env)
                                (dissoc opts :style :js :once)
                                opts)
-         condition#         ~condition]
+         condition# ~condition]
      (try
        (if (or (nil? condition#) condition#)
          (let [title# (str "\ndbgn: " (ut/truncate (pr-str '~form)) " =>")]
@@ -306,4 +306,4 @@
                 (insert-d 'debux.dbgn/d &env)
                 remove-skip))
          ~form)
-       (catch Exception ~'e (throw ~'e)) )))
+       (catch Exception ~'e (throw ~'e)))))

@@ -1,11 +1,12 @@
 (ns debux.common.skip
   (:require [clojure.zip :as z]
-            #?(:clj  [clojure.spec.alpha :as s]
-               :cljs [cljs.spec.alpha :as s])
+    #?(:clj
+            [clojure.spec.alpha :as s]
+       :cljs [cljs.spec.alpha :as s])
             [debux.macro-types :as mt]
             [debux.cs.macro-types :as cs.mt]
             [debux.common.macro-specs :as ms]
-            [debux.common.util :as ut] ))
+            [debux.common.util :as ut]))
 
 (defn- macro-types [env]
   (if (ut/cljs-env? env)
@@ -16,7 +17,7 @@
 (defn insert-skip-in-def [form]
   (->> (s/conform ::ms/def-args (next form))
        (s/unform ::ms/def-args)
-       (cons (first form)) ))
+       (cons (first form))))
 
 
 ;;; :defn-type
@@ -25,20 +26,20 @@
   [form]
   `((ms/skip let) (ms/skip [~'+debux-dbg-opts+ ~'+debux-dbg-opts+])
      ((ms/skip try)
-        (ms/skip (swap! ut/indent-level* inc))
-        (ms/skip (ut/insert-blank-line))
-         ~@form
-        (ms/skip (catch Exception ~'e (throw ~'e)))
-        (ms/skip (finally (swap! ut/indent-level* dec))) )))
+       (ms/skip (swap! ut/indent-level* inc))
+       (ms/skip (ut/insert-blank-line))
+       ~@form
+       (ms/skip (catch Exception ~'e (throw ~'e)))
+       (ms/skip (finally (swap! ut/indent-level* dec))))))
 
 (defn- insert-indent-info-in-defn-body [arity]
-  (let [body (get-in arity [:body 1])
+  (let [body  (get-in arity [:body 1])
         body' (insert-indent-info body)]
-    (assoc-in arity [:body 1] [body']) ))
+    (assoc-in arity [:body 1] [body'])))
 
 (defn insert-skip-in-defn [form]
-  (let [name (first form)
-        conf (s/conform ::ms/defn-args (next form))
+  (let [name    (first form)
+        conf    (s/conform ::ms/defn-args (next form))
         arity-1 (get-in conf [:bs 1])
         arity-n (get-in conf [:bs 1 :bodies])]
     (->> (cond
@@ -46,26 +47,26 @@
                                                         arity-n))
            arity-1 (assoc-in conf [:bs 1] (insert-indent-info-in-defn-body arity-1)))
          (s/unform ::ms/defn-args)
-         (cons name) )))
+         (cons name))))
 
 
 ;;; :fn-type
 (defn insert-skip-in-fn [form]
   (->> (s/conform ::ms/fn-args (next form))
        (s/unform ::ms/fn-args)
-       (cons (first form)) ))
+       (cons (first form))))
 
 
 ;;; :let-type
 (defn- process-let-binding [[binding form]]
-   [`(ms/skip ~binding) form])
+  [`(ms/skip ~binding) form])
 
 (defn insert-skip-in-let
   [[name bs & body]]
   (let [bs' (->> (partition 2 bs)
                  (mapcat process-let-binding)
                  vec)]
-    (list* name `(ms/o-skip ~bs') body) ))
+    (list* name `(ms/o-skip ~bs') body)))
 
 
 ;;; :letfn-type
@@ -77,7 +78,7 @@
   (let [bindings' (-> (map process-letfn-binding bindings)
                       vec)]
     (list* name `(ms/o-skip ~bindings')
-           body) ))
+           body)))
 
 
 ;;; :for-type
@@ -86,27 +87,27 @@
     (case binding
       :let `[~binding (ms/o-skip [(ms/skip ~(first form)) ~(second form)])]
       [binding form])
-    `[(ms/skip ~binding) ~form] ))
+    `[(ms/skip ~binding) ~form]))
 
 (defn insert-skip-in-for
   [[name bindings & body]]
   (let [bindings' (->> (partition 2 bindings)
-                 (mapcat process-for-binding)
-                 vec)]
-    `(~name (ms/o-skip ~bindings') ~@body) ))
+                       (mapcat process-for-binding)
+                       vec)]
+    `(~name (ms/o-skip ~bindings') ~@body)))
 
 
 ;;; :case-type
 (defn- process-case-body [[arg1 arg2]]
   (if arg2
     `[(ms/skip ~arg1) ~arg2]
-    [arg1] ))
+    [arg1]))
 
 (defn insert-skip-in-case
   [[name expr & body]]
   (let [body' (->> (partition-all 2 body)
                    (mapcat process-case-body))]
-    (list* name expr body') ))
+    (list* name expr body')))
 
 
 ;;; skip-arg-*-type
@@ -141,7 +142,7 @@
 (defn insert-skip-in-dot
   [[name arg1 arg2]]
   (let [arg1' (if (symbol? arg1) `(ms/skip ~arg1) arg1)]
-    `(~name ~arg1' (ms/skip ~arg2)) ))
+    `(~name ~arg1' (ms/skip ~arg2))))
 
 
 ;;; insert outermost skip
@@ -152,7 +153,7 @@
 (defn insert-o-skip-for-recur
   ;; TODO: add why this is needed?
   [form & [env]]
-  (loop [loc (ut/sequential-zip form)
+  (loop [loc     (ut/sequential-zip form)
          upwards false]
     (let [node (z/node loc)]
       ;(ut/d node)
@@ -188,4 +189,4 @@
                                env))
         (recur (z/next loc) false)
 
-        :else (recur (z/next loc) false) ))))
+        :else (recur (z/next loc) false)))))

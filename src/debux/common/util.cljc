@@ -6,7 +6,7 @@
             [clojure.zip :as z]
             [clojure.walk :as walk]
             [cljs.analyzer.api :as ana]
-            [clojure.repl :as repl] ))
+            [clojure.repl :as repl]))
 
 ;;; For internal debugging
 (defmacro d
@@ -54,7 +54,7 @@
   (apply array-map
          (mapcat (fn [elm]
                    `[~(keyword (str elm)) ~elm])
-                 v) ))
+                 v)))
 
 (defn replace-& [v]
   (walk/postwalk-replace {'& ''&} v))
@@ -79,10 +79,10 @@
           (recur rightmost)
 
           ;; in case of (... (+ a b))
-          (-> rightmost z/next) ))
+          (-> rightmost z/next)))
 
       ;; in case of (... a)
-      (-> loc z/next) )))
+      (-> loc z/next))))
 
 
 ;;; symbol with namespace
@@ -91,13 +91,13 @@
      (let [m    (meta v)
            ns   (str (ns-name (:ns m)))
            name (str (:name m))]
-       (symbol ns name) )))
+       (symbol ns name))))
 
 #?(:clj
    (defn- ns-symbol-for-clj [sym]
      (if-let [v (resolve sym)]
        (var->symbol v)
-       sym) ))
+       sym)))
 
 #?(:clj
    (defn- ns-symbol-for-cljs [sym env]
@@ -110,7 +110,7 @@
            sym
            (symbol ns name)))
        ;; special symbols except for `.`
-       sym) ))
+       sym)))
 
 #?(:clj
    (defn ns-symbol [sym & [env]]
@@ -118,7 +118,7 @@
        (if (cljs-env? env)
          (ns-symbol-for-cljs sym env)
          (ns-symbol-for-clj sym))
-       sym) ))
+       sym)))
 
 
 ;;; print
@@ -165,10 +165,10 @@
   [result indent-level]
   (let [pprint (str/trim (with-out-str (pp/pprint result)))]
     (println (->> (str/split pprint #"\n")
-                   prepend-blanks
-                   (mapv #(prepend-bars % indent-level))
-                   (str/join "\n")))
-    (flush) ))
+                  prepend-blanks
+                  (mapv #(prepend-bars % indent-level))
+                  (str/join "\n")))
+    (flush)))
 
 (defn insert-blank-line []
   (println " ")
@@ -179,7 +179,7 @@
 (defn parse-opts
   [opts]
   (loop [opts opts
-         acc {}]
+         acc  {}]
     (let [f (first opts)
           s (second opts)]
       (cond
@@ -206,7 +206,7 @@
         (recur (nnext opts) (assoc acc :style s))
 
         (= f :clog)
-        (recur (next opts) (assoc acc :clog true)) ))))
+        (recur (next opts) (assoc acc :clog true))))))
 
 
 ;;; quote the value parts of a map
@@ -228,7 +228,7 @@
        (or (get targets ns-sym)
            (some #(= % ns-sym)
                  '[clojure.core/defn clojure.core/defn- clojure.core/fn
-                   cljs.core/defn cljs.core/defn- cljs.core/fn] )))))
+                   cljs.core/defn cljs.core/defn- cljs.core/fn])))))
 
 (defn o-skip? [sym]
   (= 'debux.common.macro-specs/o-skip sym))
@@ -252,4 +252,4 @@
     (let [result (apply form arg)]
       (print-form-with-indent (form-header quoted-form) 1)
       (pprint-result-with-indent (take-n-if-seq n result) 1)
-      result) ))
+      result)))

@@ -1,6 +1,6 @@
 (ns debux.cs.macro-types
   (:require [clojure.set :as set]
-            [debux.common.util :as ut] ))
+            [debux.common.util :as ut]))
 
 (def macro-types*
   (atom {:def-type '#{def cljs.core/defonce}
@@ -13,7 +13,7 @@
             cljs.core/when-some cljs.core/with-out-str cljs.core/with-redefs}
          :letfn-type '#{cljs.core/letfn}
          :loop-type '#{cljs.core/loop}
-         
+
          :for-type '#{cljs.core/for cljs.core/doseq}
          :case-type '#{cljs.core/case}
 
@@ -35,14 +35,14 @@
          '#{cljs.core/.. cljs.core/-> cljs.core/->> cljs.core/doto
             cljs.core/cond-> cljs.core/cond->> cljs.core/condp cljs.core/import
             cljs.core/some-> cljs.core/some->>}
-         :dot-type '#{.} }))
+         :dot-type '#{.}}))
 
 
 (defn- merge-symbols [old-symbols new-symbols env]
   (->> (map #(ut/ns-symbol % env)
             new-symbols)
        set
-       (set/union old-symbols) ))
+       (set/union old-symbols)))
 
 (defmacro register-macros! [macro-type new-symbols]
   (-> (swap! macro-types* update macro-type

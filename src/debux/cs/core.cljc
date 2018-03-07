@@ -1,9 +1,9 @@
 (ns debux.cs.core
   #?(:cljs (:require-macros [debux.dbg :as dbg]
-                            [debux.dbgn :as dbgn]
-                            [debux.cs.macro-types :as mt] ))
+             [debux.dbgn :as dbgn]
+             [debux.cs.macro-types :as mt]))
   (:require [debux.common.util :as ut]
-            [debux.cs.util :as cs.ut] ))
+            [debux.cs.util :as cs.ut]))
 
 #?(:cljs (enable-console-print!))
 

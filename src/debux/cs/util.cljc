@@ -2,17 +2,17 @@
   "Utilities for clojurescript only"
   (:require [clojure.string :as str]
             [clojure.set :as set]
-            #?(:cljs [cljs.pprint :as pp])
+    #?(:cljs [cljs.pprint :as pp])
             [cljs.analyzer.api :as ana]
-            [debux.common.util :as ut] ))
+            [debux.common.util :as ut]))
 
 ;;; caching
 (def ^:private prev-returns* (atom {}))
- 
+
 (defn changed?
   "Checks if prev-returns* contains <form>.
    <form str> the key of prev-returns* map
-   <return str> the value of prev-returns* map" 
+   <return str> the value of prev-returns* map"
   [form return]
   ;; init
   (when-not (contains? @prev-returns* form)
@@ -20,18 +20,18 @@
 
   ;; update
   (and (not= return (get @prev-returns* form))
-       (swap! prev-returns* assoc form return) ))
+       (swap! prev-returns* assoc form return)))
 
 
 ;;; styling
 (def style*
   (atom {:error "background: red; color: white"
-         :warn  "background: green; color: white"
-         :info  "background: #0000cd; color: white" 
+         :warn "background: green; color: white"
+         :info "background: #0000cd; color: white"
          :debug "background: #ffc125; color: black"
 
-         :text  "color: black"
-         :title "color: #8b008b"} ))
+         :text "color: black"
+         :title "color: #8b008b"}))
 
 (defn merge-styles
   "Merges <new-style> into style*.
@@ -75,24 +75,24 @@
    (defn cgroup
      [header form-style]
      (.group js/console header (:title @style*)
-             (get-style form-style) (:text @style*) )))
+             (get-style form-style) (:text @style*))))
 
 #?(:cljs
    (defn clog-header
      [header form-style]
      (.log js/console header (:title @style*)
-           (get-style form-style) (:text @style*) )))
+           (get-style form-style) (:text @style*))))
 
 #?(:cljs
    (defn cgroup-end
-     [] 
-     (.groupEnd js/console) ))
+     []
+     (.groupEnd js/console)))
 
 #?(:cljs
    (defn clog-form-with-indent
      [form style indent-level]
      (.log js/console (ut/prepend-bars form indent-level)
-           (get-style style) (:text @style*) )))
+           (get-style style) (:text @style*))))
 
 #?(:cljs
    (defn clog-result-with-indent
@@ -104,9 +104,9 @@
        (.log js/console (->> (str/split pprint' #"\n")
                              ut/prepend-blanks
                              (mapv #(ut/prepend-bars % indent-level))
-                             (str/join "\n") ))
+                             (str/join "\n")))
        (when js-mode
-         (.log js/console "%O" result) ))))
+         (.log js/console "%O" result)))))
 
 
 ;;; spy functions
@@ -118,7 +118,7 @@
                               @ut/indent-level*)
        (clog-result-with-indent (ut/take-n-if-seq n result)
                                 @ut/indent-level* js)
-       result) ))
+       result)))
 
 #?(:cljs
    (def spy-last
@@ -128,7 +128,7 @@
                               @ut/indent-level*)
        (clog-result-with-indent (ut/take-n-if-seq n result)
                                 @ut/indent-level* js)
-       result) ))
+       result)))
 
 #?(:cljs
    (defn spy-comp
@@ -140,5 +140,5 @@
                                 @ut/indent-level*)
          (clog-result-with-indent (ut/take-n-if-seq n result)
                                   @ut/indent-level* js)
-         result) )))
+         result))))
 
