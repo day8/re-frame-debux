@@ -60,11 +60,11 @@
 (defn insert-skip
   "Marks the form to skip."
   [form env]
-  (println "INSERT-SKIP" form env)
-  (println "SEQ ZIP" (z/node (ut/sequential-zip form)))
+  ;(println "INSERT-SKIP" form env)
+  ;(println "SEQ ZIP" (z/node (ut/sequential-zip form)))
   (loop [loc (ut/sequential-zip form)]
     (let [node (z/node loc)]
-      (ut/d node)
+      ;(ut/d node)
       (cond
         (z/end? loc) (z/root loc)
 
@@ -74,7 +74,7 @@
 
         (and (seq? node) (symbol? (first node)))
         (let [sym (ut/ns-symbol (first node) env)]
-          (ut/d sym)
+          ;(ut/d sym)
           (cond
             ((:def-type (macro-types env)) sym)
             (-> (z/replace loc (sk/insert-skip-in-def node))
@@ -166,9 +166,8 @@
 
 ;;; insert/remove d
 (defn insert-d [form d-sym env]
-  {:post [(do (println "POST" %)
-              true)]}
-  (println "INSERT-D" form d-sym env)
+
+  ;(println "INSERT-D" form d-sym env)
   (loop [loc (ut/sequential-zip form)]
     (let [node (z/node loc)]
       ;(ut/d node)
@@ -298,7 +297,7 @@
        (if (or (nil? condition#) condition#)
          (let [title# (str "\ndbgn: " (ut/truncate (pr-str '~form)) " =>")]
            (println title#)
-           (println "FORM" '~form)
+           ;(println "FORM" '~form)
            ~(-> (if (ut/include-recur? form)
                   (sk/insert-o-skip-for-recur form &env)
                   form)
