@@ -28,3 +28,24 @@
 ;;; style option API
 (def merge-styles cs.ut/merge-styles)
 
+;; TODO: trace arglists
+(defmacro defntrace
+  "Use in place of defn; traces each call/return of this fn, including
+   arguments. Nested calls to deftrace'd functions will print a
+   tree-like structure.
+   The first argument of the form definition can be a doc string"
+  [name & definition]
+  (let [doc-string (if (string? (first definition)) (first definition) "")
+        fn-form    (if (string? (first definition)) (rest definition) definition)
+        form       (rest fn-form)
+        arg-list   (first fn-form)]
+    `(defn ~name ~doc-string ~arg-list
+       (debux.dbgn/dbgn ~@form {})
+       #_(trace-fn-call '~name f# args#))))
+
+(defmacro fntrace
+  [& definition]
+  (let [args (first definition)
+        form (rest definition)]
+    `(fn ~args
+       (debux.dbgn/dbgn ~@form {}))))
