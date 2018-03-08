@@ -5,7 +5,7 @@
 
 ;; Works in Cursive, fails with lein test
 ;; See https://github.com/technomancy/leiningen/issues/912
-(deftest skip-outer-skip-inner-test
+#_(deftest skip-outer-skip-inner-test
   (is (= (macroexpand-1 '(mini-dbgn
                            (-> '())))
          '(do
