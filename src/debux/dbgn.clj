@@ -321,7 +321,6 @@
      (ut/send-trace! {:form ~form
                       :result result#
                       :indent-level @ut/indent-level*})
-     (println "Send trace" ~form)
      (ut/print-form-with-indent (ut/form-header '~(remove-d form 'debux.dbgn/d) msg#)
                                 @ut/indent-level*)
      (ut/pprint-result-with-indent result# @ut/indent-level*)
