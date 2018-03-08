@@ -6,6 +6,7 @@
             [debux.common.util :as ut]
             [debux.macro-types :as mt]
             [debux.cs.macro-types :as cs.mt]
+            [re-frame.trace :as trace]
             #_[zprint.core :as zp]))
 
 ;;; Basic strategy for dbgn
@@ -317,6 +318,10 @@
 
          result# ~form
          result# (ut/take-n-if-seq n# result#)]
+     (ut/send-trace! {:form ~form
+                      :result result#
+                      :indent-level @ut/indent-level*})
+     (println "Send trace" ~form)
      (ut/print-form-with-indent (ut/form-header '~(remove-d form 'debux.dbgn/d) msg#)
                                 @ut/indent-level*)
      (ut/pprint-result-with-indent result# @ut/indent-level*)
@@ -365,6 +370,9 @@
      (try
        (if (or (nil? condition#) condition#)
          (let [title# (str "\ndbgn: " (ut/truncate (pr-str '~form)) " =>")]
+           (trace/merge-trace! {:tags {:f1 (pr-str '~form)
+                                       :form '~(remove-d form 'todomvc.dbgn/d)}})
+
            (println title#)
            ;(println "FORM" '~form)
            ~(-> (if (ut/include-recur? form)

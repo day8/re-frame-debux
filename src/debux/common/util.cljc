@@ -6,7 +6,14 @@
             [clojure.zip :as z]
             [clojure.walk :as walk]
             [cljs.analyzer.api :as ana]
-            [clojure.repl :as repl]))
+            [clojure.repl :as repl]
+            [re-frame.trace :as trace]))
+
+(defn send-trace! [code-trace]
+  (let [code (get-in trace/*current-trace* [:tags :code] [])]
+    ;; TODO: also capture macroexpanded form? Might be useful in some cases?
+    (trace/merge-trace!
+      {:tags {:code (conj code {:form (:form code-trace) :result (:result code-trace)})}})))
 
 ;;; For internal debugging
 (defmacro d
@@ -237,12 +244,14 @@
 ;;; spy functions
 (def spy-first
   (fn [result quoted-form]
+    (send-trace! {:form quoted-form :result result})
     (print-form-with-indent (form-header quoted-form) 1)
     (pprint-result-with-indent (take-n-if-seq 100 result) 1)
     result))
 
 (def spy-last
   (fn [quoted-form result]
+    (send-trace! {:form quoted-form :result result})
     (print-form-with-indent (form-header quoted-form) 1)
     (pprint-result-with-indent (take-n-if-seq 100 result) 1)
     result))
@@ -250,6 +259,7 @@
 (defn spy-comp [quoted-form form]
   (fn [& arg]
     (let [result (apply form arg)]
+      (send-trace! {:form quoted-form :result result})
       (print-form-with-indent (form-header quoted-form) 1)
       (pprint-result-with-indent (take-n-if-seq 100 result) 1)
       result)))
