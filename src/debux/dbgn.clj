@@ -318,7 +318,7 @@
 
          result# ~form
          result# (ut/take-n-if-seq n# result#)]
-     (ut/send-trace! {:form ~form
+     (ut/send-trace! {:form '~(remove-d form 'debux.dbgn/d)
                       :result result#
                       :indent-level @ut/indent-level*})
      (ut/print-form-with-indent (ut/form-header '~(remove-d form 'debux.dbgn/d) msg#)
@@ -369,9 +369,7 @@
      (try
        (if (or (nil? condition#) condition#)
          (let [title# (str "\ndbgn: " (ut/truncate (pr-str '~form)) " =>")]
-           (trace/merge-trace! {:tags {:f1 (pr-str '~form)
-                                       :form '~(remove-d form 'todomvc.dbgn/d)}})
-
+           (trace/merge-trace! {:tags {:form '~(remove-d form 'todomvc.dbgn/d)}})
            (println title#)
            ;(println "FORM" '~form)
            ~(-> (if (ut/include-recur? form)

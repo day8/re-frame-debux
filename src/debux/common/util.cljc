@@ -13,7 +13,7 @@
   (let [code (get-in trace/*current-trace* [:tags :code] [])]
     ;; TODO: also capture macroexpanded form? Might be useful in some cases?
     (trace/merge-trace!
-      {:tags {:code (conj code {:form (:form code-trace) :result (:result code-trace)})}})))
+      {:tags {:code (conj code {:form (:form code-trace) :result (:result code-trace) :indent-level (:indent-level code-trace)})}})))
 
 ;;; For internal debugging
 (defmacro d
@@ -155,6 +155,7 @@
 
 (defn print-form-with-indent
   [form indent-level]
+  ;; TODO: trace this information somehow
   (println (prepend-bars form indent-level))
   (flush))
 
@@ -170,7 +171,10 @@
 
 (defn pprint-result-with-indent
   [result indent-level]
-  (let [pprint (str/trim (with-out-str (pp/pprint result)))]
+  ;; TODO: trace this information somehow
+  (let [res result
+        result (with-out-str (pp/pprint res))
+        pprint (str/trim result)]
     (println (->> (str/split pprint #"\n")
                   prepend-blanks
                   (mapv #(prepend-bars % indent-level))
@@ -244,14 +248,14 @@
 ;;; spy functions
 (def spy-first
   (fn [result quoted-form]
-    (send-trace! {:form quoted-form :result result})
+    (send-trace! {:form quoted-form :result result :indent-level @indent-level*})
     (print-form-with-indent (form-header quoted-form) 1)
     (pprint-result-with-indent (take-n-if-seq 100 result) 1)
     result))
 
 (def spy-last
   (fn [quoted-form result]
-    (send-trace! {:form quoted-form :result result})
+    (send-trace! {:form quoted-form :result result :indent-level @indent-level*})
     (print-form-with-indent (form-header quoted-form) 1)
     (pprint-result-with-indent (take-n-if-seq 100 result) 1)
     result))
@@ -259,7 +263,7 @@
 (defn spy-comp [quoted-form form]
   (fn [& arg]
     (let [result (apply form arg)]
-      (send-trace! {:form quoted-form :result result})
+      (send-trace! {:form quoted-form :result result :indent-level @indent-level*})
       (print-form-with-indent (form-header quoted-form) 1)
       (pprint-result-with-indent (take-n-if-seq 100 result) 1)
       result)))

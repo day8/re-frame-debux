@@ -2,8 +2,7 @@
   #?(:cljs (:require-macros
              [debux.dbgn :as dbgn]
              [debux.cs.macro-types :as mt]))
-  (:require [debux.common.util :as ut]
-            [debux.cs.util :as cs.ut]))
+  (:require [debux.common.util :as ut]))
 
 #?(:cljs (enable-console-print!))
 
@@ -23,10 +22,6 @@
 (defmacro show-macros
   ([] `(debux.cs.macro-types/show-macros))
   ([macro-type] `(debux.cs.macro-types/show-macros ~macro-type)))
-
-
-;;; style option API
-(def merge-styles cs.ut/merge-styles)
 
 ;; TODO: trace arglists
 (defmacro defntrace
