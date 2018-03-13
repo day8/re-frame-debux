@@ -1,10 +1,19 @@
 (ns debux.core
   (:require [debux.dbgn :as dbgn]
             [debux.macro-types :as mt]
-            [debux.common.util :as ut]))
+            [debux.common.util :as ut]
+            [clojure.walk :as walk]))
 
 (def reset-indent-level! ut/reset-indent-level!)
 (def set-print-seq-length! ut/set-print-seq-length!)
+
+(def ^boolean trace-enabled? false)
+
+(defn ^boolean is-trace-enabled?
+  "See https://groups.google.com/d/msg/clojurescript/jk43kmYiMhA/IHglVr_TPdgJ for more details"
+  []
+  trace-enabled?)
+
 
 ;;; debugging APIs
 
@@ -36,22 +45,35 @@
        (dbgn/dbgn ~@form {})
        #_(trace-fn-call '~name f# args#))))
 
+(defn clean-up-macro [form]
+  (walk/postwalk (fn [x] (if (and (symbol? x) (= "clojure.core" (namespace x)))
+                           (symbol (name x))
+                           x))
+                 form))
+
+
 (defmacro fntrace
   [& definition]
   (let [args (first definition)
         form (rest definition)]
-    `(fn ~args
-       (dbgn/dbgn ~@form {}))))
+    `(if (is-trace-enabled?)
+       (fn ~args
+         (debux.dbgn/dbgn ~@form {}))
+       (fn ~@definition))))
+
+
+
+;(fntrace [x] (inc x))
 
 #_(defmacro deftrace2
     [form]
     `(dbgn/dbgn ~form {}))
 
 #_(deftrace simple-fn "" [inte missing]
-          (let [a inte]
-            (->> (inc a)
-                 inc
-                 dec)))
+            (let [a inte]
+              (->> (inc a)
+                   inc
+                   dec)))
 
 
 

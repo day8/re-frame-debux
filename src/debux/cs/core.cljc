@@ -6,6 +6,14 @@
 
 #?(:cljs (enable-console-print!))
 
+#?(:cljs (goog-define trace-enabled? false)
+   :clj  (def ^boolean trace-enabled? false))
+
+(defn ^boolean is-trace-enabled?
+  "See https://groups.google.com/d/msg/clojurescript/jk43kmYiMhA/IHglVr_TPdgJ for more details"
+  []
+  trace-enabled?)
+
 (def reset-indent-level! ut/reset-indent-level!)
 (def set-print-seq-length! ut/set-print-seq-length!)
 
@@ -34,13 +42,17 @@
         fn-form    (if (string? (first definition)) (rest definition) definition)
         form       (rest fn-form)
         arg-list   (first fn-form)]
-    `(defn ~name ~doc-string ~arg-list
-       (debux.dbgn/dbgn ~@form {})
-       #_(trace-fn-call '~name f# args#))))
+    `(if (is-trace-enabled?)
+       (defn ~name ~doc-string ~arg-list
+         (debux.dbgn/dbgn ~@form {})
+         #_(trace-fn-call '~name f# args#))
+       (defn ~name ~@definition))))
 
 (defmacro fntrace
   [& definition]
   (let [args (first definition)
         form (rest definition)]
-    `(fn ~args
-       (debux.dbgn/dbgn ~@form {}))))
+    `(if (is-trace-enabled?)
+       (fn ~args
+         (debux.dbgn/dbgn ~@form {}))
+       (fn ~@definition))))
