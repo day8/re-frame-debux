@@ -36,7 +36,7 @@
   ([macro-type] `(debux.cs.macro-types/show-macros ~macro-type)))
 
 ;; TODO: trace arglists
-(defmacro defntrace
+(defmacro defn-traced
   "Use in place of defn; traces each call/return of this fn, including
    arguments. Nested calls to deftrace'd functions will print a
    tree-like structure.
@@ -52,7 +52,7 @@
          #_(trace-fn-call '~name f# args#))
        (defn ~name ~@definition))))
 
-(defmacro fntrace
+(defmacro fn-traced
   [& definition]
   (let [args (first definition)
         form (rest definition)]
