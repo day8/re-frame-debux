@@ -45,13 +45,6 @@
        (dbgn/dbgn ~@form {})
        #_(trace-fn-call '~name f# args#))))
 
-(defn clean-up-macro [form]
-  (walk/postwalk (fn [x] (if (and (symbol? x) (= "clojure.core" (namespace x)))
-                           (symbol (name x))
-                           x))
-                 form))
-
-
 (defmacro fntrace
   [& definition]
   (let [args (first definition)
