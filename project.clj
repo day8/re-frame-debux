@@ -10,6 +10,9 @@
 
   :min-lein-version "2.6.0"
 
+  :deploy-repositories {"releases" :clojars
+                        "snapshots" :clojars}
+
   :plugins [[lein-cljsbuild "1.1.6"]
             [lein-figwheel "0.5.10"]]
 
