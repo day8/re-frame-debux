@@ -48,5 +48,7 @@
          '(fn* [%1] (inc %1))))
   (is (= (ut/tidy-macroexpanded-form '#(inc %1)
                                      {})
-         '(fn* [%1] (inc %1))))
-  )
+         '(fn* [%1] (inc %1)))))
+
+
+
