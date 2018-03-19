@@ -21,7 +21,12 @@
            ["abc#"])))
   (testing "anon param pattern"
     (is (= (vals (ut/with-gensyms-names '#(identity %1) {}))
-           ["param1#"]))))
+           ["%1"])))
+  (testing "anon param pattern"
+    (is (= (vals (ut/with-gensyms-names '#(%1 %2) {}))
+           ["%1" "%2"])))
+
+  )
 
 (deftest tidy-macroexpanded-form-test
   (is (= (ut/tidy-macroexpanded-form `(let [a# 1]
@@ -33,16 +38,15 @@
                                              b %2]
                                          (gensym "def"))
                                      {})
-         '(fn* [param1# param2#]
+         '(fn* [%1 %2]
             (let [a (gensym)
-                  b param2#]
+                  b %2]
               (gensym "def")))))
 
-  (is (= (ut/tidy-macroexpanded-form '#(let [a (gensym)
-                                             b %2]
-                                         (gensym "def"))
+  (is (= (ut/tidy-macroexpanded-form '#(inc %)
                                      {})
-         '(fn* [param1# param2#]
-            (let [a (gensym)
-                  b param2#]
-              (gensym "def"))))))
+         '(fn* [%1] (inc %1))))
+  (is (= (ut/tidy-macroexpanded-form '#(inc %1)
+                                     {})
+         '(fn* [%1] (inc %1))))
+  )

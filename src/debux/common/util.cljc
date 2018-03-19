@@ -66,7 +66,7 @@
                        (if-let [groups (re-matches named-gensym-pattern sym-name)]
                          (gen-name result (second groups))
                          (if-let [groups (re-matches anon-param-pattern sym-name)]
-                           (str "param" (second groups) "#"))))))]
+                           (str "%" (second groups)))))))]
     (reduce (fn [result sym-name]
               (if (contains? result sym-name)
                 result
