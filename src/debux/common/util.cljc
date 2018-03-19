@@ -9,11 +9,128 @@
             [clojure.repl :as repl]
             [re-frame.trace :as trace]))
 
+
+;;; zipper
+(defn sequential-zip [root]
+  (z/zipper sequential?
+            identity
+            (fn [x children]
+              (if (vector? x) (vec children) children))
+            root))
+
+(defn right-or-next [loc]
+  (if-let [right (z/right loc)]
+    ;; in case of (... (+ a b) c) or (... a b)
+    right
+    (if (sequential? (z/node loc))
+      (let [rightmost (-> loc z/down z/rightmost)]
+        (if (sequential? (z/node rightmost))
+          ;; in case of (... (+ a (* b c)))
+          (recur rightmost)
+
+          ;; in case of (... (+ a b))
+          (-> rightmost z/next)))
+
+      ;; in case of (... a)
+      (-> loc z/next))))
+
+
+;; Tidy up macroexpansions
+
+(def auto-gensym-pattern #"(.*)__\d+__auto__")              ;; form#
+(def anon-gensym-pattern #"G__\d+")                         ;;  (gensym)
+(def named-gensym-pattern #"(.*?)\d+")                      ;; (gensym 'form)
+(def anon-param-pattern #"p(\d+)__\d+#")                    ;; #(%1 %2 %3)
+
+(defn form-tree-seq [form]
+  (tree-seq
+    sequential?
+    seq
+    form))
+
+(defn with-gensyms-names
+  "Reverse gensym'd names to their original source form to make them easier to read."
+  [form mapping]
+  (let [gen-name (fn [result name]
+                   (if-not (contains? result (str name "#"))
+                     (str name "#")
+                     (->> (iterate inc 2)
+                          (map #(str name % "#"))
+                          (filter #(not (contains? result %)))
+                          (first))))
+        name-for (fn [result sym-name]
+                   (if-let [groups (re-matches auto-gensym-pattern sym-name)]
+                     (gen-name result (second groups))
+                     (if (re-matches anon-gensym-pattern sym-name)
+                       (gen-name result "gensym")
+                       (if-let [groups (re-matches named-gensym-pattern sym-name)]
+                         (gen-name result (second groups))
+                         (if-let [groups (re-matches anon-param-pattern sym-name)]
+                           (str "param" (second groups) "#"))))))]
+    (reduce (fn [result sym-name]
+              (if (contains? result sym-name)
+                result
+                (if-let [new-name (name-for result sym-name)]
+                  (assoc result sym-name new-name)
+                  result)))
+            mapping
+            (->> (form-tree-seq form)
+                 (filter #(and (symbol? %) (nil? (namespace %))))
+                 (map name)))))
+
+(defn with-symbols-names
+  "Tidy up fully qualified names that have aliases in the existing namespace."
+  ;; TODO: handle FQN's other than clojure.core
+  [form {:keys [context refers aliases] :as state} mapping]
+  (reduce (fn [result sym]
+            (if (= "clojure.core" (namespace sym))
+              (assoc result (pr-str sym) (name sym))
+              result))
+          mapping
+          (->> (form-tree-seq form)
+               ;; TODO: use qualified-symbol? once we are on Clojure 1.9
+               (filter #(and (symbol? %) (namespace %)))))
+
+  #_(reduce (fn [result sym]
+              (let [sym-ns (namespace sym)
+                    alias  (get aliases sym-ns)
+                    refers (get refers sym-ns)]
+                (cond
+                  ; Referred symbol, or from this ns
+                  (or (= :all (:refer refers))
+                      (contains? (:refer refers) (name sym))
+                      (= (context/namespace context) sym-ns))
+                  (assoc result (names/qualified-name sym) (name sym))
+                  ; Aliased symbol
+                  alias (assoc result (names/qualified-name sym) (str alias \/ (name sym)))
+                  :else result)))
+            mapping
+            (->> (visible-tree-seq form)
+                 (filter #(and (psi/symbol? %) (namespace %))))))
+
+(defn tidy-macroexpanded-form
+  "Takes a macroexpanded form and tidies it up to be more readable by
+  unmapping gensyms and replacing fully qualified namespaces with aliases
+  or nothing if the function is referred."
+  [form state]
+  ;; Mapping is a mapping of String:String which represent symbols
+  (let [mapping (->> {}
+                     (with-gensyms-names form)
+                     (with-symbols-names form state))]
+    (loop [loc (sequential-zip form)]
+      (if (z/end? loc)
+        (z/root loc)
+        (if (symbol? (z/node loc))
+          (recur (z/next (z/edit loc (fn [sym] (symbol (get mapping (pr-str sym) sym))))))
+          (recur (z/next loc)))))))
+
+;;
+
 (defn send-trace! [code-trace]
   (let [code (get-in trace/*current-trace* [:tags :code] [])]
     ;; TODO: also capture macroexpanded form? Might be useful in some cases?
     (trace/merge-trace!
-      {:tags {:code (conj code {:form (:form code-trace) :result (:result code-trace) :indent-level (:indent-level code-trace)})}})))
+      {:tags {:code (conj code {:form (tidy-macroexpanded-form (:form code-trace) {}) :result (:result code-trace) :indent-level (:indent-level code-trace)})}})))
 
 ;;; For internal debugging
 (defmacro d
@@ -66,30 +183,6 @@
 (defn replace-& [v]
   (walk/postwalk-replace {'& ''&} v))
 
-
-;;; zipper
-(defn sequential-zip [root]
-  (z/zipper sequential?
-            identity
-            (fn [x children]
-              (if (vector? x) (vec children) children))
-            root))
-
-(defn right-or-next [loc]
-  (if-let [right (z/right loc)]
-    ;; in case of (... (+ a b) c) or (... a b)
-    right
-    (if (sequential? (z/node loc))
-      (let [rightmost (-> loc z/down z/rightmost)]
-        (if (sequential? (z/node rightmost))
-          ;; in case of (... (+ a (* b c)))
-          (recur rightmost)
-
-          ;; in case of (... (+ a b))
-          (-> rightmost z/next)))
-
-      ;; in case of (... a)
-      (-> loc z/next))))
 
 
 ;;; symbol with namespace
@@ -267,91 +360,4 @@
       (print-form-with-indent (form-header quoted-form) 1)
       (pprint-result-with-indent (take-n-if-seq 100 result) 1)
       result)))
-
-(def auto-gensym-pattern #"(.*)__\d+__auto__")              ;; form#
-(def anon-gensym-pattern #"G__\d+")                         ;;  (gensym)
-(def named-gensym-pattern #"(.*?)\d+")                      ;; (gensym 'form)
-(def anon-param-pattern #"p(\d+)__\d+#")                    ;; #(%1 %2 %3)
-
-(defn form-tree-seq [form]
-  (tree-seq
-    sequential?
-    seq
-    form))
-
-(defn with-gensyms-names
-  "Reverse gensym'd names to their original source form to make them easier to read."
-  [form mapping]
-  (let [gen-name (fn [result name]
-                   (if-not (contains? result (str name "#"))
-                     (str name "#")
-                     (->> (iterate inc 2)
-                          (map #(str name % "#"))
-                          (filter #(not (contains? result %)))
-                          (first))))
-        name-for (fn [result sym-name]
-                   (if-let [groups (re-matches auto-gensym-pattern sym-name)]
-                     (gen-name result (second groups))
-                     (if (re-matches anon-gensym-pattern sym-name)
-                       (gen-name result "gensym")
-                       (if-let [groups (re-matches named-gensym-pattern sym-name)]
-                         (gen-name result (second groups))
-                         (if-let [groups (re-matches anon-param-pattern sym-name)]
-                           (str "param" (second groups) "#"))))))]
-    (reduce (fn [result sym-name]
-              (if (contains? result sym-name)
-                result
-                (if-let [new-name (name-for result sym-name)]
-                  (assoc result sym-name new-name)
-                  result)))
-            mapping
-            (->> (form-tree-seq form)
-                 (filter #(and (symbol? %) (nil? (namespace %))))
-                 (map name)))))
-
-(defn with-symbols-names
-  "Tidy up fully qualified names that have aliases in the existing namespace."
-  ;; TODO: handle FQN's other than clojure.core
-  [form {:keys [context refers aliases] :as state} mapping]
-  (reduce (fn [result sym]
-            (if (= "clojure.core" (namespace sym))
-              (assoc result (pr-str sym) (name sym))
-              result))
-          mapping
-          (->> (form-tree-seq form)
-               ;; TODO: use qualified-symbol? once we are on Clojure 1.9
-               (filter #(and (symbol? %) (namespace %)))))
-
-  #_(reduce (fn [result sym]
-            (let [sym-ns (namespace sym)
-                  alias  (get aliases sym-ns)
-                  refers (get refers sym-ns)]
-              (cond
-                ; Referred symbol, or from this ns
-                (or (= :all (:refer refers))
-                    (contains? (:refer refers) (name sym))
-                    (= (context/namespace context) sym-ns))
-                (assoc result (names/qualified-name sym) (name sym))
-                ; Aliased symbol
-                alias (assoc result (names/qualified-name sym) (str alias \/ (name sym)))
-                :else result)))
-          mapping
-          (->> (visible-tree-seq form)
-               (filter #(and (psi/symbol? %) (namespace %))))))
-
-(defn tidy-macroexpanded-form
-  "Takes a macroexpanded form and tidies it up to be more readable by
-  unmapping gensyms and replacing fully qualified namespaces with aliases
-  or nothing if the function is referred."
-  [form state]
-  ;; Mapping is a mapping of String:String which represent symbols
-  (let [mapping (->> {}
-                     (with-gensyms-names form)
-                     (with-symbols-names form state))]
-    (loop [loc (sequential-zip form)]
-      (if (z/end? loc)
-        (z/root loc)
-        (if (symbol? (z/node loc))
-          (recur (z/next (z/edit loc (fn [sym] (symbol (get mapping (pr-str sym) sym))))))
-          (recur (z/next loc)))))))
 

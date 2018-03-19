@@ -369,7 +369,8 @@
      (try
        (if (or (nil? condition#) condition#)
          (let [title# (str "\ndbgn: " (ut/truncate (pr-str '~form)) " =>")]
-           (trace/merge-trace! {:tags {:form '~(remove-d form 'todomvc.dbgn/d)}})
+           ;; Send whole form to trace point
+           (trace/merge-trace! {:tags {:form '~(-> form (remove-d 'todomvc.dbgn/d) (ut/tidy-macroexpanded-form {}))}})
            (println title#)
            ;(println "FORM" '~form)
            ~(-> (if (ut/include-recur? form)
