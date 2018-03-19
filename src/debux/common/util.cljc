@@ -126,6 +126,9 @@
 
 ;;
 
+(defn send-form! [form]
+  (trace/merge-trace! {:tags {:form form}}))
+
 (defn send-trace! [code-trace]
   (let [code (get-in trace/*current-trace* [:tags :code] [])]
     ;; TODO: also capture macroexpanded form? Might be useful in some cases?
