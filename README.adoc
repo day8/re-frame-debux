@@ -28,6 +28,15 @@ dependencies:
 [day8.re-frame/debux "0.5.0"] ;; not released yet
 ....
 
+Add
+
+[source]
+....
+:cljsbuild    {:builds {:client {:compiler {:closure-defines {"re_frame.trace.trace_enabled_QMARK_" true
+                                                              "debux.cs.core.trace_enabled_QMARK_"  true
+                                                              "day8.re_frame_10x.debug_QMARK_"      true}}}}}}
+....
+
 ## How to use
 
 re-frame-debux provides three macros for you to use to trace your re-frame event and subscription handlers:
