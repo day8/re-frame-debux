@@ -9,7 +9,6 @@
             [clojure.repl :as repl]
             [re-frame.trace :as trace]))
 
-
 ;;; zipper
 (defn sequential-zip [root]
   (z/zipper sequential?
@@ -340,18 +339,19 @@
 (defn o-skip? [sym]
   (= 'debux.common.macro-specs/o-skip sym))
 
+(declare remove-d)
 
 ;;; spy functions
 (def spy-first
   (fn [result quoted-form]
-    (send-trace! {:form quoted-form :result result :indent-level @indent-level*})
+    (send-trace! {:form (remove-d quoted-form 'dummy) :result result :indent-level @indent-level*})
     (print-form-with-indent (form-header quoted-form) 1)
     (pprint-result-with-indent (take-n-if-seq 100 result) 1)
     result))
 
 (def spy-last
   (fn [quoted-form result]
-    (send-trace! {:form quoted-form :result result :indent-level @indent-level*})
+    (send-trace! {:form (remove-d quoted-form 'dummy) :result result :indent-level @indent-level*})
     (print-form-with-indent (form-header quoted-form) 1)
     (pprint-result-with-indent (take-n-if-seq 100 result) 1)
     result))
@@ -359,8 +359,43 @@
 (defn spy-comp [quoted-form form]
   (fn [& arg]
     (let [result (apply form arg)]
-      (send-trace! {:form quoted-form :result result :indent-level @indent-level*})
+      (send-trace! {:form (remove-d quoted-form 'dummy) :result result :indent-level @indent-level*})
       (print-form-with-indent (form-header quoted-form) 1)
       (pprint-result-with-indent (take-n-if-seq 100 result) 1)
       result)))
 
+;; Remove trace info
+
+(defn debux-skip-symbol? [sym]
+  (contains? #{'debux.common.macro-specs/skip-outer
+               'debux.common.macro-specs/skip
+               'debux.common.macro-specs/o-skip}
+             sym))
+
+(defn spy-first? [sym]
+  (= 'debux.common.util/spy-first sym))
+
+(defn remove-d [form d-sym]
+  ;; TODO: should we instead look to rewrite the quoted/spied forms
+  ;; at macro compile time, rather than filtering them out
+  ;; when the trace is being emitted?
+  (loop [loc (sequential-zip form)]
+    (let [node (z/node loc)]
+      ;(ut/d node)
+      (cond
+        (z/end? loc) (z/root loc)
+
+        ;; in case of (d ...)
+        (and (seq? node)
+             (or (= d-sym (first node))
+                 (debux-skip-symbol? (first node))
+                 (spy-first? (first node))))
+        (recur (z/replace loc (second node)))
+
+        ;; in case of spy-last
+        (and (seq? node)
+             (= `spy-last (first node)))
+        (recur (z/replace loc (last node)))
+
+        :else
+        (recur (z/next loc))))))

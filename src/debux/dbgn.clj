@@ -3,7 +3,7 @@
             [cljs.analyzer :as analyzer]
             [debux.common.macro-specs :as ms]
             [debux.common.skip :as sk]
-            [debux.common.util :as ut]
+            [debux.common.util :as ut :refer [remove-d]]
             [debux.macro-types :as mt]
             [debux.cs.macro-types :as cs.mt]
             [re-frame.trace :as trace]
@@ -298,41 +298,6 @@
                'debux.common.util/spy-first
                'debux.common.util/spy-comp}
              sym))
-
-(defn debux-skip-symbol? [sym]
-  (contains? #{'debux.common.macro-specs/skip-outer
-               'debux.common.macro-specs/skip
-               'debux.common.macro-specs/o-skip}
-             sym))
-
-(defn spy-first? [sym]
-  (= 'debux.common.util/spy-first sym))
-
-(defn remove-d [form d-sym]
-  ;; TODO: should we instead look to rewrite the quoted/spied forms
-  ;; at macro compile time, rather than filtering them out
-  ;; when the trace is being emitted?
-  (loop [loc (ut/sequential-zip form)]
-    (let [node (z/node loc)]
-      ;(ut/d node)
-      (cond
-        (z/end? loc) (z/root loc)
-
-        ;; in case of (d ...)
-        (and (seq? node)
-             (or (= d-sym (first node))
-                 (debux-skip-symbol? (first node))
-                 (spy-first? (first node))))
-        (recur (z/replace loc (second node)))
-
-        ;; in case of spy-last
-        (and (seq? node)
-             (= `ut/spy-last (first node)))
-        (recur (z/replace loc (last node)))
-
-        :else
-        (recur (z/next loc))))))
-
 
 (defmacro d [form]
   `(let [opts#   ~'+debux-dbg-opts+

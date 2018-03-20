@@ -43,9 +43,6 @@
                              vec)]
                  (assoc res 1 -1)))
          [1 -1 33 4 55]))
-  (println "PPRINT")
-  (zprint.core/czprint (map :form @traces))
-  (println "PPRINT END")
   (is (= (debux-left-behind (map :form @traces))
          #{}))
   (is (= (into #{}
@@ -54,24 +51,43 @@
                  (filter symbol?)
                  (filter dbgn/debux-form?))
                @form)
+         #{})))
+
+(deftest tricky-dbgn-test2
+  (is (= (dbgn (-> [1 2 3 4 5]
+                   (->> identity)))
+         [1 2 3 4 5]))
+  (is (= (debux-left-behind (map :form @traces))
          #{}))
-  )
+  (is (= (into #{}
+               (comp
+                 (mapcat ut/form-tree-seq)
+                 (filter symbol?)
+                 (filter dbgn/debux-form?))
+               @form)
+         #{})))
 
 (deftest remove-d-test
   (is (= (debux-left-behind
-           [(dbgn/remove-d '(debux.common.util/spy-first [1 2 3 4 5] (quote [1 2 3 4 5])) 'dbgn/d)])
+           [(ut/remove-d '(debux.common.util/spy-first [1 2 3 4 5] (quote [1 2 3 4 5])) 'dbgn/d)])
          #{}))
 
   (is (= (debux-left-behind
-           [(dbgn/remove-d '(debux.common.macro-specs/skip-outer (quote [1 2 3 4 5])) 'dbgn/d)])
+           [(ut/remove-d '(debux.common.macro-specs/skip-outer (quote [1 2 3 4 5])) 'dbgn/d)])
          #{}))
 
   (is (= (debux-left-behind
-           [(dbgn/remove-d '(map (fn [val]
+           [(ut/remove-d '(map (fn [val]
                                    (let [pred__# =
                                          expr__# val]
                                      (if (pred__# 3 expr__#)
                                        33
                                        (if (pred__# 100 expr__#) 100 (if (pred__# 5 expr__#) 55 val)))))
                                  (debux.common.util/spy-first [1 2 3 4 5] (quote [1 2 3 4 5]))) 'dbgn/d)])
+         #{}))
+
+  (is (= (debux-left-behind
+           [(ut/remove-d '(debux.common.macro-specs/skip-outer
+                              (debux.common.util/spy-first (debux.common.macro-specs/skip-outer [1 2 3 4 5])
+                                                           (quote [1 2 3 4 5]))) 'dbgn/d)])
          #{})))
