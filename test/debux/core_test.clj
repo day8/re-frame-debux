@@ -6,8 +6,6 @@
             [debux.common.util :as ut]
             [zprint.core]))
 
-(alter-var-root #'re-frame.trace/trace-enabled? (constantly true))
-
 (def traces (atom []))
 (def form (atom nil))
 
