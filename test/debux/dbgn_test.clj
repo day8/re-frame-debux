@@ -32,6 +32,34 @@ dbgn: (-> {} (assoc :a 1) (get :a (identity :missing))) =>
   (is (= ->-test-output-2
          (with-out-str (dbgn (-> {} (assoc :a 1) (get :a (identity :missing))))))))
 
+(deftest cond->>-test
+  (is (= (with-out-str (dbgn (cond->> 1 true inc false (+ 2) (= 2 2) (* 45) :always (+ 6))))
+         "\ndbgn: (cond->> 1 true inc false (+ 2) (= 2 2) (* 45) :always (+ 6)) =>\n| 1 =>\n|   1\n| true =>\n|   true\n| inc =>\n|   2\n| false =>\n|   false\n| (= 2 2) =>\n|   true\n| (* 45) =>\n|   90\n| :always =>\n|   :always\n| (+ 6) =>\n|   96\n")))
+
+(deftest condp-test
+  (is (= (dbgn (condp some [1 2 3 4]
+                 #{0 6 7} :>> inc
+                 #{4 5 9} :>> dec
+                 #{1 2 3} :>> #(+ % 3)))
+         3))
+  (is (= (dbgn (condp = 3
+                 1 "one"
+                 2 "two"
+                 3 "three"
+                 (str "unexpected value, \"" 3 \")))
+         "three"))
+  (is (= (dbgn (condp = 4
+                 1 "one"
+                 2 "two"
+                 3 "three"
+                 (str "unexpected value, \"" 4 \")))
+         "unexpected value, \"4\""))
+  (is (= (dbgn (condp = 3
+                 1 "one"
+                 2 "two"
+                 3 "three"))
+         "three")))
+
 #_(deftest thread-first-test
     (is
       (= (macroexpand-1 '(dbgn/mini-dbgn
@@ -93,3 +121,7 @@ dbgn: (-> {} (assoc :a 1) (get :a (identity :missing))) =>
                   frequencies)
                 {})))))
     )
+
+
+(deftest cond->-test
+  )

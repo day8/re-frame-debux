@@ -21,6 +21,9 @@
          :thread-last-type `#{->>}
          :some-first-type `#{some->}
          :some-last-type `#{some->>}
+         :cond-first-type `#{cond->}
+         :cond-last-type `#{cond->>}
+         :condp-type `#{condp}
 
          :skip-arg-1-type `#{set! with-precision}
          :skip-arg-2-type `#{as->}

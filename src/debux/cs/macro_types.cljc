@@ -21,6 +21,9 @@
          :thread-last-type `#{cljs.core/->>}
          :some-first-type `#{cljs.core/some->}
          :some-last-type `#{cljs.core/some->>}
+         :cond-first-type `#{cljs.core/cond->}
+         :cond-last-type `#{cljs.core/cond->>}
+         :condp-type `#{cljs.core/condp}
 
          :skip-arg-1-type '#{set!}
          :skip-arg-2-type '#{cljs.core/as->}

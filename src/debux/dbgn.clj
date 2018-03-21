@@ -157,6 +157,25 @@
                                       (analyzer/macroexpand-1 {} new-node)
                                       (macroexpand-1 new-node)))))
 
+            ((:cond-first-type (macro-types env)) sym)
+            (let [new-node (sk/skip-cond-> node)]
+              (recur (z/replace loc (if (ut/cljs-env? env)
+                                      (analyzer/macroexpand-1 {} new-node)
+                                      (macroexpand-1 new-node)))))
+
+
+            ((:cond-last-type (macro-types env)) sym)
+            (let [new-node (sk/skip-cond->> node)]
+              (recur (z/replace loc (if (ut/cljs-env? env)
+                                      (analyzer/macroexpand-1 {} new-node)
+                                      (macroexpand-1 new-node)))))
+
+            ((:condp-type (macro-types env)) sym)
+            (let [new-node (sk/skip-condp node)]
+              (recur (z/replace loc (if (ut/cljs-env? env)
+                                      (analyzer/macroexpand-1 {} new-node)
+                                      (macroexpand-1 new-node)))))
+
             ; TODO: add comment about this one being different
             ((:expand-type (macro-types env)) sym)
             ;; Why do we add a seq call here?
