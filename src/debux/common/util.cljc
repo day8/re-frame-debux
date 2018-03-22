@@ -375,6 +375,9 @@
 (defn spy-first? [sym]
   (= 'debux.common.util/spy-first sym))
 
+(defn third [coll]
+  (first (next (next coll))))
+
 (defn remove-d [form d-sym]
   ;; TODO: should we instead look to rewrite the quoted/spied forms
   ;; at macro compile time, rather than filtering them out
@@ -390,7 +393,9 @@
              (or (= d-sym (first node))
                  (debux-skip-symbol? (first node))
                  (spy-first? (first node))))
-        (recur (z/replace loc (second node)))
+        ;; We take the third node, because the first two are
+        ;; (d <indent-level> ...)
+        (recur (z/replace loc (third node)))
 
         ;; in case of spy-last
         (and (seq? node)

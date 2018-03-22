@@ -193,14 +193,60 @@
 
         :else (recur (z/next loc))))))
 
+(defn debux-form? [sym]
+  (contains? #{'debux.common.macro-specs/skip-outer
+               'debux.common.macro-specs/skip
+               'debux.common.macro-specs/o-skip
+               'debux.common.util/spy-last
+               'debux.common.util/spy-first
+               'debux.common.util/spy-comp}
+             sym))
+
+(defn depth
+  "Calculate how far we are inside the zipper, by ascending straight up
+  until we can't get any higher."
+  ;;  There is probably a smarter way to do
+  ;; this than checking for nil, but I'm not sure what it is.
+  [loc]
+  (loop [loc loc
+         depth -1]
+    (if (nil? loc)
+      depth
+      (recur (z/up loc)
+             (inc depth)))))
+
+(defn debux-symbol? [sym]
+  (contains? #{'debux.dbgn/d
+               'ut/spy-first
+               'ut/spy-last
+               'ut/spy-comp}
+             sym))
+
+(defn real-depth
+  "Calculate how far we are inside the zipper, ignoring synthetic debux forms,
+   by ascending straight up until we can't get any higher."
+  ;;  There is probably a smarter way to do
+  ;; this than checking for nil, but I'm not sure what it is.
+  [loc]
+  (loop [loc   loc
+         depth -1]
+    (if (nil? loc)
+      depth
+      (let [node (z/node loc)]
+        (recur (z/up loc)
+               (if (and (sequential? node)
+                        (debux-symbol? (first node)))
+                 depth
+                 (inc depth)))))))
 
 ;;; insert/remove d
 (defn insert-d [form d-sym env]
 
   ;(println "INSERT-D" form d-sym env)
-  (loop [loc (ut/sequential-zip form)]
-    (let [node (z/node loc)]
-      ;(ut/d node)
+  (loop [loc (ut/sequential-zip form)
+         indent 0]
+    (let [node (z/node loc)
+          indent (real-depth loc)]
       (cond
         (z/end? loc) (z/root loc)
 
@@ -215,7 +261,7 @@
 
         ;; in case of (skip ...)
         (and (seq? node) (= `ms/skip (first node)))
-        (recur (ut/right-or-next loc))
+        (recur (ut/right-or-next loc) indent)
 
         ;; in case of (o-skip ...)
         (and (seq? node)
@@ -223,11 +269,11 @@
         (cond
           ;; <ex> (o-skip [(skip a) ...])
           (vector? (second node))
-          (recur (-> loc z/down z/next z/down))
+          (recur (-> loc z/down z/next z/down) indent)
 
           ;; <ex> (o-skip (recur ...))
           :else
-          (recur (-> loc z/down z/next z/down ut/right-or-next)))
+          (recur (-> loc z/down z/next z/down ut/right-or-next) indent))
 
         ;; TODO: handle lists that are just lists, not function calls
 
@@ -241,16 +287,16 @@
             (and (seq? inner-node)
                  (= `ms/skip (first inner-node)))
             ;; Recur once and let skip handle case
-            (recur inner-loc)
+            (recur inner-loc indent)
 
             (seq? inner-node)
-            (recur (-> inner-loc z/down ut/right-or-next))
+            (recur (-> inner-loc z/down ut/right-or-next) indent)
 
             (vector? inner-node)
-            (recur (-> inner-loc z/down))
+            (recur (-> inner-loc z/down) indent)
 
             :else
-            (recur (-> inner-loc ut/right-or-next))
+            (recur (-> inner-loc ut/right-or-next) indent)
 
 
             ;true (throw (ex-info "Pause" {}))
@@ -265,7 +311,7 @@
         (and (seq? node)
              (symbol? (first node))
              (`#{defn defn-} (ut/ns-symbol (first node) env)))
-        (recur (-> loc z/down z/next))
+        (recur (-> loc z/down z/next) indent)
 
         ;;; in case the first symbol is ut/spy-first
         ;(and (seq? node)
@@ -287,49 +333,46 @@
 
         ;; DC: why not def? where is that handled?
         (and (seq? node) (ifn? (first node)))
-        (recur (-> (z/replace loc (concat [d-sym] [node]))
-                   z/down z/right z/down ut/right-or-next))
+        (recur (-> (z/replace loc (concat [d-sym indent] [node]))
+                   z/down z/right z/right z/down ut/right-or-next)
+               (inc indent))
 
         ;; |[1 2 (+ 3 4)]
         ;; |(d [1 2 (+ 3 4)])
 
 
         (vector? node)
-        (recur (-> (z/replace loc (concat [d-sym] [node]))
-                   z/down z/right z/down))
+        (recur (-> (z/replace loc (concat [d-sym indent] [node]))
+                   z/down z/right z/right z/down)
+               indent)
 
 
         ;; DC: We might also want to trace inside maps, especially for fx
         ;; in case of symbol, map, or set
         (or (symbol? node) (map? node) (set? node))
-        (recur (-> (z/replace loc (concat [d-sym] [node]))
-                   ut/right-or-next))
+        (recur (-> (z/replace loc (concat [d-sym indent] [node]))
+                   z/right ut/right-or-next)
+               indent)
 
         :else
-        (recur (z/next loc))))))
+        (recur (z/next loc) indent)))))
 
-(defn debux-form? [sym]
-  (contains? #{'debux.common.macro-specs/skip-outer
-               'debux.common.macro-specs/skip
-               'debux.common.macro-specs/o-skip
-               'debux.common.util/spy-last
-               'debux.common.util/spy-first
-               'debux.common.util/spy-comp}
-             sym))
 
-(defmacro d [form]
+
+(defmacro d [indent form]
   `(let [opts#   ~'+debux-dbg-opts+
       #_ #_    msg#    (:msg opts#)
       #_ #_    n#      (or (:n opts#) @ut/print-seq-length*)
 
          result# ~form
        #_ #_   result# (ut/take-n-if-seq n# result#)]
+     ;(println "LEVEL" ~indent)
      (ut/send-trace! {:form '~(remove-d form 'debux.dbgn/d)
                       :result result#
-                      :indent-level @ut/indent-level*})
-    #_  (ut/print-form-with-indent (ut/form-header '~(remove-d form 'debux.dbgn/d) msg#)
-                                @ut/indent-level*)
-   #_  (ut/pprint-result-with-indent result# @ut/indent-level*)
+                      :indent-level ~indent})
+     #_(ut/print-form-with-indent (ut/form-header '~(remove-d form 'debux.dbgn/d) msg#)
+                                ~(inc (inc indent)))
+     #_(ut/pprint-result-with-indent result# ~(inc (inc indent)))
      result#))
 
 (defn spy [x]
