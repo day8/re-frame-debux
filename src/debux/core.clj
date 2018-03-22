@@ -32,34 +32,7 @@
   ([] `(mt/show-macros))
   ([macro-type] `(mt/show-macros ~macro-type)))
 
-;; TODO: trace arglists
-;; Components of a defn
-;; name
-;; docstring?
-;; meta?
-;; bs (1-n)
-;; body
-;; prepost
-
-(defmacro defn-traced
-  "Use in place of defn; traces each call/return of this fn, including
-   arguments. Nested calls to deftrace'd functions will print a
-   tree-like structure.
-   The first argument of the form definition can be a doc string"
-  [name & definition]
-  (let [doc-string (if (string? (first definition)) (first definition) "")
-        fn-form    (if (string? (first definition)) (rest definition) definition)
-        form       (rest fn-form)
-        arg-list   (first fn-form)]
-    `(defn ~name ~doc-string ~arg-list
-       (dbgn/dbgn ~@form {})
-       #_(trace-fn-call '~name f# args#))))
-
-;; Components of a fn
-;; name?
-;; bs (1-n)
-;; body
-;; prepost?
+;; defn-traced and fn-traced macros
 
 (defn fn-body [args+body]
   (if (= :body (nth (:body args+body) 0))
@@ -70,7 +43,44 @@
        ~(:prepost (nth (:body args+body) 1))
        ~@(map (fn [body] `(dbgn ~body)) (:body (nth (:body args+body) 1))))))
 
+;; Components of a defn
+;; name
+;; docstring?
+;; meta?
+;; bs (1-n)
+;; body
+;; prepost?
+
+(defmacro defn-traced*
+  [& definition]
+  (let [conformed (s/conform ::ms/defn-args definition)
+        name (:name conformed)
+        bs (:bs conformed)
+        arity-1?  (= (nth bs 0) :arity-1)
+        args+body (nth bs 1)]
+    (if arity-1?
+      `(defn ~name ~@(fn-body args+body))
+      `(defn ~name ~@(map fn-body (:bodies args+body))))))
+
+(defmacro defn-traced
+  "Traced defn"
+  {:arglists '([name doc-string? attr-map? [params*] prepost-map? body]
+                [name doc-string? attr-map? ([params*] prepost-map? body) + attr-map?])}
+  [& definition]
+  `(if (is-trace-enabled?)
+     (defn-traced* ~@definition)
+     (defn ~@definition)))
+
+
+
+;; Components of a fn
+;; name?
+;; bs (1-n)
+;; body
+;; prepost?
+
 (defmacro fn-traced*
+  "Traced form of fn. Prefer fn-traced to compile out under advanced optimizations."
   [& definition]
   (let [conformed (s/conform ::ms/fn-args definition)
         name      (:name conformed)
@@ -87,30 +97,12 @@
            ~@(map fn-body bodies))))))
 
 (defmacro fn-traced
+  "Defines a traced fn"
+  {:arglists '[(fn name? [params*] exprs*) (fn name? ([params*] exprs*) +)]}
   [& definition]
   `(if (is-trace-enabled?)
      (fn-traced* ~@definition)
      (fn ~@definition)))
-
-
-#_(defmacro deftrace2
-    [form]
-    `(dbgn/dbgn ~form {}))
-
-#_(deftrace simple-fn "" [inte missing]
-            (let [a inte]
-              (->> (inc a)
-                   inc
-                   dec)))
-
-
-
-#_(defn simple-fn1 ""
-    []
-    (dbgn/dbgn
-      (->> (inc 2)
-           inc
-           dec)))
 
 ;
 ;(dbg (-> {:a 1}
