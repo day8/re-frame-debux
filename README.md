@@ -2,17 +2,17 @@
 
 ## Credit
 
-[debux](https://github.com/philoskim/debux) is a useful and novel library for debugging Clojure and ClojureScript.
+[debux](https://github.com/philoskim/debux) is a useful and novel library for tracing Clojure and ClojureScript code, form by form.
 
-This library, **re-frame-debux**, is a fork of **debux**, that repurposes it for tracing, form-by-form the ClojureScipt code in re-frame event handlers, for later inspection within [re-frame-10x](https://github.com/Day8/re-frame-10x). 
+This library, **re-frame-debux**, is a fork of **debux**, that repurposes it for tracing the ClojureScipt code in re-frame event handlers, for later inspection within [re-frame-10x](https://github.com/Day8/re-frame-10x). 
 
-This fork contains a few substantial extension/modifications to debux and, longer term, we would like to investigate merging them back into mainline Debux, but the changes we needed to make required quite deep surgery, so in the interests of time, and getting a proof of concept out the door, we started off with a fork.
+This fork contains a few substantial extension/modifications to debux and, longer term, we would like to investigate merging them back into mainline debux, but the changes we needed to make required quite deep surgery, so in the interests of time, and getting a proof of concept out the door, we started off with a fork.
 
 ## Status
 
-Already useful!! But this library is still a work in progress and there'll likely be little annoyances and bugs, perhaps even big ones.
+Already useful!! But it is still a work in progress and there'll likely be little annoyances and bugs, perhaps even big ones.
 
-If you run into any issues, please open an issue and we can try and help.
+As always, if you run into any issues, please open an issue and we can try and help. We are also looking for colaborators on this interesting project. There's so much potential. 
 
 ## Prerequisites
 
@@ -28,16 +28,16 @@ If you run into any issues, please open an issue and we can try and help.
 * `defn-traced`  (use instead of `defn`)
 
 Use them like this when registering event handlers:
-```
+```clj
 (re-frame.core/reg-event-db 
   :some-id 
-  (fn-traced [db event]
+  (fn-traced [db event]     ;; <--- use `fn-traced` instead of `fn`
      ... handler code in here to be trace))
 ```
 
 or:
-```
-(def-traced my-handler
+```clj
+(re-frame.core/def-traced my-handler   ;; <--- use `defn-traced` instead of `defn`
   [coeffect event] 
   .... code in here to be traced)
 
@@ -52,11 +52,11 @@ or:
 
 **In production,** you want to include the `day8.re-frame/tracing` library. This has the same public API as debux (`day8.re-frame.tracing/fn-traced`, `day8.re-frame.tracing/traced-defn`), but the macros simply delegate to the core `fn` and `defn` macros.
 
-With this setup, your use of both macros have zero runtime and compile time cost in production builds, and are able to be turned off at dev time too via the Closure define.  This ensures that you can leave your code instrumented at all times, but not pay any costs in production.
+With this setup, your use of both macros will have zero runtime and compile time cost in production builds, and are able to be turned off at dev time too via the Closure define.  This ensures that you can leave your code instrumented at all times, but not pay any costs in production.
 
 ## Installation
 
-**First, please be sure to read the "Two libraries" section immediately above.**
+**First, please be sure to read the "Two libraries" section immediately above for background.**
 
 To include *re-frame-debux* in your project, simply add the following to your *project.clj* development dependencies:
 
