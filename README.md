@@ -56,6 +56,6 @@ In production, you want to include the `day8.re-frame/tracing` library. This has
 This ensures that you can keep your code instrumented at all times, but not pay any costs in production.
 
 ## License
-Copyright © 2015--2018 Young Tae Kim, 2018 Day8 Technologies
+Copyright © 2015--2018 Young Tae Kim, 2018 Day 8 Technology
 
 Distributed under the Eclipse Public License either version 1.0 or any later version.
