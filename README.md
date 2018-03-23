@@ -40,18 +40,18 @@ Add Closure defines to your config to enable re-frame tracing + the function tra
 
 re-frame-debux provides two macros for you to use to trace your re-frame event and subscription handlers:
 
-* `traced-fn`
+* `fn-traced`
 * `traced-defn`
 
-traced-fn and traced-defn replace fn and defn respectively.
+fn-traced and traced-defn replace fn and defn respectively.
 
-Both have zero runtime and compile time cost in production builds via the `day8.re-frame/tracing` library, and are able to be turned off at dev time too via the Closure define, so you can leave the `traced-fn` and `traced-defn` macros in your code at all times.
+Both have zero runtime and compile time cost in production builds via the `day8.re-frame/tracing` library, and are able to be turned off at dev time too via the Closure define, so you can leave the `fn-traced` and `traced-defn` macros in your code at all times.
 
 ## Two libraries
 
-In development, you want to include the `day8.re-frame/debux` library. When you use a `day8.re-frame.tracing/traced-fn` or `day8.re-frame.tracing/traced-defn` from this library, it will emit traces to re-frame's tracing system, which can then be consumed by [re-frame-10x](https://github.com/Day8/re-frame-10x).
+In development, you want to include the `day8.re-frame/debux` library. When you use a `day8.re-frame.tracing/fn-traced` or `day8.re-frame.tracing/traced-defn` from this library, it will emit traces to re-frame's tracing system, which can then be consumed by [re-frame-10x](https://github.com/Day8/re-frame-10x).
 
-In production, you want to include the `day8.re-frame/tracing` library. This has the same public API as debux (`day8.re-frame.tracing/traced-fn`, `day8.re-frame.tracing/traced-defn`), but the macros simply delegate to the core `fn` and `defn` macros.
+In production, you want to include the `day8.re-frame/tracing` library. This has the same public API as debux (`day8.re-frame.tracing/fn-traced`, `day8.re-frame.tracing/traced-defn`), but the macros simply delegate to the core `fn` and `defn` macros.
 
 This ensures that you can keep your code instrumented at all times, but not pay any costs in production.
 
