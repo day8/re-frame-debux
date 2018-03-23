@@ -6,8 +6,7 @@
             [debux.common.util :as ut :refer [remove-d]]
             [debux.macro-types :as mt]
             [debux.cs.macro-types :as cs.mt]
-            [re-frame.trace :as trace]
-            #_[zprint.core :as zp]))
+            [re-frame.trace :as trace]))
 
 ;;; Basic strategy for dbgn
 
@@ -320,17 +319,17 @@
 
 (defmacro d [form]
   `(let [opts#   ~'+debux-dbg-opts+
-         msg#    (:msg opts#)
-         n#      (or (:n opts#) @ut/print-seq-length*)
+      #_ #_    msg#    (:msg opts#)
+      #_ #_    n#      (or (:n opts#) @ut/print-seq-length*)
 
          result# ~form
-         result# (ut/take-n-if-seq n# result#)]
+       #_ #_   result# (ut/take-n-if-seq n# result#)]
      (ut/send-trace! {:form '~(remove-d form 'debux.dbgn/d)
                       :result result#
                       :indent-level @ut/indent-level*})
-     (ut/print-form-with-indent (ut/form-header '~(remove-d form 'debux.dbgn/d) msg#)
+    #_  (ut/print-form-with-indent (ut/form-header '~(remove-d form 'debux.dbgn/d) msg#)
                                 @ut/indent-level*)
-     (ut/pprint-result-with-indent result# @ut/indent-level*)
+   #_  (ut/pprint-result-with-indent result# @ut/indent-level*)
      result#))
 
 
@@ -375,10 +374,10 @@
          condition# ~condition]
      (try
        (if (or (nil? condition#) condition#)
-         (let [title# (str "\ndbgn: " (ut/truncate (pr-str '~form)) " =>")]
+         (let [title# nil #_ (str "\ndbgn: " (ut/truncate (pr-str '~form)) " =>")]
            ;; Send whole form to trace point
            (ut/send-form! '~(-> form (remove-d 'todomvc.dbgn/d) (ut/tidy-macroexpanded-form {})))
-           (println title#)
+           #_(println title#)
            ;(println "FORM" '~form)
            ~(-> (if (ut/include-recur? form)
                   (sk/insert-o-skip-for-recur form &env)
