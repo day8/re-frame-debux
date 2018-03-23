@@ -332,6 +332,9 @@
    #_  (ut/pprint-result-with-indent result# @ut/indent-level*)
      result#))
 
+(defn spy [x]
+  ;(zprint.core/czprint x)
+  x)
 
 ;;; remove skip
 (defn remove-skip [form]
@@ -390,10 +393,6 @@
                  :default
                  Exception)
               ~'e (throw ~'e)))))
-
-(defn spy [x]
-  ;(zp/czprint x)
-  x)
 
 (defmacro mini-dbgn
   "DeBuG every Nested forms of a form.s"

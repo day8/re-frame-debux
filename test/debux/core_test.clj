@@ -196,3 +196,16 @@
                               (debux.common.util/spy-first (debux.common.macro-specs/skip-outer [1 2 3 4 5])
                                                            (quote [1 2 3 4 5]))) 'dbgn/d)])
          #{})))
+
+#_(deftest remove-skip-test
+  (is (= (debux-left-behind
+           [(dbgn/remove-skip
+              '(debux.common.util/spy-first (debux.common.macro-specs/skip (debux.common.macro-specs/skip-outer (debux.common.util/spy-first (debux.common.macro-specs/skip-outer 5) (quote 5)))) (debux.common.macro-specs/skip (quote (debux.common.macro-specs/skip-outer (debux.common.util/spy-first (debux.common.macro-specs/skip-outer 5) (quote 5)))))))])
+         #{})))
+
+#_(deftest cond->test
+  (is (= (debux.dbgn/dbgn
+           (-> 5
+               (cond-> false
+                       true)))
+         5)))
