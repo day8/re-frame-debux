@@ -2,7 +2,7 @@
 
 ## Credit
 
-[Debux](https://github.com/philoskim/debux) is a simple but useful library for debugging Clojure and ClojureScript. *re-frame-debux* is a fork of Debux, that repurposes it for tracing re-frame event and subscription handlers, and integration with link:https://github.com/Day8/re-frame-10x[re-frame-10x] and re-frame's tracing API.
+[Debux](https://github.com/philoskim/debux) is a simple but useful library for debugging Clojure and ClojureScript. *re-frame-debux* is a fork of Debux, that repurposes it for tracing re-frame event and subscription handlers, and integration with [re-frame-10x](https://github.com/Day8/re-frame-10x) and re-frame's tracing API.
 
 Longer term, we would like to investigate merging back into mainline Debux, but the changes we needed to make required quite deep surgery, so in the interests of time, we started off with this fork.
 
