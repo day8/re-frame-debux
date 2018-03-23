@@ -37,7 +37,7 @@ Use them like this when registering event handlers:
 
 or:
 ```clj
-(day8.re-frame.tracing/def-traced my-handler   ;; <--- use `defn-traced` instead of `defn`
+(day8.re-frame.tracing/defn-traced my-handler   ;; <--- use `defn-traced` instead of `defn`
   [coeffect event] 
   .... code in here to be traced)
 
