@@ -52,80 +52,6 @@
             [1 2 3 4 5]
             [1 2 3 4 5]
             (map (fn [val] (condp = val 3 33 100 100 5 55 val)))
-            =
-            val
-            3
-            100
-            5
-            val
-            (if (pred__# 5 expr__#) 55 val)
-            (if (pred__# 100 expr__#) 100 (if (pred__# 5 expr__#) 55 val))
-            (if (pred__# 3 expr__#)
-              33
-              (if (pred__# 100 expr__#) 100 (if (pred__# 5 expr__#) 55 val)))
-            (let [pred__# =
-                  expr__# val]
-              (if (pred__# 3 expr__#)
-                33
-                (if (pred__# 100 expr__#) 100 (if (pred__# 5 expr__#) 55 val))))
-            =
-            val
-            3
-            100
-            5
-            val
-            (if (pred__# 5 expr__#) 55 val)
-            (if (pred__# 100 expr__#) 100 (if (pred__# 5 expr__#) 55 val))
-            (if (pred__# 3 expr__#)
-              33
-              (if (pred__# 100 expr__#) 100 (if (pred__# 5 expr__#) 55 val)))
-            (let [pred__# =
-                  expr__# val]
-              (if (pred__# 3 expr__#)
-                33
-                (if (pred__# 100 expr__#) 100 (if (pred__# 5 expr__#) 55 val))))
-            =
-            val
-            3
-            (if (pred__# 3 expr__#)
-              33
-              (if (pred__# 100 expr__#) 100 (if (pred__# 5 expr__#) 55 val)))
-            (let [pred__# =
-                  expr__# val]
-              (if (pred__# 3 expr__#)
-                33
-                (if (pred__# 100 expr__#) 100 (if (pred__# 5 expr__#) 55 val))))
-            =
-            val
-            3
-            100
-            5
-            val
-            (if (pred__# 5 expr__#) 55 val)
-            (if (pred__# 100 expr__#) 100 (if (pred__# 5 expr__#) 55 val))
-            (if (pred__# 3 expr__#)
-              33
-              (if (pred__# 100 expr__#) 100 (if (pred__# 5 expr__#) 55 val)))
-            (let [pred__# =
-                  expr__# val]
-              (if (pred__# 3 expr__#)
-                33
-                (if (pred__# 100 expr__#) 100 (if (pred__# 5 expr__#) 55 val))))
-            =
-            val
-            3
-            100
-            5
-            (if (pred__# 5 expr__#) 55 val)
-            (if (pred__# 100 expr__#) 100 (if (pred__# 5 expr__#) 55 val))
-            (if (pred__# 3 expr__#)
-              33
-              (if (pred__# 100 expr__#) 100 (if (pred__# 5 expr__#) 55 val)))
-            (let [pred__# =
-                  expr__# val]
-              (if (pred__# 3 expr__#)
-                33
-                (if (pred__# 100 expr__#) 100 (if (pred__# 5 expr__#) 55 val))))
             (map (fn [val]
                    (let [pred__# =
                          expr__# val]
@@ -134,6 +60,80 @@
                        (if (pred__# 100 expr__#) 100 (if (pred__# 5 expr__#) 55 val)))))
                  [1 2 3 4 5])
             (->> (map (fn [val] (condp = val 3 33 100 100 5 55 val))))
+            =
+            val
+            3
+            100
+            5
+            val
+            (if (pred__# 5 expr__#) 55 val)
+            (if (pred__# 100 expr__#) 100 (if (pred__# 5 expr__#) 55 val))
+            (if (pred__# 3 expr__#)
+              33
+              (if (pred__# 100 expr__#) 100 (if (pred__# 5 expr__#) 55 val)))
+            (let [pred__# =
+                  expr__# val]
+              (if (pred__# 3 expr__#)
+                33
+                (if (pred__# 100 expr__#) 100 (if (pred__# 5 expr__#) 55 val))))
+            =
+            val
+            3
+            100
+            5
+            val
+            (if (pred__# 5 expr__#) 55 val)
+            (if (pred__# 100 expr__#) 100 (if (pred__# 5 expr__#) 55 val))
+            (if (pred__# 3 expr__#)
+              33
+              (if (pred__# 100 expr__#) 100 (if (pred__# 5 expr__#) 55 val)))
+            (let [pred__# =
+                  expr__# val]
+              (if (pred__# 3 expr__#)
+                33
+                (if (pred__# 100 expr__#) 100 (if (pred__# 5 expr__#) 55 val))))
+            =
+            val
+            3
+            (if (pred__# 3 expr__#)
+              33
+              (if (pred__# 100 expr__#) 100 (if (pred__# 5 expr__#) 55 val)))
+            (let [pred__# =
+                  expr__# val]
+              (if (pred__# 3 expr__#)
+                33
+                (if (pred__# 100 expr__#) 100 (if (pred__# 5 expr__#) 55 val))))
+            =
+            val
+            3
+            100
+            5
+            val
+            (if (pred__# 5 expr__#) 55 val)
+            (if (pred__# 100 expr__#) 100 (if (pred__# 5 expr__#) 55 val))
+            (if (pred__# 3 expr__#)
+              33
+              (if (pred__# 100 expr__#) 100 (if (pred__# 5 expr__#) 55 val)))
+            (let [pred__# =
+                  expr__# val]
+              (if (pred__# 3 expr__#)
+                33
+                (if (pred__# 100 expr__#) 100 (if (pred__# 5 expr__#) 55 val))))
+            =
+            val
+            3
+            100
+            5
+            (if (pred__# 5 expr__#) 55 val)
+            (if (pred__# 100 expr__#) 100 (if (pred__# 5 expr__#) 55 val))
+            (if (pred__# 3 expr__#)
+              33
+              (if (pred__# 100 expr__#) 100 (if (pred__# 5 expr__#) 55 val)))
+            (let [pred__# =
+                  expr__# val]
+              (if (pred__# 3 expr__#)
+                33
+                (if (pred__# 100 expr__#) 100 (if (pred__# 5 expr__#) 55 val))))
             vec
             res
             (assoc res 1 -1)
