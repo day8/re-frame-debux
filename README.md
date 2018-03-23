@@ -2,13 +2,15 @@
 
 ## Credit
 
-[Debux](https://github.com/philoskim/debux) is a simple but very useful library for debugging Clojure and ClojureScript. *re-frame-debux* is a fork of Debux, that repurposes it for tracing `re-frame` event and subscription handlers with [re-frame-10x](https://github.com/Day8/re-frame-10x) via re-frame's tracing API.
+[Debux](https://github.com/philoskim/debux) is a useful and novel library for debugging Clojure and ClojureScript.
 
-This fork contains a number of substantial extension/modifications to debux and longer term, we would like to investigate merging them back into mainline Debux, but the changes we needed to make required quite deep surgery, so in the interests of time, we started off with this fork.
+This library, **re-frame-debux**, is a fork of Debux, that repurposes it for tracing, form-by-form the ClojureScipt code in re-frame event and subscription handlers for inspection within [re-frame-10x](https://github.com/Day8/re-frame-10x). 
+
+This fork contains a few substantial extension/modifications to debux and, longer term, we would like to investigate merging them back into mainline Debux, but the changes we needed to make required quite deep surgery, so in the interests of time, and a proof of concept, we started off with this fork.
 
 ## Status
 
-This library is still very much a work in progress and there'll almost certainly be bugs. However, there should be no issues with your code in production, as we delegate directly to the core Clojure functions. If you run into any issues, please open an issue and we can try and help.
+Already useful! But this library is still a work in progress and there'll likely be little annoyances and bugs, perhaps even big ones. However, even if you use the supplied macros, there should be no issues with your code in production, as they delegate to the equivalent core clojure macros in that mode. If you run into any issues, please open an issue and we can try and help.
 
 ## Prerequisites
 
@@ -18,14 +20,31 @@ This library is still very much a work in progress and there'll almost certainly
 
 ## How to use
 
-re-frame-debux provides two macros for you to use to trace your re-frame event and subscription handlers:
+`re-frame-debux` provides two macros: 
 
-* `fn-traced`
-* `traced-defn`
+* `fn-traced`  (use instead of `fn`)
+* `defn-traced`  (use instead of `defn`)
 
-fn-traced and traced-defn replace fn and defn respectively.
+Both have zero runtime and compile time cost in production builds via the `day8.re-frame/tracing` library (see below), and are able to be turned off at dev time too via the Closure define, so you can leave the `fn-traced` and `traced-defn` macros in your code at all times.
 
-Both have zero runtime and compile time cost in production builds via the `day8.re-frame/tracing` library, and are able to be turned off at dev time too via the Closure define, so you can leave the `fn-traced` and `traced-defn` macros in your code at all times.
+Use them like this when registering:
+```
+(re-frame.core/reg-event-db 
+  :some-id 
+  (fn-traced [db event]
+     ... handler code in here to be trace))
+```
+
+or:
+```
+(def-traced my-handler
+  [coeffect event] 
+  .... code in here to be traced)
+
+(reg-event-fx 
+   :some-id
+   my-handler)
+```
 
 ## Two libraries
 
