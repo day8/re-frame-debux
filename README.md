@@ -8,13 +8,12 @@ Longer term, we would like to investigate merging back into mainline Debux, but 
 
 ## Status
 
-This library is still experimental and there may be bugs in the way that it instruments your code. If you run into any issues, please open an issue and we can try and help.
+This library is still experimental and there may be bugs in the way that it instruments your code in development. There should be no issues with your code in production, as we delegate directly to the core Clojure functions. If you run into any issues, please open an issue and we can try and help.
 
 ## Prerequisites
 
 * clojure 1.8.0 or later
 * clojurescript 1.9.854 or later
-
 
 ## Installation
 
@@ -55,7 +54,6 @@ In development, you want to include the `day8.re-frame/debux` library. When you 
 In production, you want to include the `day8.re-frame/tracing` library. This has the same public API as debux (`day8.re-frame.tracing/traced-fn`, `day8.re-frame.tracing/traced-defn`), but the macros simply delegate to the core `fn` and `defn` macros.
 
 This ensures that you can keep your code instrumented at all times, but not pay any costs in production.
-
 
 ## License
 Copyright © 2015--2018 Young Tae Kim, 2018 Day8 Technologies
