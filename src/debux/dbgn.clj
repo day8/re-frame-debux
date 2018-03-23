@@ -387,7 +387,10 @@
                 (insert-d 'debux.dbgn/d &env)
                 remove-skip))
          ~form)
-       (catch Exception ~'e (throw ~'e)))))
+       (catch ~(if (ut/cljs-env? &env)
+                 :default
+                 Exception)
+              ~'e (throw ~'e)))))
 
 (defn spy [x]
   ;(zp/czprint x)
