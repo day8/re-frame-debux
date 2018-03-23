@@ -12,7 +12,7 @@ This fork contains a few substantial extension/modifications to debux and, longe
 
 Already useful!! But it is still a work in progress and there'll likely be little annoyances and bugs, perhaps even big ones.
 
-As always, if you run into any issues, please open an issue and we can try and help. We are also looking for colaborators on this interesting project. There's so much potential. 
+As always, if you run into any issues, please open an issue and we can try and help. We are also looking for collaborators on this interesting project. There's so much potential. (Beware, zippers and macros lurk). 
 
 ## Prerequisites
 
