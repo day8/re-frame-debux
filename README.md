@@ -31,17 +31,17 @@ Use them like this when registering event handlers:
 ```clj
 (re-frame.core/reg-event-db 
   :some-id 
-  (fn-traced [db event]     ;; <--- use `fn-traced` instead of `fn`
+  (day8.re-frame.tracing/fn-traced [db event]     ;; <--- use `fn-traced` instead of `fn`
      ... handler code in here to be trace))
 ```
 
 or:
 ```clj
-(re-frame.core/def-traced my-handler   ;; <--- use `defn-traced` instead of `defn`
+(day8.re-frame.tracing/def-traced my-handler   ;; <--- use `defn-traced` instead of `defn`
   [coeffect event] 
   .... code in here to be traced)
 
-(reg-event-fx 
+(re-frame.core/reg-event-fx 
    :some-id
    my-handler)
 ```
