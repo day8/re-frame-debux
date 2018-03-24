@@ -77,7 +77,7 @@ Add Closure defines to your config to enable re-frame tracing + the function tra
 
 ```
 :cljsbuild    {:builds {:client {:compiler {:closure-defines {"re_frame.trace.trace_enabled_QMARK_" true
-                                                              "debux.cs.core.trace_enabled_QMARK_"  true}}}}}}
+                                                              "day8.re_frame.tracing.trace_enabled_QMARK_"  true}}}}}}
 ```
 
 
