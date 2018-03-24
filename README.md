@@ -12,7 +12,7 @@ This fork contains a few substantial extension/modifications to debux and, longe
 
 Here's what the trace looks like in `re-frame-10x`:
 
-![Estim8 demo](doc/img/estim8-demo.png)
+![Estim8 demo](https://github.com/Day8/re-frame-10x/blob/master/docs/images/estim8-demo.png)
 
 
 ## Status
