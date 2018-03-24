@@ -1,4 +1,4 @@
-(defproject day8.re-frame/tracing "0.5.0-SNAPSHOT"
+(defproject day8.re-frame/tracing "0.5.0"
   :description "A tool for inspecting code execution for re-frame applications"
   :url "https://github.com/philoskim/debux"
   :license {"Eclipse Public License"
