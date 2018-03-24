@@ -8,6 +8,10 @@ This library, **re-frame-debux**, is a fork of **debux**, that repurposes it for
 
 This fork contains a few substantial extension/modifications to debux and, longer term, we would like to investigate merging them back into mainline debux, but the changes we needed to make required quite deep surgery, so in the interests of time, and getting a proof of concept out the door, we started off with a fork.
 
+## Show Me
+
+Here's what the trace looks like in `re-frame-10x`:
+
 ![Estim8 demo](doc/img/estim8-demo.png)
 
 
