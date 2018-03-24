@@ -76,6 +76,19 @@ Add Closure defines to your config to enable re-frame tracing + the function tra
 :cljsbuild    {:builds {:client {:compiler {:closure-defines {"re_frame.trace.trace_enabled_QMARK_" true
                                                               "debux.cs.core.trace_enabled_QMARK_"  true}}}}}}
 ```
+
+
+## Resolving macros with Cursive
+
+You can instruct [Cursive](https://cursive-ide.com) to treat the `fn-traced` and `defn-traced` macros like their standard `fn` and `defn` counterparts by [customising symbol resolution](https://cursive-ide.com/userguide/macros.html).
+
+![Resolve macro as](doc/img/cursive-1.png)
+
+![Specify](doc/img/cursive-2.png)
+
+![Enter var name cljs.core/fn](doc/img/cursive-3.png)
+
+
 ## License
 Copyright © 2015--2018 Young Tae Kim, 2018 Day 8 Technology
 
