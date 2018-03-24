@@ -31,21 +31,28 @@ As always, if you run into any issues, please open an issue and we can try and h
 * `defn-traced`  (use instead of `defn`)
 
 Use them like this when registering event handlers:
-```clj
+
+```clojure
+(ns my.app
+  (:require [day8.re-frame.tracing :refer [fn-traced defn-traced]]))
+
 (re-frame.core/reg-event-db 
-  :some-id 
-  (day8.re-frame.tracing/fn-traced [db event]     ;; <--- use `fn-traced` instead of `fn`
-     ... handler code in here to be trace))
+  :some-event
+  (fn-traced [db event]     ;; <--- use `fn-traced` instead of `fn`
+     ; ... code in here to be traced
+     ))
 ```
 
 or:
-```clj
-(day8.re-frame.tracing/defn-traced my-handler   ;; <--- use `defn-traced` instead of `defn`
+
+```clojure
+(defn-traced my-handler   ;; <--- use `defn-traced` instead of `defn`
   [coeffect event] 
-  .... code in here to be traced)
+  ;; ... code in here to be traced
+  )
 
 (re-frame.core/reg-event-fx 
-   :some-id
+   :some-event
    my-handler)
 ```
 
