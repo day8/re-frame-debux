@@ -25,8 +25,9 @@
   (testing "anon param pattern"
     (is (= (vals (ut/with-gensyms-names '#(%1 %2) {}))
            ["%1" "%2"])))
-
-  )
+  (testing "symbols with numbers at the end shouldn't match named gensyms"
+    (is (= (ut/with-gensyms-names '[s3 s12 s123 s1234 s12345 s123456] {})
+           {"s1234" "s#" "s12345" "s#" "s123456" "s#"}))))
 
 (deftest tidy-macroexpanded-form-test
   (is (= (ut/tidy-macroexpanded-form `(let [a# 1]
@@ -49,6 +50,3 @@
   (is (= (ut/tidy-macroexpanded-form '#(inc %1)
                                      {})
          '(fn* [%1] (inc %1)))))
-
-
-
