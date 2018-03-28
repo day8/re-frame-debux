@@ -6,7 +6,8 @@
             [debux.common.util :as ut :refer [remove-d]]
             [debux.macro-types :as mt]
             [debux.cs.macro-types :as cs.mt]
-            [re-frame.trace :as trace]))
+            [re-frame.trace :as trace]
+            [zprint.core :as zp]))
 
 ;;; Basic strategy for dbgn
 
@@ -193,7 +194,7 @@
 
         :else (recur (z/next loc))))))
 
-(defn debux-form? [sym]
+#_(defn debux-form? [sym]
   (contains? #{'debux.common.macro-specs/skip-outer
                'debux.common.macro-specs/skip
                'debux.common.macro-specs/o-skip
@@ -217,9 +218,12 @@
 
 (defn debux-symbol? [sym]
   (contains? #{'debux.dbgn/d
-               'ut/spy-first
-               'ut/spy-last
-               'ut/spy-comp}
+               'debux.common.util/spy-first
+               'debux.common.util/spy-last
+               'debux.common.util/spy-comp
+               'debux.common.macro-specs/skip-outer
+               'debux.common.macro-specs/skip
+               'debux.common.macro-specs/o-skip}
              sym))
 
 (defn real-depth
@@ -228,25 +232,28 @@
   ;;  There is probably a smarter way to do
   ;; this than checking for nil, but I'm not sure what it is.
   [loc]
-  (loop [loc   loc
-         depth -1]
-    (if (nil? loc)
-      depth
-      (let [node (z/node loc)]
-        (recur (z/up loc)
-               (if (and (sequential? node)
-                        (debux-symbol? (first node)))
-                 depth
-                 (inc depth)))))))
+  (if (and (sequential? (z/node loc))
+           (debux-symbol? (first (z/node loc))))
+    nil
+    (loop [loc   loc
+           depth -1]
+      (if (nil? loc)
+        depth
+        (let [node (z/node loc)]
+          (recur (z/up loc)
+                 (if (and (sequential? node)
+                          (debux-symbol? (first node)))
+                   depth
+                   (inc depth))))))))
 
 ;;; insert/remove d
 (defn insert-d [form d-sym env]
 
-  ;(println "INSERT-D" form d-sym env)
+  ;(println "INSERT-D" form)
   (loop [loc (ut/sequential-zip form)
          indent 0]
     (let [node (z/node loc)
-          indent (real-depth loc)]
+          #_ #_ indent (real-depth loc)]
       (cond
         (z/end? loc) (z/root loc)
 
@@ -333,7 +340,7 @@
 
         ;; DC: why not def? where is that handled?
         (and (seq? node) (ifn? (first node)))
-        (recur (-> (z/replace loc (concat [d-sym indent] [node]))
+        (recur (-> (z/replace loc (concat [d-sym (real-depth loc)] [node]))
                    z/down z/right z/right z/down ut/right-or-next)
                (inc indent))
 
@@ -342,7 +349,7 @@
 
 
         (vector? node)
-        (recur (-> (z/replace loc (concat [d-sym indent] [node]))
+        (recur (-> (z/replace loc (concat [d-sym (real-depth loc)] [node]))
                    z/down z/right z/right z/down)
                indent)
 
@@ -350,7 +357,7 @@
         ;; DC: We might also want to trace inside maps, especially for fx
         ;; in case of symbol, map, or set
         (or (symbol? node) (map? node) (set? node))
-        (recur (-> (z/replace loc (concat [d-sym indent] [node]))
+        (recur (-> (z/replace loc (concat [d-sym (real-depth loc)] [node]))
                    z/right ut/right-or-next)
                indent)
 
@@ -370,9 +377,9 @@
      (ut/send-trace! {:form '~(remove-d form 'debux.dbgn/d)
                       :result result#
                       :indent-level ~indent})
-     #_(ut/print-form-with-indent (ut/form-header '~(remove-d form 'debux.dbgn/d) msg#)
-                                ~(inc (inc indent)))
-     #_(ut/pprint-result-with-indent result# ~(inc (inc indent)))
+     (ut/print-form-with-indent (ut/form-header '~(remove-d form 'debux.dbgn/d))
+                                ~indent)
+     (ut/pprint-result-with-indent result# ~indent)
      result#))
 
 (defn spy [x]
