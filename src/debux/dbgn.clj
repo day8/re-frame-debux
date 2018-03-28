@@ -194,15 +194,6 @@
 
         :else (recur (z/next loc))))))
 
-#_(defn debux-form? [sym]
-  (contains? #{'debux.common.macro-specs/skip-outer
-               'debux.common.macro-specs/skip
-               'debux.common.macro-specs/o-skip
-               'debux.common.util/spy-last
-               'debux.common.util/spy-first
-               'debux.common.util/spy-comp}
-             sym))
-
 (defn depth
   "Calculate how far we are inside the zipper, by ascending straight up
   until we can't get any higher."
