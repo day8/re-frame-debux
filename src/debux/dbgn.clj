@@ -368,27 +368,22 @@
 ;;; dbgn
 (defmacro dbgn
   "DeBuG every Nested forms of a form.s"
-  [form & [{:keys [condition] :as opts}]]
+  [form & [opts]]
   ;(println "BEFORE" form opts)
   ;(println "FULLFORM" &form)
   `(let [~'+debux-dbg-opts+ ~(if (ut/cljs-env? &env)
                                (dissoc opts :style :js :once)
-                               opts)
-         condition# ~condition]
+                               opts)]
      (try
-       (if (or (nil? condition#) condition#)
-         (let [title# nil #_ (str "\ndbgn: " (ut/truncate (pr-str '~form)) " =>")]
-           ;; Send whole form to trace point
-           (ut/send-form! '~(-> form (remove-d 'todomvc.dbgn/d) (ut/tidy-macroexpanded-form {})))
-           #_(println title#)
-           ;(println "FORM" '~form)
-           ~(-> (if (ut/include-recur? form)
-                  (sk/insert-o-skip-for-recur form &env)
-                  form)
-                (insert-skip &env)
-                (insert-d 'debux.dbgn/d &env)
-                remove-skip))
-         ~form)
+       ;; Send whole form to trace point
+       (ut/send-form! '~(-> form (remove-d 'todomvc.dbgn/d) (ut/tidy-macroexpanded-form {})))
+       ~(-> (if (ut/include-recur? form)
+              (sk/insert-o-skip-for-recur form &env)
+              form)
+            (insert-skip &env)
+            (insert-d 'debux.dbgn/d &env)
+            remove-skip)
+       ;; TODO: can we remove try/catch too?
        (catch ~(if (ut/cljs-env? &env)
                  :default
                  Exception)
