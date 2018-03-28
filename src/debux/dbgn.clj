@@ -254,6 +254,7 @@
          indent 0]
     (let [node (z/node loc)
           #_ #_ indent (real-depth loc)]
+      ;(ut/d node)
       (cond
         (z/end? loc) (z/root loc)
 
@@ -320,10 +321,6 @@
              (`#{defn defn-} (ut/ns-symbol (first node) env)))
         (recur (-> loc z/down z/next) indent)
 
-        ;;; in case the first symbol is ut/spy-first
-        ;(and (seq? node)
-        ;     (symbol? (first node))
-        ;     (`#{ut/spy-first} (ut/ns-symbol (first node) env)))
         ;;; we need to z/replace of the next argument to spy-first with outer-skip
         ;;; then move onto skip-outer
         ;(recur (-> loc z/down z/next))
@@ -353,6 +350,12 @@
                    z/down z/right z/right z/down)
                indent)
 
+        (= node `debux.common.macro-specs/indent)
+        ;; TODO: does this real-depth need an inc/dec to bring it into line with the d?
+        #_(recur (z/edit loc real-depth) indent)
+        (do #_(println "Found " node)
+            #_(println "Real depth" (real-depth loc))
+            (recur (z/replace loc (real-depth loc)) indent))
 
         ;; DC: We might also want to trace inside maps, especially for fx
         ;; in case of symbol, map, or set

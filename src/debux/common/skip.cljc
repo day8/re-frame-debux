@@ -148,13 +148,13 @@
 
 (defn insert-spy-first
   [[name & body]]
-  (list* name (mapcat (fn [subform] [subform `ms/skip-outer `(ut/spy-first '~subform) `ms/skip-outer])
+  (list* name (mapcat (fn [subform] [subform `ms/skip-outer `(ut/spy-first '~subform ms/indent) `ms/skip-outer])
                       body)
          #_(interpose '(ut/spy-first '(:quoted-form) {}) body)))
 
 (defn insert-spy-last
   [[name & body]]
-  (list* name (mapcat (fn [subform] [subform `ms/skip-outer `(ut/spy-last '~subform) `ms/skip-outer])
+  (list* name (mapcat (fn [subform] [subform `ms/skip-outer `(ut/spy-last '~subform ms/indent) `ms/skip-outer])
                       body)))
 
 (defmacro traced-some->
@@ -163,11 +163,11 @@
   {:added "1.5"}
   [expr & forms]
   (let [g     (gensym)
-        steps (map (fn [step] (let [fg (macroexpand-1 `(-> (ms/skip ~g) ~step (ms/skip-outer) (ut/spy-first '~step) (ms/skip-outer)))]
+        steps (map (fn [step] (let [fg (macroexpand-1 `(-> (ms/skip ~g) ~step (ms/skip-outer) (ut/spy-first '~step ms/indent) (ms/skip-outer)))]
                                 `(ms/skip-outer (if (ms/skip (nil? ~g)) nil ~fg))))
                    forms)]
     `(ms/skip-outer
-       (let [~g (ms/skip-outer (ut/spy-first (ms/skip ~expr) '~expr))
+       (let [~g (ms/skip-outer (ut/spy-first (ms/skip ~expr) '~expr `ms/indent))
              ~@(interleave (repeat g) (butlast steps))]
          (ms/skip-outer
            ~(if (empty? steps)
@@ -183,11 +183,11 @@
   {:added "1.5"}
   [expr & forms]
   (let [g     (gensym)
-        steps (map (fn [step] (let [fg (macroexpand-1 `(->> (ms/skip ~g) ~step (ms/skip-outer) (ut/spy-last '~step) (ms/skip-outer)))]
+        steps (map (fn [step] (let [fg (macroexpand-1 `(->> (ms/skip ~g) ~step (ms/skip-outer) (ut/spy-last '~step `ms/indent) (ms/skip-outer)))]
                                 `(ms/skip-outer (if (ms/skip (nil? ~g)) nil ~fg))))
                    forms)]
     `(ms/skip-outer
-       (let [~g (ms/skip-outer (ut/spy-last '~expr (ms/skip ~expr)))
+       (let [~g (ms/skip-outer (ut/spy-last '~expr `ms/indent (ms/skip ~expr)))
              ~@(interleave (repeat g) (butlast steps))]
          (ms/skip-outer
            ~(if (empty? steps)
@@ -207,14 +207,14 @@
   (assert (even? (count clauses)))
   (let [g     (gensym)
         steps (map (fn [[test step]]
-                     (let [fg (macroexpand-1 `(-> (ms/skip ~g) ~step (ms/skip-outer) (ut/spy-first '~step) (ms/skip-outer)))]
+                     (let [fg (macroexpand-1 `(-> (ms/skip ~g) ~step (ms/skip-outer) (ut/spy-first '~step `ms/indent) (ms/skip-outer)))]
                        `(ms/skip-outer
-                          (if (ms/skip (ut/spy-first ~test '~test))
+                          (if (ms/skip (ut/spy-first ~test '~test `ms/indent))
                             ~fg
                             (ms/skip ~g)))))
                    (partition 2 clauses))]
     `(ms/skip-outer
-       (let [~g (ms/skip-outer (ut/spy-first (ms/skip ~expr) '~expr))
+       (let [~g (ms/skip-outer (ut/spy-first (ms/skip ~expr) '~expr `ms/indent))
              ~@(interleave (repeat g) (butlast steps))]
          ~(if (empty? steps)
             g                                               ;; TODO: add a skip around this g too.
@@ -234,14 +234,14 @@
   (assert (even? (count clauses)))
   (let [g     (gensym)
         steps (map (fn [[test step]]
-                     (let [fg (macroexpand-1 `(->> (ms/skip ~g) ~step (ms/skip-outer) (ut/spy-last '~step) (ms/skip-outer)))]
+                     (let [fg (macroexpand-1 `(->> (ms/skip ~g) ~step (ms/skip-outer) (ut/spy-last '~step `ms/indent) (ms/skip-outer)))]
                        `(ms/skip-outer
-                          (if (ms/skip (ut/spy-last '~test ~test))
+                          (if (ms/skip (ut/spy-last '~test `ms/indent ~test))
                             ~fg
                             (ms/skip ~g)))))
                    (partition 2 clauses))]
     `(ms/skip-outer
-       (let [~g (ms/skip-outer (ut/spy-last '~expr (ms/skip ~expr)))
+       (let [~g (ms/skip-outer (ut/spy-last '~expr `ms/indent (ms/skip ~expr)))
              ~@(interleave (repeat g) (butlast steps))]
          ~(if (empty? steps)
             g
@@ -307,12 +307,12 @@
                   (cond
                     (= 0 n) `(throw (IllegalArgumentException. (str "No matching clause: " ~expr)))
                     (= 1 n) a
-                    (= 2 n) `(if (ms/skip (ut/spy-first (~pred ~a ~expr) '~a))
+                    (= 2 n) `(if (ms/skip (ut/spy-first (~pred ~a ~expr) '~a `ms/indent))
                                ~b
                                ~(emit pred expr more))
                     :else `(ms/skip-outer
-                             (if-let [p# (ms/skip (ut/spy-first (~pred ~a ~expr) '~a))]
-                               (ms/skip (ut/spy-first (~c p#) '~c))
+                             (if-let [p# (ms/skip (ut/spy-first (~pred ~a ~expr) '~a `ms/indent))]
+                               (ms/skip (ut/spy-first (~c p#) '~c `ms/indent))
                                ~(emit pred expr more))))))]
     `(let [~gpred ~pred
            ~gexpr ~expr]

@@ -240,13 +240,9 @@
 
 (def make-bars (memoize make-bars-))
 
-
 (defn prepend-bars
   [line indent-level]
-  (let [indent-level' (if (> indent-level 1)
-                        (dec indent-level)
-                        indent-level)]
-    (str (make-bars indent-level') " " line)))
+  (str (make-bars indent-level) " " line))
 
 (defn print-form-with-indent
   [form indent-level]
@@ -343,25 +339,25 @@
 
 ;;; spy functions
 (def spy-first
-  (fn [result quoted-form]
-    (send-trace! {:form (remove-d quoted-form 'dummy) :result result :indent-level @indent-level*})
-    #_(print-form-with-indent (form-header quoted-form) 1)
-    #_(pprint-result-with-indent (take-n-if-seq 100 result) 1)
+  (fn [result quoted-form indent]
+    (send-trace! {:form (remove-d quoted-form 'dummy) :result result :indent-level indent})
+    (print-form-with-indent (form-header quoted-form) indent)
+    (pprint-result-with-indent (take-n-if-seq 100 result) indent)
     result))
 
 (def spy-last
-  (fn [quoted-form result]
-    (send-trace! {:form (remove-d quoted-form 'dummy) :result result :indent-level @indent-level*})
-   #_ (print-form-with-indent (form-header quoted-form) 1)
-   #_ (pprint-result-with-indent (take-n-if-seq 100 result) 1)
+  (fn [quoted-form indent result]
+    (send-trace! {:form (remove-d quoted-form 'dummy) :result result :indent-level indent})
+    (print-form-with-indent (form-header quoted-form) indent)
+    (pprint-result-with-indent (take-n-if-seq 100 result) indent)
     result))
 
-(defn spy-comp [quoted-form form]
+(defn spy-comp [quoted-form indent form]
   (fn [& arg]
     (let [result (apply form arg)]
-      (send-trace! {:form (remove-d quoted-form 'dummy) :result result :indent-level @indent-level*})
-    #_  (print-form-with-indent (form-header quoted-form) 1)
-     #_ (pprint-result-with-indent (take-n-if-seq 100 result) 1)
+      (send-trace! {:form (remove-d quoted-form 'dummy) :result result :indent-level indent})
+      (print-form-with-indent (form-header quoted-form) indent)
+      (pprint-result-with-indent (take-n-if-seq 100 result) indent)
       result)))
 
 ;; Remove trace info
