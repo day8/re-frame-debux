@@ -160,7 +160,7 @@
                (comp
                  (mapcat ut/form-tree-seq)
                  (filter symbol?)
-                 (filter dbgn/debux-form?))
+                 (filter  debux-form?))
                @form)
          #{})))
 
@@ -209,6 +209,7 @@
                 '(debux.common.util/spy-first (debux.common.macro-specs/skip (debux.common.macro-specs/skip-outer (debux.common.util/spy-first (debux.common.macro-specs/skip-outer 5) (quote 5)))) (debux.common.macro-specs/skip (quote (debux.common.macro-specs/skip-outer (debux.common.util/spy-first (debux.common.macro-specs/skip-outer 5) (quote 5)))))))])
            #{})))
 
+;; TODO: not working yet
 #_(deftest cond->test
     (is (= (debux.dbgn/dbgn
              (-> 5

@@ -38,6 +38,7 @@ dbgn: (-> {} (assoc :a 1) (get :a (identity :missing))) =>
   (is (= (with-out-str (dbgn (cond->> 1 true inc false (+ 2) (= 2 2) (* 45) :always (+ 6))))
          "\ndbgn: (cond->> 1 true inc false (+ 2) (= 2 2) (* 45) :always (+ 6)) =>\n| 1 =>\n|   1\n| true =>\n|   true\n| inc =>\n|   2\n| false =>\n|   false\n| (= 2 2) =>\n|   true\n| (* 45) =>\n|   90\n| :always =>\n|   :always\n| (+ 6) =>\n|   96\n")))
 
+;; TODO: fix this.
 (deftest condp-test
   (is (= (dbgn (condp some [1 2 3 4]
                  #{0 6 7} :>> inc

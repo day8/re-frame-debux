@@ -20,8 +20,8 @@
        (take-while some?)
        (keep real-depth)))
 
-(deftest real-depth-test
-  #_(is (= (real-depth nil) -1)))
+#_(deftest real-depth-test
+  (is (= (real-depth nil) -1)))
 
 (deftest form-depth-test
   (is (= (depth-of-all-forms '(+ 1 (+ 2)))
@@ -121,8 +121,8 @@
             :indent-level 1
             :result 1}
            {:form (+ 3)
-            :indent-level 2
+            :indent-level 1
             :result 3}
            {:form (+ 2 (+ 3))
-            :indent-level 1
+            :indent-level 0
             :result 6}])))

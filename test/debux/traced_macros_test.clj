@@ -2,6 +2,13 @@
   (:require [clojure.test :refer :all]
             [debux.core :refer [defn-traced fn-traced]]))
 
+(comment
+  (with-redefs [ut/send-form!  #(zp/czprint %)
+                ut/send-trace! #(zp/czprint %)]
+    ((debux.core/defn-traced* f1 [x] (-> (str "x" x)
+                                         (str "5"))) "b"))
+  )
+
 (deftest defn-traced-test
   ;; These are testing that they all compile and don't throw.
   (defn-traced f1 [] nil)

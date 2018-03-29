@@ -340,6 +340,7 @@
 ;;; spy functions
 (def spy-first
   (fn [result quoted-form indent]
+    (assert (integer? indent) (str "indent was not correctly replaced for form " (prn-str quoted-form)))
     (send-trace! {:form (remove-d quoted-form 'dummy) :result result :indent-level indent})
     (print-form-with-indent (form-header quoted-form) indent)
     (pprint-result-with-indent (take-n-if-seq 100 result) indent)
@@ -347,6 +348,7 @@
 
 (def spy-last
   (fn [quoted-form indent result]
+    (assert (integer? indent) "indent was not correctly replaced")
     (send-trace! {:form (remove-d quoted-form 'dummy) :result result :indent-level indent})
     (print-form-with-indent (form-header quoted-form) indent)
     (pprint-result-with-indent (take-n-if-seq 100 result) indent)
@@ -355,6 +357,7 @@
 (defn spy-comp [quoted-form indent form]
   (fn [& arg]
     (let [result (apply form arg)]
+      (assert (integer? indent) "indent was not correctly replaced")
       (send-trace! {:form (remove-d quoted-form 'dummy) :result result :indent-level indent})
       (print-form-with-indent (form-header quoted-form) indent)
       (pprint-result-with-indent (take-n-if-seq 100 result) indent)

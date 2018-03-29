@@ -240,7 +240,7 @@
 ;;; insert/remove d
 (defn insert-d [form d-sym env]
 
-  ;(println "INSERT-D" form)
+  ;(println "INSERT-D" (prn-str form))
   (loop [loc (ut/sequential-zip form)
          indent 0]
     (let [node (z/node loc)
@@ -352,7 +352,9 @@
         ;; in case of symbol, map, or set
         (or (symbol? node) (map? node) (set? node))
         (recur (-> (z/replace loc (concat [d-sym (real-depth loc)] [node]))
-                   z/right ut/right-or-next)
+                   ;; We're not zipping down inside the node further, so we don't need to add a
+                   ;; second z/right like we do in the case of a vector or ifn? node above.
+                   ut/right-or-next)
                indent)
 
         :else
