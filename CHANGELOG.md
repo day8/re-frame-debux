@@ -1,7 +1,17 @@
 # Change Log
 All notable changes to this project will be documented in this file. This change log follows the conventions of [keepachangelog.com](http://keepachangelog.com/).
 
-## [0.5.0] - Unreleased
+## [0.5.1] - Unreleased
+
+### Added
+
+* Captured traces now include indenting information. This lets you better see the order and nesting of your function calls.
+
+### Changed
+
+* Don't rename symbol gensyms with three numbers or less, (e.g. `s3` is no longer renamed to `s#`).
+
+## [0.5.0] 
 
 Initial release after fork from debux.
 
