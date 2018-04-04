@@ -83,13 +83,13 @@ It is technically possible to use the `day8.re-frame/tracing` library in your pr
 To include *re-frame-debux* in your project, simply add the following to your *project.clj* development dependencies:
 
 ```
-[day8.re-frame/tracing "0.5.0"]
+[day8.re-frame/tracing "0.5.1"]
 ```
 
 and this to your production dependencies (make sure they are production only):
 
 ```
-[day8.re-frame/tracing-stubs "0.5.0"]
+[day8.re-frame/tracing-stubs "0.5.1"]
 ```
 
 Add Closure defines to your config to enable re-frame tracing + the function tracing:
