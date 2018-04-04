@@ -4,7 +4,7 @@
 
 [debux](https://github.com/philoskim/debux) is [@philoskim's](https://github.com/philoskim) useful and novel library for tracing Clojure and ClojureScript code, form by form.
 
-This library, **re-frame-debux**, is a fork of **debux**, that repurposes it for tracing the ClojureScipt code in re-frame event handlers, for later inspection within [re-frame-10x](https://github.com/Day8/re-frame-10x). 
+This library, **re-frame-debux**, is a fork of **debux**, that repurposes it for tracing the ClojureScipt code in re-frame event handlers, for later inspection within [re-frame-10x](https://github.com/Day8/re-frame-10x).
 
 This fork contains a few substantial extension/modifications to debux and, longer term, we would like to investigate merging them back into mainline debux, but the changes we needed to make required quite deep surgery, so in the interests of time, and getting a proof of concept out the door, we started off with a fork.
 
@@ -19,11 +19,11 @@ Here's what the trace looks like in `re-frame-10x`:
 
 Already useful!! But it is still a work in progress and there'll likely be little annoyances and bugs, perhaps even big ones.
 
-As always, if you run into any issues, please open an issue and we can try and help. We are also looking for collaborators on this interesting project. There's so much potential. (Beware, zippers and macros lurk). 
+As always, if you run into any issues, please open an issue and we can try and help. We are also looking for collaborators on this interesting project. There's so much potential. (Beware, zippers and macros lurk).
 
 Sharp edges include:
   - Operations like `map` or `for` operating on big sequences will generate too much trace.  That will be a problem within `re-frame-10x`. Don't enable tracing for event handlers which have that sort of processing. Not yet. [See issue #6](https://github.com/Day8/re-frame-debux/issues/6)
-  - `condp` is not yet handled very elegently. 
+  - `condp` is not yet handled very elegently.
 
 ## Prerequisites
 
@@ -33,7 +33,7 @@ Sharp edges include:
 
 ## How to use
 
-`re-frame-debux` provides two macros: 
+`re-frame-debux` provides two macros:
 
 * `fn-traced`  (use instead of `fn`)
 * `defn-traced`  (use instead of `defn`)
@@ -44,7 +44,7 @@ Use them like this when registering event handlers:
 (ns my.app
   (:require [day8.re-frame.tracing :refer [fn-traced defn-traced]]))
 
-(re-frame.core/reg-event-db 
+(re-frame.core/reg-event-db
   :some-event
   (fn-traced [db event]     ;; <--- use `fn-traced` instead of `fn`
      ; ... code in here to be traced
@@ -55,11 +55,11 @@ or:
 
 ```clojure
 (defn-traced my-handler   ;; <--- use `defn-traced` instead of `defn`
-  [coeffect event] 
+  [coeffect event]
   ;; ... code in here to be traced
   )
 
-(re-frame.core/reg-event-fx 
+(re-frame.core/reg-event-fx
    :some-event
    my-handler)
 ```
@@ -71,6 +71,10 @@ or:
 **In production,** you want to include the `day8.re-frame/tracing-stubs` library. This has the same public API as `tracing` (`day8.re-frame.tracing/fn-traced`, `day8.re-frame.tracing/traced-defn`), but the macros simply delegate to the core `fn` and `defn` macros.
 
 With this setup, your use of both macros will have zero runtime and compile time cost in production builds, and are able to be turned off at dev time too via the Closure define.  This ensures that you can leave your code instrumented at all times, but not pay any costs in production.
+
+### Why two libraries?
+
+It is technically possible to use the `day8.re-frame/tracing` library in your production builds. Under advanced compilation, the Closure define should ensure that dead code elimination (DCE) works to remove the traced version of the function from your final JS file. We verified that the traced function JS was removed, but had concerns that other required namespaces may not be completely dead code eliminated. Have a tracing-stubs makes it impossible for DCE to fail, because there is no dead code to be eliminated.
 
 ## Installation
 
