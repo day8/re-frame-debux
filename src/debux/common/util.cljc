@@ -340,7 +340,7 @@
 ;;; spy functions
 (def spy-first
   (fn [result quoted-form indent]
-    (assert (integer? indent) (str "indent was not correctly replaced for form " (prn-str quoted-form)))
+    (assert (integer? indent) (str "indent was not correctly replaced for form " (prn-str quoted-form) "\nThis is a bug, please report it to https://github.com/Day8/re-frame-debux"))
     (send-trace! {:form (remove-d quoted-form 'dummy) :result result :indent-level indent})
     (print-form-with-indent (form-header quoted-form) indent)
     (pprint-result-with-indent (take-n-if-seq 100 result) indent)
