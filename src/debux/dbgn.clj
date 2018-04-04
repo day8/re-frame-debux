@@ -6,8 +6,7 @@
             [debux.common.util :as ut :refer [remove-d]]
             [debux.macro-types :as mt]
             [debux.cs.macro-types :as cs.mt]
-            [re-frame.trace :as trace]
-            [zprint.core :as zp]))
+            [re-frame.trace :as trace]))
 
 ;;; Basic strategy for dbgn
 
@@ -373,9 +372,9 @@
      (ut/send-trace! {:form '~(remove-d form 'debux.dbgn/d)
                       :result result#
                       :indent-level ~indent})
-     (ut/print-form-with-indent (ut/form-header '~(remove-d form 'debux.dbgn/d))
+     #_(ut/print-form-with-indent (ut/form-header '~(remove-d form 'debux.dbgn/d))
                                 ~indent)
-     (ut/pprint-result-with-indent result# ~indent)
+     #_(ut/pprint-result-with-indent result# ~indent)
      result#))
 
 (defn spy [x]
