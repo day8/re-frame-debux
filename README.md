@@ -104,11 +104,11 @@ Add Closure defines to your config to enable re-frame tracing + the function tra
 
 You can instruct [Cursive](https://cursive-ide.com) to treat the `fn-traced` and `defn-traced` macros like their standard `fn` and `defn` counterparts by [customising symbol resolution](https://cursive-ide.com/userguide/macros.html).
 
-![Resolve macro as](doc/img/cursive-1.png)
+<img width="500px" src="doc/img/cursive-1.png" alt="Resolve day8.re-frame.tracing/fn-traced as...">
 
-![Specify](doc/img/cursive-2.png)
+<img width="500px" src="doc/img/cursive-2.png" alt="Resolve as... Specify...">
 
-![Enter var name cljs.core/fn](doc/img/cursive-3.png)
+<img width="500px" src="doc/img/cursive-3.png" alt="Enter var name cljs.core/fn, include non-project files">
 
 
 ## License
