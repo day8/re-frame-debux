@@ -42,7 +42,7 @@ Use them like this when registering event handlers:
 
 ```clojure
 (ns my.app
-  (:require [day8.re-frame.tracing :refer [fn-traced defn-traced]]))
+  (:require [day8.re-frame.tracing :refer-macros [fn-traced defn-traced]]))
 
 (re-frame.core/reg-event-db
   :some-event
