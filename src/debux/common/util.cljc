@@ -168,7 +168,8 @@
   (boolean (:ns env)))
 
 (defn lazy-seq? [coll]
-  (instance? clojure.lang.IPending coll))
+  #?(:clj (instance? clojure.lang.IPending coll)
+     :cljs (satisfies? cljs.core/IPending coll)))
 
 (defn vec->map
   "Transsub-forms a vector into an array-map with key/value pairs.
