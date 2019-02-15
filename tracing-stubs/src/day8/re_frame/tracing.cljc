@@ -1,4 +1,5 @@
-(ns day8.re-frame.tracing)
+(ns day8.re-frame.tracing
+  #?(:cljs (:require-macros [day8.re-frame.tracing])))
 
 (defmacro defn-traced
   "Traced defn, this variant compiles down to the standard defn, without tracing."
