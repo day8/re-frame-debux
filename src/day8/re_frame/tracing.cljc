@@ -1,7 +1,8 @@
 (ns day8.re-frame.tracing
   #?(:cljs (:require-macros
              [debux.dbgn :as dbgn]
-             [debux.cs.macro-types :as mt]))
+             [debux.cs.macro-types :as mt]
+             [day8.re-frame.tracing]))
   (:require [debux.common.util :as ut]
             [debux.common.macro-specs :as ms]
             [clojure.spec.alpha :as s]))
