@@ -16,7 +16,7 @@
   :plugins [[lein-cljsbuild "1.1.6"]
             [lein-figwheel "0.5.10"]]
 
-  :profiles {:dev {:dependencies [[zprint "0.4.7"]
+  :profiles {:dev {:dependencies [[zprint "0.4.16"]
                                   [eftest "0.5.0"]
                                   [io.aviso/pretty "0.1.34"]
                                   [reloaded.repl "0.2.4"]]}}
