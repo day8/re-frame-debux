@@ -17,7 +17,7 @@
             [lein-figwheel "0.5.10"]]
 
   :profiles {:dev {:dependencies [[zprint "0.4.16"]
-                                  [eftest "0.5.0"]
+                                  [eftest "0.5.8"]
                                   [io.aviso/pretty "0.1.34"]
                                   [reloaded.repl "0.2.4"]]}}
 
