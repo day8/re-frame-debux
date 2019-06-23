@@ -6,7 +6,7 @@
   :dependencies [[org.clojure/clojure "1.10.1" :scope "provided"]
                  [org.clojure/clojurescript "1.10.520" :scope "provided"]
                  [clojure-future-spec "1.9.0"]
-                 [re-frame "0.10.4" :scope "provided"]]
+                 [re-frame "0.10.7" :scope "provided"]]
 
   :min-lein-version "2.6.0"
 
