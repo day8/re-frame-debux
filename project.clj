@@ -18,7 +18,7 @@
 
   :profiles {:dev {:dependencies [[zprint "0.4.16"]
                                   [eftest "0.5.8"]
-                                  [io.aviso/pretty "0.1.34"]
+                                  [io.aviso/pretty "0.1.37"]
                                   [reloaded.repl "0.2.4"]]}}
 
   :source-paths ["src"]
