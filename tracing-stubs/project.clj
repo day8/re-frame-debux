@@ -1,4 +1,4 @@
-(defproject day8.re-frame/tracing-stubs "0.5.3"
+(defproject day8.re-frame/tracing-stubs "0.5.4-SNAPSHOT"
   :description "Macros for tracing functions"
   :url "https://github.com/Day8/re-frame-debux"
   :license {:name "Eclipse Public License"
