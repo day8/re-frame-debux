@@ -5,4 +5,4 @@
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :deploy-repositories {"releases" :clojars
                         "snapshots" :clojars}
-  :dependencies [[org.clojure/clojure "1.8.0"]])
+  :dependencies [[org.clojure/clojure "1.10.1" :scope "provided"]])
