@@ -10,9 +10,6 @@
 
   :min-lein-version "2.6.0"
 
-  :deploy-repositories {"releases" :clojars
-                        "snapshots" :clojars}
-
   :plugins [[lein-cljsbuild "1.1.6"]
             [lein-figwheel "0.5.10"]]
 
@@ -30,6 +27,20 @@
   ["target"
    "resources/public/js/out"
    "resources/public/js/main.js"]
+ 
+  :deploy-repositories [["clojars" {:sign-releases false
+                                    :url "https://clojars.org/repo"
+                                    :username :env/CLOJARS_USERNAME
+                                    :password :env/CLOJARS_PASSWORD}]]
+
+  :release-tasks [["vcs" "assert-committed"]
+                  ["change" "version" "leiningen.release/bump-version" "release"]
+                  ["vcs" "commit"]
+                  ["vcs" "tag" "v" "--no-sign"]
+                  ["deploy" "clojars"]
+                  ["change" "version" "leiningen.release/bump-version"]
+                  ["vcs" "commit"]
+                  ["vcs" "push"]]
 
   :cljsbuild
   {:builds
