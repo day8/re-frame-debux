@@ -167,9 +167,6 @@
 (defn cljs-env? [env]
   (boolean (:ns env)))
 
-(defn lazy-seq? [coll]
-  (instance? clojure.lang.IPending coll))
-
 (defn vec->map
   "Transsub-forms a vector into an array-map with key/value pairs.
   (def a 10)
