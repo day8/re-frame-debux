@@ -16,5 +16,11 @@ figwheel_server.log
 *~
 *#
 .#*
-
+/*.iml
+/.idea/
 .lein-*
+/node_modules/
+/.shadow-cljs/
+/shadow-cljs.edn
+/package.json
+/package-lock.json

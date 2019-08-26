@@ -1,5 +1,5 @@
 (ns debux.common.util-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.test :refer [deftest testing is]]
             [debux.common.util :as ut]))
 
 (deftest with-gensyms-names-test
@@ -33,7 +33,7 @@
   (is (= (ut/tidy-macroexpanded-form `(let [a# 1]
                                         a#)
                                      {})
-         '(let [a# 1]
+         '(cljs.core/let [a# 1]
             a#)))
   (is (= (ut/tidy-macroexpanded-form '#(let [a (gensym)
                                              b %2]

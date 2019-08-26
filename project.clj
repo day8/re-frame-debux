@@ -4,14 +4,17 @@
   :license {"Eclipse Public License"
             "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[org.clojure/clojure "1.10.1" :scope "provided"]
-                 [org.clojure/clojurescript "1.10.520" :scope "provided"]
+                 [org.clojure/clojurescript "1.10.520" :scope "provided"
+                  :exclusions [com.google.javascript/closure-compiler-unshaded
+                               org.clojure/google-closure-library]]
+                 [thheller/shadow-cljs "2.8.52" :scope "provided"]
                  [clojure-future-spec "1.9.0"]
-                 [re-frame "0.10.8" :scope "provided"]]
+                 [re-frame "0.10.9" :scope "provided"]]
 
   :min-lein-version "2.6.0"
 
-  :plugins [[lein-cljsbuild "1.1.6"]
-            [lein-figwheel "0.5.10"]]
+  :plugins [[lein-shadow "0.1.5"]
+            [lein-shell "0.5.0"]]
 
   :profiles {:dev {:dependencies [[zprint "0.4.16"]
                                   [eftest "0.5.8"]
@@ -24,7 +27,7 @@
   :jvm-opts ["-XX:-OmitStackTraceInFastThrow"]
 
   :clean-targets ^{:protect false}
-  ["target"
+  [:target-path
    "resources/public/js/out"
    "resources/public/js/main.js"]
  
@@ -42,15 +45,22 @@
                   ["vcs" "commit"]
                   ["vcs" "push"]]
 
-  :cljsbuild
-  {:builds
-   [{:id "dev"
-     :source-paths ["src" "dev"]
-     :figwheel true
-     :compiler {:main debux.cs.test.main
-                :output-to "resources/public/js/main.js"
-                :output-dir "resources/public/js/out/"
-                :asset-path "js/out/"
-                :optimizations :none
-                :source-map true
-                :pretty-print true} }]})
+  :shadow-cljs {:nrepl  {:port 8777}
+
+                :builds {:dev
+                         {:target           :browser
+                          :output-dir       "resources/public/js"
+                          :asset-path       "/js"
+                          :compiler-options {:pretty-print true}
+                          :modules          {:debux {:init-fn debux.cs.test.main}}
+                          :devtools         {:http-port 8780
+                                             :http-root "resources/public"}}
+                         :karma-test
+                         {:target    :karma
+                          :ns-regexp "-test$"
+                          :output-to "target/karma-test.js"}}}
+
+  :aliases {"dev-auto" ["shadow" "watch" "dev"]
+            "test-once" ["do"
+                         ["shadow" "compile" "karma-test"]
+                         ["shell" "karma" "start" "--single-run" "--reporters" "junit,dots"]]})
