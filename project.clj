@@ -13,7 +13,7 @@
 
   :min-lein-version "2.6.0"
 
-  :plugins [[lein-shadow "0.1.5"]
+  :plugins [[lein-shadow "0.1.6"]
             [lein-shell "0.5.0"]]
 
   :profiles {:dev {:dependencies [[zprint "0.4.16"]
