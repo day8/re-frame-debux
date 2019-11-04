@@ -16,7 +16,7 @@
   :plugins [[lein-shadow "0.1.6"]
             [lein-shell "0.5.0"]]
 
-  :profiles {:dev {:dependencies [[zprint "0.4.16"]
+  :profiles {:dev {:dependencies [[zprint "0.5.1"]
                                   [eftest "0.5.8"]
                                   [io.aviso/pretty "0.1.37"]
                                   [reloaded.repl "0.2.4"]]
