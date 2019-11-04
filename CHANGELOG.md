@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file. This change
 
 #### Changed
 
-* Upgrade shadow-cljs to 2.8.67
+* Upgrade shadow-cljs to 2.8.69
 * Upgrade lein-shadow to 0.1.6
 
 ## [0.5.3] - 2019-07-18
