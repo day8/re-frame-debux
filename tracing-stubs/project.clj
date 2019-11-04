@@ -1,8 +1,9 @@
-(defproject day8.re-frame/tracing-stubs "see :git-version below https://github.com/arrdem/lein-git-version"
+(defproject    day8.re-frame/tracing-stubs "see :git-version below https://github.com/arrdem/lein-git-version"
   :description "Macros for tracing functions"
-  :url "https://github.com/Day8/re-frame-debux"
-  :license {:name "Eclipse Public License"
-            :url "http://www.eclipse.org/legal/epl-v10.html"}
+  :url         "https://github.com/Day8/re-frame-debux"
+  :license     {:name "Eclipse Public License"
+                :url "http://www.eclipse.org/legal/epl-v10.html"}
+  :scm         {:dir ".."}
 
   :git-version
   {:status-to-version
@@ -16,15 +17,16 @@
              patch+           (inc patch)]
          (format "%s.%d-%s-SNAPSHOT" prefix patch+ ahead))))}
 
-  :deploy-repositories [["clojars" {:sign-releases false
-                                    :url "https://clojars.org/repo"
-                                    :username :env/CLOJARS_USERNAME
-                                    :password :env/CLOJARS_PASSWORD}]]
-  
-  :scm {:dir ".."}
 
-  :release-tasks [["deploy" "clojars"]]
-  
   :dependencies [[org.clojure/clojure "1.10.1" :scope "provided"]]
 
-  :plugins [[me.arrdem/lein-git-version "2.0.3"]])
+  :plugins [[me.arrdem/lein-git-version "2.0.3"]]
+
+  :deploy-repositories [["clojars" {:sign-releases false
+                                    :url           "https://clojars.org/repo"
+                                    :username      :env/CLOJARS_USERNAME
+                                    :password      :env/CLOJARS_PASSWORD}]]
+
+  :release-tasks [["deploy" "clojars"]])
+  
+

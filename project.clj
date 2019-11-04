@@ -1,8 +1,8 @@
-(defproject day8.re-frame/tracing "see :git-version below https://github.com/arrdem/lein-git-version"
+(defproject    day8.re-frame/tracing "see :git-version below https://github.com/arrdem/lein-git-version"
   :description "A tool for inspecting code execution for re-frame applications"
-  :url "https://github.com/philoskim/debux"
-  :license {"Eclipse Public License"
-            "http://www.eclipse.org/legal/epl-v10.html"}
+  :url         "https://github.com/day8/re-frame-debux"
+  :license     {"Eclipse Public License"
+                "http://www.eclipse.org/legal/epl-v10.html"}
 
   :git-version
   {:status-to-version
@@ -16,24 +16,24 @@
              patch+           (inc patch)]
          (format "%s.%d-%s-SNAPSHOT" prefix patch+ ahead))))}
 
-  :dependencies [[org.clojure/clojure "1.10.1" :scope "provided"]
+  :dependencies [[org.clojure/clojure       "1.10.1" :scope "provided"]
                  [org.clojure/clojurescript "1.10.520" :scope "provided"
                   :exclusions [com.google.javascript/closure-compiler-unshaded
                                org.clojure/google-closure-library]]
-                 [thheller/shadow-cljs "2.8.69" :scope "provided"]
-                 [clojure-future-spec "1.9.0"]
-                 [re-frame "0.10.9" :scope "provided"]]
+                 [thheller/shadow-cljs      "2.8.69" :scope "provided"]
+                 [clojure-future-spec       "1.9.0"]
+                 [re-frame                  "0.10.9" :scope "provided"]]
 
   :min-lein-version "2.6.0"
 
   :plugins [[me.arrdem/lein-git-version "2.0.3"]
-            [lein-shadow "0.1.6"]
-            [lein-shell "0.5.0"]]
+            [lein-shadow                "0.1.6"]
+            [lein-shell                 "0.5.0"]]
 
-  :profiles {:dev {:dependencies [[zprint "0.5.1"]
-                                  [eftest "0.5.9"]
+  :profiles {:dev {:dependencies [[zprint          "0.5.1"]
+                                  [eftest          "0.5.9"]
                                   [io.aviso/pretty "0.1.37"]
-                                  [reloaded.repl "0.2.4"]]
+                                  [reloaded.repl   "0.2.4"]]
                    :resource-paths ["dev-resources"]}}
 
   :source-paths ["src"]
@@ -46,9 +46,9 @@
    "resources/public/js/main.js"]
  
   :deploy-repositories [["clojars" {:sign-releases false
-                                    :url "https://clojars.org/repo"
-                                    :username :env/CLOJARS_USERNAME
-                                    :password :env/CLOJARS_PASSWORD}]]
+                                    :url           "https://clojars.org/repo"
+                                    :username      :env/CLOJARS_USERNAME
+                                    :password      :env/CLOJARS_PASSWORD}]]
 
   :release-tasks [["deploy" "clojars"]]
 
@@ -67,7 +67,7 @@
                           :ns-regexp "-test$"
                           :output-to "target/karma-test.js"}}}
 
-  :aliases {"dev-auto" ["shadow" "watch" "dev"]
+  :aliases {"dev-auto"   ["shadow" "watch" "dev"]
             "karma-once" ["do"
                           ["shadow" "compile" "karma-test"]
                           ["shell" "karma" "start" "--single-run" "--reporters" "junit,dots"]]})
