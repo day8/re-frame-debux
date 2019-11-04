@@ -1,8 +1,21 @@
-(defproject day8.re-frame/tracing "0.5.4-SNAPSHOT"
+(defproject day8.re-frame/tracing "see :git-version below https://github.com/arrdem/lein-git-version"
   :description "A tool for inspecting code execution for re-frame applications"
   :url "https://github.com/philoskim/debux"
   :license {"Eclipse Public License"
             "http://www.eclipse.org/legal/epl-v10.html"}
+
+  :git-version
+  {:status-to-version
+   (fn [{:keys [tag version branch ahead ahead? dirty?] :as git}]
+     (assert (re-find #"\d+\.\d+\.\d+" tag)
+       "Tag is assumed to be a raw SemVer version")
+     (if (and tag (not ahead?) (not dirty?))
+       tag
+       (let [[_ prefix patch] (re-find #"(\d+\.\d+)\.(\d+)" tag)
+             patch            (Long/parseLong patch)
+             patch+           (inc patch)]
+         (format "%s.%d-%s-SNAPSHOT" prefix patch+ ahead))))}
+
   :dependencies [[org.clojure/clojure "1.10.1" :scope "provided"]
                  [org.clojure/clojurescript "1.10.520" :scope "provided"
                   :exclusions [com.google.javascript/closure-compiler-unshaded
@@ -13,7 +26,8 @@
 
   :min-lein-version "2.6.0"
 
-  :plugins [[lein-shadow "0.1.6"]
+  :plugins [[me.arrdem/lein-git-version "2.0.3"]
+            [lein-shadow "0.1.6"]
             [lein-shell "0.5.0"]]
 
   :profiles {:dev {:dependencies [[zprint "0.5.1"]
@@ -36,14 +50,7 @@
                                     :username :env/CLOJARS_USERNAME
                                     :password :env/CLOJARS_PASSWORD}]]
 
-  :release-tasks [["vcs" "assert-committed"]
-                  ["change" "version" "leiningen.release/bump-version" "release"]
-                  ["vcs" "commit"]
-                  ["vcs" "tag" "v" "--no-sign"]
-                  ["deploy" "clojars"]
-                  ["change" "version" "leiningen.release/bump-version"]
-                  ["vcs" "commit"]
-                  ["vcs" "push"]]
+  :release-tasks [["deploy" "clojars"]]
 
   :shadow-cljs {:nrepl  {:port 8777}
 

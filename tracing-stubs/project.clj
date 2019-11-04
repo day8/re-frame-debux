@@ -1,9 +1,21 @@
-(defproject day8.re-frame/tracing-stubs "0.5.4-SNAPSHOT"
+(defproject day8.re-frame/tracing-stubs "see :git-version below https://github.com/arrdem/lein-git-version"
   :description "Macros for tracing functions"
   :url "https://github.com/Day8/re-frame-debux"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
-  
+
+  :git-version
+  {:status-to-version
+   (fn [{:keys [tag version branch ahead ahead? dirty?] :as git}]
+     (assert (re-find #"\d+\.\d+\.\d+" tag)
+       "Tag is assumed to be a raw SemVer version")
+     (if (and tag (not ahead?) (not dirty?))
+       tag
+       (let [[_ prefix patch] (re-find #"(\d+\.\d+)\.(\d+)" tag)
+             patch            (Long/parseLong patch)
+             patch+           (inc patch)]
+         (format "%s.%d-%s-SNAPSHOT" prefix patch+ ahead))))}
+
   :deploy-repositories [["clojars" {:sign-releases false
                                     :url "https://clojars.org/repo"
                                     :username :env/CLOJARS_USERNAME
@@ -11,12 +23,8 @@
   
   :scm {:dir ".."}
 
-  :release-tasks [["vcs" "assert-committed"]
-                  ["change" "version" "leiningen.release/bump-version" "release"]
-                  ["vcs" "commit"]
-                  ["deploy" "clojars"]
-                  ["change" "version" "leiningen.release/bump-version"]
-                  ["vcs" "commit"]
-                  ["vcs" "push"]]
+  :release-tasks [["deploy" "clojars"]]
   
-  :dependencies [[org.clojure/clojure "1.10.1" :scope "provided"]])
+  :dependencies [[org.clojure/clojure "1.10.1" :scope "provided"]]
+
+  :plugins [[me.arrdem/lein-git-version "2.0.3"]])
