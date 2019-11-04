@@ -9,6 +9,7 @@ All notable changes to this project will be documented in this file. This change
 * Upgrade lein-shadow to 0.1.6
 * Upgrade karma to 4.4.1
 * Upgrade zprint to 0.5.1
+* Upgrade eftest to 0.5.9
 
 ## [0.5.3] - 2019-07-18
 
