@@ -1,6 +1,6 @@
-# re-frame-debux
+[![CI](https://github.com/day8/re-frame-debux/workflows/ci/badge.svg)](https://github.com/day8/re-frame-debux/actions?workflow=ci)
 
-[![CircleCI](https://circleci.com/gh/Day8/re-frame-debux.svg?style=svg)](https://circleci.com/gh/Day8/re-frame-debux)
+# re-frame-debux
 
 [debux](https://github.com/philoskim/debux) is [@philoskim's](https://github.com/philoskim) useful and novel library for tracing Clojure and ClojureScript code, form by form.
 

@@ -61,6 +61,6 @@
                           :output-to "target/karma-test.js"}}}
 
   :aliases {"dev-auto" ["shadow" "watch" "dev"]
-            "test-once" ["do"
-                         ["shadow" "compile" "karma-test"]
-                         ["shell" "karma" "start" "--single-run" "--reporters" "junit,dots"]]})
+            "karma-once" ["do"
+                          ["shadow" "compile" "karma-test"]
+                          ["shell" "karma" "start" "--single-run" "--reporters" "junit,dots"]]})
