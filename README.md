@@ -1,4 +1,9 @@
 [![CI](https://github.com/day8/re-frame-debux/workflows/ci/badge.svg)](https://github.com/day8/re-frame-debux/actions?workflow=ci)
+[![GitHub tag (latest by date)](https://img.shields.io/github/v/tag/day8/re-frame-debux?style=flat)](https://github.com/day8/re-frame-debux/tags)
+[![Clojars Project](https://img.shields.io/clojars/v/re-frame/lein-template.svg)](https://clojars.org/re-frame/lein-template)
+[![GitHub issues](https://img.shields.io/github/issues-raw/day8/re-frame-debux?style=flat)](https://github.com/day8/re-frame-debux/issues)
+[![GitHub pull requests](https://img.shields.io/github/issues-pr/day8/re-frame-debux)](https://github.com/day8/re-frame-debux/pulls)
+[![License](https://img.shields.io/github/license/day8/re-frame-debux?style=flat)](https://github.com/day8/re-frame-debux/blob/master/LICENSE)
 
 # re-frame-debux
 
