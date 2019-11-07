@@ -1,4 +1,5 @@
 [![CI](https://github.com/day8/re-frame-debux/workflows/ci/badge.svg)](https://github.com/day8/re-frame-debux/actions?workflow=ci)
+[![CD](https://github.com/day8/re-frame-debux/workflows/cd/badge.svg)](https://github.com/day8/re-frame-debux/actions?workflow=cd)
 [![GitHub tag (latest by date)](https://img.shields.io/github/v/tag/day8/re-frame-debux?style=flat)](https://github.com/day8/re-frame-debux/tags)
 [![Clojars Project](https://img.shields.io/clojars/v/day8.re-frame/tracing.svg)](https://clojars.org/day8.re-frame/tracing)
 [![GitHub issues](https://img.shields.io/github/issues-raw/day8/re-frame-debux?style=flat)](https://github.com/day8/re-frame-debux/issues)
