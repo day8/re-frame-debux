@@ -14,7 +14,7 @@
 
   :min-lein-version "2.6.0"
 
-  :plugins      [[day8/lein-git-inject "0.0.4"]
+  :plugins      [[day8/lein-git-inject "0.0.6"]
                  [lein-shadow          "0.1.6"]
                  [lein-shell           "0.5.0"]]
 
