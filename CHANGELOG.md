@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file. This change
 
 #### Changed
 
+* Upgrade ClojureScript to 1.10.748
 * Upgrade shadow-cljs to 2.8.69
 * Upgrade lein-shadow to 0.1.6
 * Upgrade karma to 4.4.1

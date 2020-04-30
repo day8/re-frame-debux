@@ -5,7 +5,7 @@
                 "http://www.eclipse.org/legal/epl-v10.html"}
 
   :dependencies [[org.clojure/clojure       "1.10.1" :scope "provided"]
-                 [org.clojure/clojurescript "1.10.520" :scope "provided"
+                 [org.clojure/clojurescript "1.10.748" :scope "provided"
                   :exclusions [com.google.javascript/closure-compiler-unshaded
                                org.clojure/google-closure-library]]
                  [thheller/shadow-cljs      "2.8.83" :scope "provided"]
