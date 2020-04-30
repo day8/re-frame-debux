@@ -3,6 +3,12 @@ All notable changes to this project will be documented in this file. This change
 
 ## Unreleased
 
+#### Fixed
+
+* Fix shadow-cljs compatibility by making the `day8.re-frame.tracing-stubs` ns
+  available in the main package. Thanks to [@thheller](https://github.com/thheller).
+  See [#30](https://github.com/day8/re-frame-debux/issues/30).
+
 #### Changed
 
 * Upgrade ClojureScript to 1.10.748

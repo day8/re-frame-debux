@@ -70,7 +70,7 @@ or:
    my-handler)
 ```
 
-## Two libraries
+## Option 1: Two libraries
 
 **In development,** you want to include the `day8.re-frame/tracing` library. When you use a `day8.re-frame.tracing/fn-traced` or `day8.re-frame.tracing/traced-defn` from this library, it will emit traces to re-frame's tracing system, which can then be consumed by [re-frame-10x](https://github.com/Day8/re-frame-10x).
 
@@ -82,20 +82,20 @@ With this setup, your use of both macros will have zero runtime and compile time
 
 It is technically possible to use the `day8.re-frame/tracing` library in your production builds. Under advanced compilation, the Closure define should ensure that dead code elimination (DCE) works to remove the traced version of the function from your final JS file. We verified that the traced function JS was removed, but had concerns that other required namespaces may not be completely dead code eliminated. Have a tracing-stubs makes it impossible for DCE to fail, because there is no dead code to be eliminated.
 
-## Installation
+## Option 1: Installation
 
 **First, please be sure to read the "Two libraries" section immediately above for background.**
 
 To include *re-frame-debux* in your project, simply add the following to your *project.clj* development dependencies:
 
 ```
-[day8.re-frame/tracing "0.5.1"]
+[day8.re-frame/tracing "0.5.3"]
 ```
 
 and this to your production dependencies (make sure they are production only):
 
 ```
-[day8.re-frame/tracing-stubs "0.5.1"]
+[day8.re-frame/tracing-stubs "0.5.3"]
 ```
 
 Add Closure defines to your config to enable re-frame tracing + the function tracing:
@@ -105,6 +105,28 @@ Add Closure defines to your config to enable re-frame tracing + the function tra
                                                               "day8.re_frame.tracing.trace_enabled_QMARK_"  true}}}}}}
 ```
 
+
+## Option 2: Namespace Aliases with shadow-cljs
+
+The `day8.re-frame.tracing-stubs` ns is also available in the main package so
+that if you are using shadow-cljs use `:ns-aliases` in a shadow-cljs build
+config to achieve the same result as option 1:
+
+```clojure
+{:builds
+ {:app
+  {:target :browser
+   ...
+   :release
+   {:build-options
+    {:ns-aliases
+     {day8.re-frame.tracing day8.re-frame.tracing-stubs}}}}}
+
+```
+
+This redirects every `(:require [day8.re-frame.tracing :as x])` to use the
+stubs instead in a release build and the development build just uses the
+regular code.
 
 ## Resolving macros with Cursive
 
