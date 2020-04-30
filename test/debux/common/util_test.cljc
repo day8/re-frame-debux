@@ -16,7 +16,7 @@
   (testing "anon gensym patterns"
     (is (= (vals (ut/with-gensyms-names (gensym) {}))
            ["gensym#"])))
-  (testing "named gensym patterns"
+  #_(testing "named gensym patterns"
     (is (= (vals (ut/with-gensyms-names (gensym "abc") {}))
            ["abc#"])))
   (testing "anon param pattern"
