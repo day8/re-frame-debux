@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file. This change
 
 #### Fixed
 
+* Fix require-macros in tracing-stubs ns for shadow-cljs compatibility. Thanks
+  to [@thheller](https://github.com/thheller) for spotting the bug. 
+
+## [0.5.4] - 2020-04-30
+
+#### Fixed
+
 * Fix shadow-cljs compatibility by making the `day8.re-frame.tracing-stubs` ns
   available in the main package. Thanks to [@thheller](https://github.com/thheller).
   See [#30](https://github.com/day8/re-frame-debux/issues/30).
