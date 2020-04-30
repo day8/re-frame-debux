@@ -11,7 +11,7 @@
                                org.clojure/google-closure-library-third-party]]
                  [thheller/shadow-cljs      "2.8.109" :scope "provided"]
                  [clojure-future-spec       "1.9.0"]
-                 [re-frame                  "0.10.9" :scope "provided"]]
+                 [re-frame                  "0.12.0" :scope "provided"]]
 
   :min-lein-version "2.6.0"
 

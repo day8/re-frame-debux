@@ -11,6 +11,7 @@ All notable changes to this project will be documented in this file. This change
 * Upgrade karma to 4.4.1
 * Upgrade zprint to 0.5.1
 * Upgrade eftest to 0.5.9
+* Upgrade re-frame to 0.12.0
 
 ## [0.5.3] - 2019-07-18
 
