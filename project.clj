@@ -7,8 +7,9 @@
   :dependencies [[org.clojure/clojure       "1.10.1" :scope "provided"]
                  [org.clojure/clojurescript "1.10.748" :scope "provided"
                   :exclusions [com.google.javascript/closure-compiler-unshaded
-                               org.clojure/google-closure-library]]
-                 [thheller/shadow-cljs      "2.8.83" :scope "provided"]
+                               org.clojure/google-closure-library
+                               org.clojure/google-closure-library-third-party]]
+                 [thheller/shadow-cljs      "2.8.109" :scope "provided"]
                  [clojure-future-spec       "1.9.0"]
                  [re-frame                  "0.10.9" :scope "provided"]]
 
