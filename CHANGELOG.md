@@ -7,7 +7,7 @@ All notable changes to this project will be documented in this file. This change
 
 * Upgrade ClojureScript to 1.10.748
 * Upgrade shadow-cljs to 2.8.109
-* Upgrade lein-shadow to 0.1.6
+* Upgrade lein-shadow to 0.1.7
 * Upgrade karma to 4.4.1
 * Upgrade zprint to 0.5.1
 * Upgrade eftest to 0.5.9
