@@ -9,7 +9,7 @@
                   :exclusions [com.google.javascript/closure-compiler-unshaded
                                org.clojure/google-closure-library
                                org.clojure/google-closure-library-third-party]]
-                 [thheller/shadow-cljs      "2.8.109" :scope "provided"]
+                 [thheller/shadow-cljs      "2.8.110" :scope "provided"]
                  [clojure-future-spec       "1.9.0"]
                  [re-frame                  "0.12.0" :scope "provided"]]
 
