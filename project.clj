@@ -21,10 +21,11 @@
 
   :middleware   [leiningen.git-inject/middleware]
 
-  :profiles {:dev {:dependencies [[zprint          "0.5.1"]
-                                  [eftest          "0.5.9"]
-                                  [io.aviso/pretty "0.1.37"]
-                                  [reloaded.repl   "0.2.4"]]
+  :profiles {:dev {:dependencies  [[zprint          "0.5.1"]
+                                   [eftest          "0.5.9"]
+                                   [io.aviso/pretty "0.1.37"]
+                                   [reloaded.repl   "0.2.4"]]
+                   :source-paths   ["src" "dev"]
                    :resource-paths ["dev-resources"]}}
 
   :source-paths ["src"]
@@ -50,15 +51,27 @@
                           :output-dir       "resources/public/js"
                           :asset-path       "/js"
                           :compiler-options {:pretty-print true}
-                          :modules          {:debux {:init-fn debux.cs.test.main}}
-                          :devtools         {:http-port 8780
+                          :modules          {:debux {:entries [debux.cs.test.main]}}
+                          :devtools         {:http-port 8780 
                                              :http-root "resources/public"}}
+
+                         :browser-test
+                         {:target :browser-test
+                          :ns-regexp ".*-test$"
+                          :test-dir "target/test"
+                          :compiler-options {:pretty-print true}
+                          :devtools {:http-port 8790
+                                     :http-root "target/test"}}
+
                          :karma-test
                          {:target    :karma
                           :ns-regexp "-test$"
                           :output-to "target/karma-test.js"}}}
 
-  :aliases {"dev-auto"   ["shadow" "watch" "dev"]
+  :aliases {"dev-auto"   ["with-profile" "dev" "do"
+                          ["shadow" "watch" "dev"]]
+            "test-auto"  ["with-profile" "dev" "do"
+                          ["shadow" "watch" "browser-test"]]
             "karma-once" ["do"
                           ["shadow" "compile" "karma-test"]
                           ["shell" "karma" "start" "--single-run" "--reporters" "junit,dots"]]})
