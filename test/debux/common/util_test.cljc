@@ -16,7 +16,7 @@
   (testing "anon gensym patterns"
     (is (= (vals (ut/with-gensyms-names (gensym) {}))
            ["gensym#"])))
-  #_(testing "named gensym patterns"
+  (testing "named gensym patterns"
     (is (= (vals (ut/with-gensyms-names (gensym "abc") {}))
            ["abc#"])))
   (testing "anon param pattern"
@@ -33,7 +33,7 @@
   (is (= (ut/tidy-macroexpanded-form `(let [a# 1]
                                         a#)
                                      {})
-         '(cljs.core/let [a# 1]
+         '(let [a# 1]
             a#)))
   (is (= (ut/tidy-macroexpanded-form '#(let [a (gensym)
                                              b %2]

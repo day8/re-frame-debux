@@ -139,6 +139,10 @@ You can instruct [Cursive](https://cursive-ide.com) to treat the `fn-traced` and
 <img width="500px" src="doc/img/cursive-3.png" alt="Enter var name cljs.core/fn, include non-project files">
 
 
+## Testing
+
+As the macros are in clojure (not cljs) tests are run via `lein test`
+
 ## License
 Copyright © 2015--2018 Young Tae Kim, 2018 Day 8 Technology
 
