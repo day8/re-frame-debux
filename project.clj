@@ -22,8 +22,9 @@
 
   :eftest {:multithread? false}
   
-  :test-selectors {:default (complement :failing)}
-  
+  :test-selectors {:default (complement :failing)
+                   :failing :failing}
+
   :middleware   [leiningen.git-inject/middleware]
 
   :profiles {:dev {:dependencies  [[zprint          "0.5.1"]
