@@ -17,8 +17,13 @@
 
   :plugins      [[day8/lein-git-inject "0.0.11"]
                  [lein-shadow          "0.2.0"]
-                 [lein-shell           "0.5.0"]]
+                 [lein-shell           "0.5.0"]
+                 [lein-eftest "0.5.9"]]
 
+  :eftest {:multithread? false}
+  
+  :test-selectors {:default (complement :failing)}
+  
   :middleware   [leiningen.git-inject/middleware]
 
   :profiles {:dev {:dependencies  [[zprint          "0.5.1"]
