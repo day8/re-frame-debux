@@ -20,7 +20,7 @@
        (take-while some?)
        (keep real-depth)))
 
-#_(deftest real-depth-test
+(deftest real-depth-test
   (is (= (real-depth nil) -1)))
 
 (deftest form-depth-test
@@ -55,7 +55,8 @@
             :result 6}
            {:form (+ 1 (* 2 3))
             :indent-level 0
-            :result 7}] @traces)))
+            :result 7}] 
+        @traces)))
 
 (deftest indent-test2
   (dbgn (+ 1 (* 2 3) (+ 4 5)))
@@ -67,7 +68,8 @@
             :result 9}
            {:form (+ 1 (* 2 3) (+ 4 5))
             :indent-level 0
-            :result 16}] @traces)))
+            :result 16}] 
+        @traces)))
 
 (deftest indent-test3
   (dbgn (-> 1
@@ -84,7 +86,8 @@
             :result 6}
            {:form (+ 5)
             :indent-level 0
-            :result 11}] @traces)))
+            :result 11}] 
+        @traces)))
 
 (deftest indent-test3-macroexpanded
   (dbgn (+ (+ 1 2 (+ 3)) 5))
@@ -112,7 +115,8 @@
             :result 9}
            {:form (+ 1 (* 2 (* 7 1)) (+ 4 5))
             :indent-level 0
-            :result 24}] @traces)))
+            :result 24}] 
+        @traces)))
 
 (deftest indent-test5
   (dbgn (-> 1 (+ 2 (+ 3))))

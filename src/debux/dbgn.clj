@@ -222,19 +222,21 @@
   ;;  There is probably a smarter way to do
   ;; this than checking for nil, but I'm not sure what it is.
   [loc]
-  (if (and (sequential? (z/node loc))
-           (debux-symbol? (first (z/node loc))))
-    nil
-    (loop [loc   loc
-           depth -1]
-      (if (nil? loc)
-        depth
-        (let [node (z/node loc)]
-          (recur (z/up loc)
-                 (if (and (sequential? node)
-                          (debux-symbol? (first node)))
-                   depth
-                   (inc depth))))))))
+  (try
+    (if (and (sequential? (z/node loc))
+             (debux-symbol? (first (z/node loc))))
+      nil
+      (loop [loc   loc
+             depth -1]
+        (if (nil? loc)
+          depth
+          (let [node (z/node loc)]
+            (recur (z/up loc)
+                   (if (and (sequential? node)
+                            (debux-symbol? (first node)))
+                     depth
+                     (inc depth)))))))
+    (catch java.lang.NullPointerException e -1)))  ;; not a zipper
 
 ;;; insert/remove d
 (defn insert-d [form d-sym env]
