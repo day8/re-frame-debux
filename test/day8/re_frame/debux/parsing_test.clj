@@ -1,4 +1,4 @@
-(ns debux.parsing-test
+(ns day8.re-frame.debux.parsing-test
   (:require [clojure.test :refer :all]
             [clojure.string :as str]))
 

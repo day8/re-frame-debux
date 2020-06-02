@@ -1,6 +1,6 @@
-(ns debux.cs.macro-types
+(ns day8.re-frame.debux.cs.macro-types
   (:require [clojure.set :as set]
-            [debux.common.util :as ut]))
+            [day8.re-frame.debux.common.util :as ut]))
 
 (def macro-types*
   (atom {:def-type '#{def cljs.core/defonce}
@@ -36,8 +36,8 @@
             cljs.core/deftype cljs.core/extend-protocol cljs.core/extend-type
             finally cljs.core/import cljs.core/memfn new quote
             cljs.core/refer-clojure cljs.core/reify var throw
-            debux.cs.core/dbg debux.cs.core/dbgn
-            debux.cs.core/clog debux.cs.core/clogn}
+            day8.re-frame.debux.cs.core/dbg debux.cs.core/dbgn
+            day8.re-frame.debux.cs.core/clog debux.cs.core/clogn}
 
          :expand-type
          '#{cljs.core/.. cljs.core/-> cljs.core/->> cljs.core/doto

@@ -1,6 +1,6 @@
-(ns debux.common.util-test
+(ns day8.re-frame.debux.common.util-test
   (:require [clojure.test :refer [deftest testing is]]
-            [debux.common.util :as ut]))
+            [day8.re-frame.debux.common.util :as ut]))
 
 (deftest with-gensyms-names-test
   (testing "auto gensym patterns"

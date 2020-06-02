@@ -1,10 +1,10 @@
-(ns debux.core
-  (:require [debux.dbgn :as dbgn]
-            [debux.macro-types :as mt]
-            [debux.common.util :as ut]
+(ns day8.re-frame.debux.core
+  (:require [day8.re-frame.debux.dbgn :as dbgn]
+            [day8.re-frame.debux.macro-types :as mt]
+            [day8.re-frame.debux.common.util :as ut]
             [clojure.walk :as walk]
             [clojure.spec.alpha :as s]
-            [debux.common.macro-specs :as ms]))
+            [day8.re-frame.debux.common.macro-specs :as ms]))
 
 (def reset-indent-level! ut/reset-indent-level!)
 (def set-print-seq-length! ut/set-print-seq-length!)

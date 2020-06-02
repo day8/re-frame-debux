@@ -1,6 +1,6 @@
-(ns debux.macro-types
+(ns day8.re-frame.debux.macro-types
   (:require [clojure.set :as set]
-            [debux.common.util :as ut]))
+            [day8.re-frame.debux.common.util :as ut]))
 
 (def macro-types*
   (atom {:def-type `#{def defonce}
@@ -35,7 +35,7 @@
             defprotocol defrecord defstruct deftype extend-protocol
             extend-type finally gen-class gen-interface import memfn
             new ns proxy proxy-super quote refer-clojure reify sync
-            var throw debux.core/dbg debux.core/dbgn}
+            var throw day8.re-frame.debux.core/dbg day8.re-frame.debux.core/dbgn}
 
          :expand-type
          `#{clojure.core/.. -> ->> doto cond-> cond->> condp import

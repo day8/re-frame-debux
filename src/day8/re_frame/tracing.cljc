@@ -1,14 +1,14 @@
 (ns day8.re-frame.tracing
   #?(:cljs (:require-macros
-             [debux.dbgn :as dbgn]
-             [debux.cs.macro-types :as mt]
+             [day8.re-frame.debux.dbgn :as dbgn]
+             [day8.re-frame.debux.cs.macro-types :as mt]
              [day8.re-frame.tracing])
      :clj (:require
-            [debux.dbgn :as dbgn]
-            [debux.cs.macro-types :as mt]))
-  (:require [debux.common.util :as ut]
-            [debux.common.macro-specs :as ms]
-            [clojure.spec.alpha :as s]))
+            [day8.re-frame.debux.dbgn :as dbgn]
+            [day8.re-frame.debux.cs.macro-types :as mt]))
+  (:require [day8.re-frame.debux.common.util :as ut]
+            [day8.re-frame.debux.common.macro-specs :as ms]
+            [day8.re-frame.clojure.spec.alpha :as s]))
 
 #?(:cljs (enable-console-print!))
 
@@ -31,15 +31,15 @@
 ;;; debugging APIs
 (defmacro dbgn [form & opts]
   (let [opts' (ut/parse-opts opts)]
-    `(debux.dbgn/dbgn ~form ~opts')))
+    `(day8.re-frame.debux.dbgn/dbgn ~form ~opts')))
 
 ;;; macro registering APIs
 (defmacro register-macros! [macro-type symbols]
-  `(debux.cs.macro-types/register-macros! ~macro-type ~symbols))
+  `(day8.re-frame.debux.cs.macro-types/register-macros! ~macro-type ~symbols))
 
 (defmacro show-macros
-  ([] `(debux.cs.macro-types/show-macros))
-  ([macro-type] `(debux.cs.macro-types/show-macros ~macro-type)))
+  ([] `(day8.re-frame.debux.cs.macro-types/show-macros))
+  ([macro-type] `(day8.re-frame.debux.cs.macro-types/show-macros ~macro-type)))
 
 
 (defn fn-body [args+body]

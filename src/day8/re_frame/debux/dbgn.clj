@@ -1,11 +1,11 @@
-(ns debux.dbgn
+(ns day8.re-frame.debux.dbgn
   (:require [clojure.zip :as z]
             [cljs.analyzer :as analyzer]
-            [debux.common.macro-specs :as ms]
-            [debux.common.skip :as sk]
-            [debux.common.util :as ut :refer [remove-d]]
-            [debux.macro-types :as mt]
-            [debux.cs.macro-types :as cs.mt]
+            [day8.re-frame.debux.common.macro-specs :as ms]
+            [day8.re-frame.debux.common.skip :as sk]
+            [day8.re-frame.debux.common.util :as ut :refer [remove-d]]
+            [day8.re-frame.debux.macro-types :as mt]
+            [day8.re-frame.debux.cs.macro-types :as cs.mt]
             [re-frame.trace :as trace]))
 
 ;;; Basic strategy for dbgn
@@ -207,13 +207,13 @@
              (inc depth)))))
 
 (defn debux-symbol? [sym]
-  (contains? #{'debux.dbgn/d
-               'debux.common.util/spy-first
-               'debux.common.util/spy-last
-               'debux.common.util/spy-comp
-               'debux.common.macro-specs/skip-outer
-               'debux.common.macro-specs/skip
-               'debux.common.macro-specs/o-skip}
+  (contains? #{'day8.re-frame.debux.dbgn/d
+               'day8.re-frame.debux.common.util/spy-first
+               'day8.re-frame.debux.common.util/spy-last
+               'day8.re-frame.debux.common.util/spy-comp
+               'day8.re-frame.debux.common.macro-specs/skip-outer
+               'day8.re-frame.debux.common.macro-specs/skip
+               'day8.re-frame.debux.common.macro-specs/o-skip}
              sym))
 
 (defn real-depth
@@ -342,7 +342,7 @@
                    z/down z/right z/right z/down)
                indent)
 
-        (= node `debux.common.macro-specs/indent)
+        (= node `day8.re-frame.debux.common.macro-specs/indent)
         ;; TODO: does this real-depth need an inc/dec to bring it into line with the d?
         #_(recur (z/edit loc real-depth) indent)
         (do #_(println "Found " node)
@@ -371,10 +371,10 @@
          result# ~form
        #_ #_   result# (ut/take-n-if-seq n# result#)]
      ;(println "LEVEL" ~indent)
-     (ut/send-trace! {:form '~(remove-d form 'debux.dbgn/d)
+     (ut/send-trace! {:form '~(remove-d form 'day8.re-frame.debux.dbgn/d)
                       :result result#
                       :indent-level ~indent})
-     #_(ut/print-form-with-indent (ut/form-header '~(remove-d form 'debux.dbgn/d))
+     #_(ut/print-form-with-indent (ut/form-header '~(remove-d form 'day8.re-frame.debux.dbgn/d))
                                 ~indent)
      #_(ut/pprint-result-with-indent result# ~indent)
      result#))
@@ -428,7 +428,7 @@
               (sk/insert-o-skip-for-recur form &env)
               form)
             (insert-skip &env)
-            (insert-d 'debux.dbgn/d &env)
+            (insert-d 'day8.re-frame.debux.dbgn/d &env)
             remove-skip)
        ;; TODO: can we remove try/catch too?
        (catch ~(if (ut/cljs-env? &env)
@@ -443,7 +443,7 @@
             (sk/insert-o-skip-for-recur form &env)
             form)
           (insert-skip &env)
-          (insert-d 'debux.dbgn/d &env)
+          (insert-d 'day8.re-frame.debux.dbgn/d &env)
           remove-skip)))
 
 

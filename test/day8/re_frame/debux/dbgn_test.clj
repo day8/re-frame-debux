@@ -1,7 +1,7 @@
-(ns debux.dbgn-test
+(ns day8.re-frame.debux.dbgn-test
   (:require [clojure.test :refer :all]
-            [debux.common.util :as ut]
-            [debux.dbgn :as dbgn :refer [dbgn mini-dbgn]]))
+            [day8.re-frame.debux.common.util :as ut]
+            [day8.re-frame.debux.dbgn :as dbgn :refer [dbgn mini-dbgn]]))
 
 (def traces (atom []))
 (def form (atom nil))
@@ -19,7 +19,7 @@
   (is (= (macroexpand-1 '(mini-dbgn
                            (-> '())))
          '(do
-            (debux.common.util/spy-first
+            (day8.re-frame.debux.common.util/spy-first
               (quote ())
               (quote (quote ())))))))
 
@@ -78,13 +78,13 @@
 
 (deftest thread-first-test
     (is
-      (= (macroexpand-1 '(debux.dbgn/mini-dbgn
+      (= (macroexpand-1 '(day8.re-frame.debux.dbgn/mini-dbgn
                            (-> {:a 1}
                                (assoc :a 3))))
          '(do
-           (debux.common.util/spy-first
+           (day8.re-frame.debux.common.util/spy-first
             (assoc
-             (debux.common.util/spy-first {:a 1} (quote {:a 1}) 1)
+             (day8.re-frame.debux.common.util/spy-first {:a 1} (quote {:a 1}) 1)
              :a
              3)
             (quote (assoc :a 3))
@@ -114,15 +114,15 @@
 
 
     (is
-      (= (macroexpand-1 '(debux.dbgn/mini-dbgn
+      (= (macroexpand-1 '(day8.re-frame.debux.dbgn/mini-dbgn
                            (-> {:a 1}
                                (assoc :a 3)
                                frequencies)))
          '(do
-           (debux.common.util/spy-first
+           (day8.re-frame.debux.common.util/spy-first
             (frequencies
-             (debux.common.util/spy-first
-              (assoc (debux.common.util/spy-first {:a 1} (quote {:a 1}) 2) :a 3)
+             (day8.re-frame.debux.common.util/spy-first
+              (assoc (day8.re-frame.debux.common.util/spy-first {:a 1} (quote {:a 1}) 2) :a 3)
               (quote (assoc :a 3))
               1))
             (quote frequencies)

@@ -1,7 +1,7 @@
-(ns debux.indenting-test
+(ns day8.re-frame.debux.indenting-test
   (:require [clojure.test :refer :all]
-            [debux.dbgn :refer [dbgn real-depth]]
-            [debux.common.util :as ut]
+            [day8.re-frame.debux.dbgn :refer [dbgn real-depth]]
+            [day8.re-frame.debux.common.util :as ut]
             [clojure.zip :as z]))
 
 (def traces (atom []))

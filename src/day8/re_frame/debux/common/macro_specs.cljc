@@ -1,4 +1,4 @@
-(ns debux.common.macro-specs
+(ns day8.re-frame.debux.common.macro-specs
   "clojure.core macro specs which are minified, simplified and modified."
   (:require #?(:clj [clojure.spec.alpha :as s]
                :cljs [cljs.spec.alpha :as s])

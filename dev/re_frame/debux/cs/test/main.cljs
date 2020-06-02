@@ -1,4 +1,4 @@
-(ns debux.cs.test.main
+(ns day8.re-frame.debux.cs.test.main
   (:require [debux.cs.core :as d :refer-macros [clog clogn dbg dbgn break]])
   (:require-macros [debux.cs.test.macros :refer [my-let]]))
 

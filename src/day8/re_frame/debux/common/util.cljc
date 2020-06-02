@@ -1,4 +1,4 @@
-(ns debux.common.util
+(ns day8.re-frame.debux.common.util
   "Utilities common for clojure and clojurescript"
   (:refer-clojure :exclude [coll?])
   (:require [clojure.string :as str]

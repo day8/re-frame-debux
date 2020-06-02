@@ -1,11 +1,11 @@
-(ns debux.traced-macros-test
+(ns day8.re-frame.debux.traced-macros-test
   (:require [clojure.test :refer :all]
-            [debux.core :refer [defn-traced fn-traced]]))
+            [day8.re-frame.debux.core :refer [defn-traced fn-traced]]))
 
 (comment
   (with-redefs [ut/send-form!  #(zp/czprint %)
                 ut/send-trace! #(zp/czprint %)]
-    ((debux.core/defn-traced* f1 [x] (-> (str "x" x)
+    ((day8.re-frame.debux.core/defn-traced* f1 [x] (-> (str "x" x)
                                          (str "5"))) "b"))
   )
 
@@ -43,7 +43,7 @@
 
 ;; TODO: we don't currently support trailing attr maps
 ;; I think the spec needs to be tweaked to conform it correctly?
-#_(deftest defn-traced-trailing-attr
+(deftest ^:failing defn-traced-trailing-attr
     (is (= (:doc (meta (defn-traced trailing-attr
                                     ([] 0)
                                     {:doc "test"})))

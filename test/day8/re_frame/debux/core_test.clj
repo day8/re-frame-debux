@@ -1,9 +1,9 @@
-(ns debux.core-test
+(ns day8.re-frame.debux.core-test
   (:require [clojure.test :refer :all]
-            [debux.core :refer :all]
-            [debux.dbgn :as dbgn]
+            [day8.re-frame.debux.core :refer :all]
+            [day8.re-frame.debux.dbgn :as dbgn]
             [re-frame.trace]
-            [debux.common.util :as ut]
+            [day8.re-frame.debux.common.util :as ut]
             [zprint.core]))
 
 (def traces (atom []))

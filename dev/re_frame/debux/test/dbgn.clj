@@ -1,5 +1,5 @@
-(ns debux.test.dbgn
-  (:require [debux.dbgn :refer :all]))
+(ns day8.re-frame.debux.test.dbgn
+  (:require [day8.re-frame.debux.dbgn :refer :all]))
 
 
 ;;; simple example
