@@ -28,16 +28,16 @@
          '(0 1 1 1 2 2 0)))
   (is (= (depth-of-all-forms '(+ 1 (+ 2 (+ 3))))
          '(0 1 1 1 2 2 2 3 3 0)))
-  (is (= (depth-of-all-forms '(debux.common.macro-specs/skip-outer
-                                (debux.common.util/spy-first
-                                  (debux.common.macro-specs/skip-outer
-                                    (+ (debux.common.macro-specs/skip-outer
-                                         (debux.common.util/spy-first
-                                           (debux.common.macro-specs/skip-outer 1)
-                                           (debux.common.macro-specs/skip (quote 1))))
+  (is (= (depth-of-all-forms '(day8.re-frame.debux.common.macro-specs/skip-outer
+                                (day8.re-frame.debux.common.util/spy-first
+                                  (day8.re-frame.debux.common.macro-specs/skip-outer
+                                    (+ (day8.re-frame.debux.common.macro-specs/skip-outer
+                                         (day8.re-frame.debux.common.util/spy-first
+                                           (day8.re-frame.debux.common.macro-specs/skip-outer 1)
+                                           (day8.re-frame.debux.common.macro-specs/skip (quote 1))))
                                        2
                                        (+ 3)))
-                                  (debux.common.macro-specs/skip
+                                  (day8.re-frame.debux.common.macro-specs/skip
                                     (quote (+ 2 (+ 3)))))))
          '(0 0 0 0 1 1 1 1 1 1 1 2 2 1 1 2 2 0 0 1 1 2 2 2 3 3))))
 
