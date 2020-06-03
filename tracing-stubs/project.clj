@@ -7,7 +7,7 @@
 
   :dependencies [[org.clojure/clojure "1.10.1" :scope "provided"]]
 
-  :plugins      [[day8/lein-git-inject "0.0.4"]]
+  :plugins      [[day8/lein-git-inject "0.0.14"]]
 
   :middleware   [leiningen.git-inject/middleware]
 
