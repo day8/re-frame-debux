@@ -1,5 +1,5 @@
 (ns day8.re-frame.debux.parsing-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.test :refer [deftest is]]
             [clojure.string :as str]))
 
 (defn all-indexes [s value]

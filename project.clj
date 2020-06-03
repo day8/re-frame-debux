@@ -23,7 +23,8 @@
   :eftest {:multithread? false}
   
   :test-selectors {:default (complement :failing)
-                   :failing :failing}
+                   :failing :failing
+                   :current :current}
 
   :middleware   [leiningen.git-inject/middleware]
 
