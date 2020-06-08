@@ -8,7 +8,7 @@
             [day8.re-frame.debux.cs.macro-types :as mt]))
   (:require [day8.re-frame.debux.common.util :as ut]
             [day8.re-frame.debux.common.macro-specs :as ms]
-            [day8.re-frame.clojure.spec.alpha :as s]))
+            [clojure.spec.alpha :as s]))
 
 #?(:cljs (enable-console-print!))
 

@@ -288,9 +288,9 @@
                     :else `(if-let [p# (~pred ~a ~expr)]
                              (~c p#)
                              ~(emit pred expr more)))))]
-    `(let [~gpred ~pred
-           ~gexpr ~expr]
-       ~(emit gpred gexpr clauses))))
+     `(let [~gpred ~pred
+            ~gexpr ~expr]
+      ~(emit gpred gexpr clauses))))
 
 (defmacro traced-condp
   "Copied from Clojure and modified"
@@ -316,7 +316,7 @@
                                ~(emit pred expr more))))))]
     `(let [~gpred ~pred
            ~gexpr ~expr]
-       ~(emit gpred gexpr clauses))))
+      ~(emit gpred gexpr clauses))))
 
 (defn skip-condp
   [[name & body]]

@@ -44,11 +44,11 @@
 (defn insert-skip
   "Marks the form to skip."
   [form env]
-  ;(println "INSERT-SKIP" form env)
-  ;(println "SEQ ZIP" (z/node (ut/sequential-zip form)))
+  ; (println "INSERT-SKIP" form env)
+  ; (println "SEQ ZIP" (z/node (ut/sequential-zip form)))
   (loop [loc (ut/sequential-zip form)]
     (let [node (z/node loc)]
-      ;(ut/d node)
+      ; (ut/d node)
       (cond
         (z/end? loc) (z/root loc)
 
@@ -58,7 +58,7 @@
 
         (and (seq? node) (symbol? (first node)))
         (let [sym (ut/ns-symbol (first node) env)]
-          ;(ut/d sym)
+          ; (ut/d sym)
           (cond
             ((:def-type (macro-types env)) sym)
             (-> (z/replace loc (sk/insert-skip-in-def node))

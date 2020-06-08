@@ -6,8 +6,10 @@
                     [clojure.future :refer :all])))
 
 (declare skip o-skip skip-outer indent)
-; skip => full skip
-; o-skip => outermost skip
+; skip => full skip  -- skip this form and all children
+; o-skip => outermost skip --> skip this form but process children
+; skip-outer => ????
+; indent => increase indentation and dont trace ?????
 
 
 ;;; def
