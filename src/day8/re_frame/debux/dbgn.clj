@@ -22,7 +22,7 @@
 ;;               (skip b) (+ a 20)])
 ;;   (+ a b))
 
-;; 3. after insert-d
+;; 3. after insert-trace
 ;;
 ;; (d (let (o-skip [(skip a) 10
 ;;                  (skip b) (d (+ (d a) 20))])
@@ -239,9 +239,9 @@
     (catch java.lang.NullPointerException e -1)))  ;; not a zipper
 
 ;;; insert/remove d
-(defn insert-d [form d-sym env]
+(defn insert-trace [form d-sym env]
 
-  ;(println "INSERT-D" (prn-str form))
+  ;(println "INSERT-TRACE" (prn-str form))
   (loop [loc (ut/sequential-zip form)
          indent 0]
     (let [node (z/node loc)
@@ -329,7 +329,7 @@
 
         ;; DC: why not def? where is that handled?
         (and (seq? node) (ifn? (first node)))
-        (recur (-> (z/replace loc (concat [d-sym (real-depth loc)] [node]))
+        (recur (-> (z/replace loc (concat [d-sym (real-depth loc) node ]))
                    z/down z/right z/right z/down ut/right-or-next)
                (inc indent))
 
@@ -338,7 +338,7 @@
 
 
         (vector? node)
-        (recur (-> (z/replace loc (concat [d-sym (real-depth loc)] [node]))
+        (recur (-> (z/replace loc (concat [d-sym (real-depth loc) node]))
                    z/down z/right z/right z/down)
                indent)
 
@@ -352,7 +352,7 @@
         ;; DC: We might also want to trace inside maps, especially for fx
         ;; in case of symbol, map, or set
         (or (symbol? node) (map? node) (set? node))
-        (recur (-> (z/replace loc (concat [d-sym (real-depth loc)] [node]))
+        (recur (-> (z/replace loc (concat [d-sym (real-depth loc) node]))
                    ;; We're not zipping down inside the node further, so we don't need to add a
                    ;; second z/right like we do in the case of a vector or ifn? node above.
                    ut/right-or-next)
@@ -428,7 +428,7 @@
               (sk/insert-o-skip-for-recur form &env)
               form)
             (insert-skip &env)
-            (insert-d 'day8.re-frame.debux.dbgn/d &env)
+            (insert-trace 'day8.re-frame.debux.dbgn/d &env)
             remove-skip)
        ;; TODO: can we remove try/catch too?
        (catch ~(if (ut/cljs-env? &env)
@@ -443,7 +443,7 @@
             (sk/insert-o-skip-for-recur form &env)
             form)
           (insert-skip &env)
-          (insert-d 'day8.re-frame.debux.dbgn/d &env)
+          (insert-trace 'day8.re-frame.debux.dbgn/d &env)
           remove-skip)))
 
 

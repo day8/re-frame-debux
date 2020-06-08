@@ -231,7 +231,7 @@
                                     b (+ a 20)]
                                    (+ a b))
                              {})
-          f2 (dbgn/insert-d f1 `trace {})
+          f2 (dbgn/insert-trace f1 `trace {})
           f3 (dbgn/remove-skip f2)]
         (is (= f1 '(let
                      (day8.re-frame.debux.common.macro-specs/o-skip
@@ -265,7 +265,7 @@
                                 (and true false) 5
                                 (and true true) (inc 5))
                              {})
-          f2 (dbgn/insert-d f1 `trace {})
+          f2 (dbgn/insert-trace f1 `trace {})
           f3 (dbgn/remove-skip f2)]
         (is (= f1 '(cond (and true false) 5 (and true true) (inc 5))))
         (is (= f2 '(day8.re-frame.debux.core-test/trace
@@ -285,7 +285,7 @@
         (is (= (eval f3)
                6))))
              
-#_(deftest  ^:current doc-condp-test
+(deftest  ^:failing doc-condp-test
     (let [f1 (with-redefs [gensym symbol]
                           (dbgn/insert-skip
                              '(condp = 4
@@ -293,7 +293,7 @@
                                 4       (inc 5)
                                 10)
                              {}))
-          f2 (dbgn/insert-d f1 `trace {})
+          f2 (dbgn/insert-trace f1 `trace {})
           f3 (dbgn/remove-skip f2)]
         (is (= f1 '(clojure.core/let
            (day8.re-frame.debux.common.macro-specs/o-skip
@@ -375,7 +375,7 @@
                              '(-> 5
                                   inc)
                              {})
-          f2 (dbgn/insert-d f1 `trace {})
+          f2 (dbgn/insert-trace f1 `trace {})
           f3 (dbgn/remove-skip f2)]
         (is (= f1 '(day8.re-frame.debux.common.macro-specs/skip-outer
                      (day8.re-frame.debux.common.util/spy-first
