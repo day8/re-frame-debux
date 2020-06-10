@@ -23,7 +23,7 @@
          :some-last-type `#{cljs.core/some->>}
          :cond-first-type `#{cljs.core/cond->}
          :cond-last-type `#{cljs.core/cond->>}
-         :condp-type `#{cljs.core/condp}
+         #_#_:condp-type `#{cljs.core/condp}
 
          :skip-arg-1-type '#{set!}
          :skip-arg-2-type '#{cljs.core/as->}
@@ -41,7 +41,7 @@
 
          :expand-type
          '#{cljs.core/.. cljs.core/-> cljs.core/->> cljs.core/doto
-            cljs.core/cond-> cljs.core/cond->> cljs.core/condp cljs.core/import
+            cljs.core/cond-> cljs.core/cond->> #_cljs.core/condp cljs.core/import
             cljs.core/some-> cljs.core/some->>}
          :dot-type '#{.}}))
 

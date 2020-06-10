@@ -49,7 +49,7 @@
                         (reset! form nil))))
 
 (deftest indent-test
-  (let [f (macroexpand `(dbgn (+ 1 (* 2 3))))]
+  (let [f `(dbgn (+ 1 (* 2 3)))]
     (is (= (eval f) 7))
     (is (= '[{:form (* 2 3)
               :indent-level 1
@@ -60,7 +60,7 @@
           @traces))))
 
 (deftest indent-test2
-  (let [f (macroexpand `(dbgn (+ 1 (* 2 3) (+ 4 5))))]
+  (let [f `(dbgn (+ 1 (* 2 3) (+ 4 5)))]
     (eval f)
     (is (= '[{:form (* 2 3)
               :indent-level 1
@@ -74,9 +74,9 @@
           @traces))))
 
 (deftest indent-test3
-  (let [f (macroexpand `(dbgn (-> 1
+  (let [f `(dbgn (-> 1
                                  (+ 2 (+ 3))
-                                 (+ 5))))]
+                                 (+ 5)))]
     (eval f)
     (is (= '[{:form 1
               :indent-level 2
@@ -93,7 +93,7 @@
           @traces))))
 
 (deftest indent-test3-macroexpanded
-  (let [f (macroexpand `(dbgn (+ (+ 1 2 (+ 3)) 5)))]
+  (let [f `(dbgn (+ (+ 1 2 (+ 3)) 5))]
     (eval f)
     (is (= @traces
            '[{:form (+ 3)
@@ -107,7 +107,7 @@
               :result 11}]))))
 
 (deftest indent-test4
-  (let [f (macroexpand `(dbgn (+ 1 (* 2 (* 7 1)) (+ 4 5))))]
+  (let [f `(dbgn (+ 1 (* 2 (* 7 1)) (+ 4 5)))]
     (eval f)
     (is (= '[{:form (* 7 1)
               :indent-level 2
@@ -124,7 +124,7 @@
           @traces))))
 
 (deftest indent-test5
-  (let [f (macroexpand `(dbgn (-> 1 (+ 2 (+ 3)))))]
+  (let [f `(dbgn (-> 1 (+ 2 (+ 3))))]
     (eval f)
     (is (= @traces
            '[{:form 1

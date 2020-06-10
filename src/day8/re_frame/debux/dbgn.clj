@@ -169,7 +169,7 @@
                                       (analyzer/macroexpand-1 {} new-node)
                                       (macroexpand-1 new-node)))))
 
-            ((:condp-type (macro-types env)) sym)
+            #_#_((:condp-type (macro-types env)) sym)
             (let [new-node (sk/skip-condp node)]
               (recur (z/replace loc (if (ut/cljs-env? env)
                                       (analyzer/macroexpand-1 {} new-node)
@@ -207,7 +207,7 @@
              (inc depth)))))
 
 (defn debux-symbol? [sym]
-  (contains? #{'day8.re-frame.debux.dbgn/d
+  (contains? #{'day8.re-frame.debux.dbgn/trace
                'day8.re-frame.debux.common.util/spy-first
                'day8.re-frame.debux.common.util/spy-last
                'day8.re-frame.debux.common.util/spy-comp
@@ -362,22 +362,16 @@
         (recur (z/next loc) indent)))))
 
 
-
-(defmacro d [indent form]
-  `(let [opts#   ~'+debux-dbg-opts+
-      #_ #_    msg#    (:msg opts#)
-      #_ #_    n#      (or (:n opts#) @ut/print-seq-length*)
-
-         result# ~form
-       #_ #_   result# (ut/take-n-if-seq n# result#)]
-     ;(println "LEVEL" ~indent)
-     (ut/send-trace! {:form '~(remove-d form 'day8.re-frame.debux.dbgn/d)
-                      :result result#
-                      :indent-level ~indent})
-     #_(ut/print-form-with-indent (ut/form-header '~(remove-d form 'day8.re-frame.debux.dbgn/d))
-                                ~indent)
-     #_(ut/pprint-result-with-indent result# ~indent)
-     result#))
+(defmacro trace [indent form]
+  ; (println "FORM" form)
+   (let [org-form (-> form
+                      (remove-d 'day8.re-frame.debux.dbgn/trace))]
+    `(let [opts#   ~'+debux-dbg-opts+
+           result# ~form]
+       (ut/send-trace! {:form '~org-form
+                        :result result#
+                        :indent-level ~indent})
+       result#)))
 
 (defn spy [x]
   ;(zprint.core/czprint x)
@@ -416,19 +410,19 @@
 (defmacro dbgn
   "DeBuG every Nested forms of a form.s"
   [form & [opts]]
-  ;(println "BEFORE" form opts)
-  ;(println "FULLFORM" &form)
+  ; (println "BEFORE" form opts)
+  ; (println "FULLFORM" &form)
   `(let [~'+debux-dbg-opts+ ~(if (ut/cljs-env? &env)
                                (dissoc opts :style :js :once)
                                opts)]
      (try
        ;; Send whole form to trace point
-       (ut/send-form! '~(-> form (remove-d 'todomvc.dbgn/d) (ut/tidy-macroexpanded-form {})))
+       (ut/send-form! '~(-> form (ut/tidy-macroexpanded-form {})))
        ~(-> (if (ut/include-recur? form)
               (sk/insert-o-skip-for-recur form &env)
               form)
             (insert-skip &env)
-            (insert-trace 'day8.re-frame.debux.dbgn/d &env)
+            (insert-trace 'day8.re-frame.debux.dbgn/trace &env)
             remove-skip)
        ;; TODO: can we remove try/catch too?
        (catch ~(if (ut/cljs-env? &env)
@@ -443,7 +437,7 @@
             (sk/insert-o-skip-for-recur form &env)
             form)
           (insert-skip &env)
-          (insert-trace 'day8.re-frame.debux.dbgn/d &env)
+          (insert-trace 'day8.re-frame.debux.dbgn/trace &env)
           remove-skip)))
 
 

@@ -23,7 +23,7 @@
          :some-last-type `#{some->>}
          :cond-first-type `#{cond->}
          :cond-last-type `#{cond->>}
-         :condp-type `#{condp}
+         #_#_:condp-type `#{condp}
 
          :skip-arg-1-type `#{set! with-precision}
          :skip-arg-2-type `#{as->}
@@ -38,7 +38,7 @@
             var throw day8.re-frame.debux.core/dbg day8.re-frame.debux.core/dbgn}
 
          :expand-type
-         `#{clojure.core/.. -> ->> doto cond-> cond->> condp import
+         `#{clojure.core/.. -> ->> doto cond-> cond->> #_condp import
             some-> some->>}
          :dot-type `#{.}}))
 

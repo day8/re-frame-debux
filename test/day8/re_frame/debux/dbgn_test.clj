@@ -27,7 +27,7 @@
 
 ;; Commented out as we no longer print the traces, we need to get the traced data instead.
 (deftest ->-test
-  (let [f (macroexpand `(dbgn (-> '())))]
+  (let [f `(dbgn (-> '()))]
     (is (= (eval f) '()))
     (is (= [{:form '(quote ()), :indent-level 0, :result ()}]
            @traces))
@@ -35,9 +35,9 @@
            @form))))
 
 (deftest ->-test2
-  (let [f (macroexpand `(dbgn (-> {} 
+  (let [f `(dbgn (-> {} 
                                 (assoc :a 1) 
-                                (get :a (identity :missing)))))]
+                                (get :a (identity :missing))))]
     (is (= (eval f) 1))
     (is (= [{:form {}, :indent-level 2, :result {}}
             {:form '(assoc :a 1), :indent-level 1, :result {:a 1}}
@@ -51,34 +51,33 @@
 
 ;; Failing test raises an error
 (deftest ^:failing cond->>-test
-  (let [f (macroexpand `(dbgn (cond->> 1 
+  (let [f `(dbgn (cond->> 1 
                                        true inc 
                                        false (+ 2) 
                                        (= 2 2) (* 45) 
-                                       :always (+ 6))))]
+                                       :always (+ 6)))]
     (is (= (with-out-str (eval f))
            "\ndbgn: (cond->> 1 true inc false (+ 2) (= 2 2) (* 45) :always (+ 6)) =>\n| 1 =>\n|   1\n| true =>\n|   true\n| inc =>\n|   2\n| false =>\n|   false\n| (= 2 2) =>\n|   true\n| (* 45) =>\n|   90\n| :always =>\n|   :always\n| (+ 6) =>\n|   96\n"))))
 
-;; TODO: fix this. Failing test raises an error
-(deftest ^:failing condp-test
-  (let [f1 (macroexpand `(dbgn (condp some [1 2 3 4]
+(deftest condp-test
+  (let [f1 `(dbgn (condp some [1 2 3 4]
                                  #{0 6 7} :>> inc
                                  #{4 5 9} :>> dec
-                                 #{1 2 3} :>> #(+ % 3))))
-        f2 (macroexpand `(dbgn (condp = 3
+                                 #{1 2 3} :>> #(+ % 3)))
+        f2 `(dbgn (condp = 3
                                  1 "one"
                                  2 "two"
                                  3 "three"
-                                 (str "unexpected value, 3"))))
-        f3 (macroexpand `(dbgn (condp = 4
+                                 (str "unexpected value, 3")))
+        f3 `(dbgn (condp = 4
                                  1 "one"
                                  2 "two"
                                  3 "three"
-                                 (str "unexpected value, 4"))))
-        f4 (macroexpand `(dbgn (condp = 3
+                                 (str "unexpected value, 4")))
+        f4 `(dbgn (condp = 3
                                  1 "one"
                                  2 "two"
-                                 3 "three")))]
+                                 3 "three"))]
                              
     (is (= (eval f1)
            3))

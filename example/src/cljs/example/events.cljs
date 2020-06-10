@@ -16,29 +16,27 @@
  (fn-traced [db _]
    (let [a 10
          b (+ a 20)]
-     (+ a b))
-   db))
+     (assoc db ::let (+ a b)))))
 
 (re-frame/reg-event-db
  ::cond
  (fn-traced [db _]
-   (cond
-     (and true false) 5
-     (and true true) (inc 5))
-   db))
+   (assoc db ::cond 
+          (cond
+          (and true false) 5
+          (and true true) (inc 5)))))
 
 (re-frame/reg-event-db
  ::condp
  (fn-traced [db _]
-   (condp = 4
-     (inc 2) 5
-     4       (inc 5)
-     10)
-   db))
+   (assoc db ::condp
+          (condp = 4
+           (inc 2) 5
+           4       (inc 5)
+           10))))
 
 (re-frame/reg-event-db
  ::->
  (fn-traced [db _]
-   (-> 5
-       inc)
-   db))
+   (-> db
+       (assoc ::-> (inc 5)))))

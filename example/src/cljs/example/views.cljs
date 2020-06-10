@@ -17,9 +17,10 @@
   [:tr
    [:td
     [:pre 
-"(let [a 10
-       b (+ a 20)]
-   (+ a b))"]]
+"(fn-traced [db _]
+   (let [a 10
+         b (+ a 20)]
+     (assoc db ::let (+ a b))))"]]
     [:td
      [re-com/button
       :label "let"
@@ -30,9 +31,11 @@
   [:tr
    [:td
     [:pre 
-"(cond
-   (and true false) 5
-   (and true true) (inc 5))"]]
+"(fn-traced [db _]
+   (assoc db ::cond 
+          (cond
+          (and true false) 5
+          (and true true) (inc 5))))"]]
     [:td
      [re-com/button
       :label "cond"
@@ -41,12 +44,14 @@
 (defn condp-example
   []
   [:tr 
-   [:td {:width "200px"} 
+   [:td {:width "100px"} 
     [:pre 
-"(condp = 4
-   (inc 2) 5
-   4       (inc 5)
-   10)"]]
+"(fn-traced [db _]
+   (assoc db ::condp
+          (condp = 4
+           (inc 2) 5
+           4       (inc 5)
+           10)))"]]
    [:td
     [re-com/button
       :label "condp"
@@ -57,8 +62,9 @@
   [:tr
    [:td
     [:pre 
-"(-> 5
-     inc)"]]
+"(fn-traced [db _]
+   (-> db
+       (assoc ::-> (inc 5))))"]]
     [:td
      [re-com/button
       :label "->"

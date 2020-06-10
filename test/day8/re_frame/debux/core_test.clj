@@ -17,7 +17,7 @@
                         (reset! form nil))))
 
 (deftest simple-dbgn-test
-  (let [f (macroexpand `(dbgn (inc 1)))]
+  (let [f `(dbgn (inc 1))]
       (is (= (eval f) 2))
       (is (= @traces
              [{:form '(inc 1) :indent-level 0 :result 2}]))
@@ -166,8 +166,8 @@
          #{})))
 
 (deftest tricky-dbgn-test2
-  (let [f (macroexpand `(dbgn (-> [1 2 3 4 5]
-                                (->> identity))))]
+  (let [f `(dbgn (-> [1 2 3 4 5]
+                                (->> identity)))]
       (is (= (eval f)
              [1 2 3 4 5]))
       (is (= (debux-left-behind (map :form @traces))
@@ -224,7 +224,7 @@
 (defn trace
   [_ f & [_]]
   (eval f))
-    
+
 (deftest doc-example-test
     (let [f1 (dbgn/insert-skip
                              '(let [a 10
@@ -284,97 +284,55 @@
                       (day8.re-frame.debux.core-test/trace 2 (inc 5))))))
         (is (= (eval f3)
                6))))
-             
-(deftest  ^:failing doc-condp-test
-    (let [f1 (with-redefs [gensym symbol]
-                          (dbgn/insert-skip
-                             '(condp = 4
-                                (inc 2) 5
-                                4       (inc 5)
-                                10)
-                             {}))
-          f2 (dbgn/insert-trace f1 `trace {})
-          f3 (dbgn/remove-skip f2)]
-        (is (= f1 '(clojure.core/let
-           (day8.re-frame.debux.common.macro-specs/o-skip
-            [(day8.re-frame.debux.common.macro-specs/skip pred__)
-             =
-             (day8.re-frame.debux.common.macro-specs/skip expr__)
-             4])
-           (if
-            (day8.re-frame.debux.common.macro-specs/skip
-             (day8.re-frame.debux.common.util/spy-first
-              (pred__ (inc 2) expr__)
-              (quote (inc 2))
-              day8.re-frame.debux.common.macro-specs/indent))
-            5
-            (if
-             (day8.re-frame.debux.common.macro-specs/skip
-              (day8.re-frame.debux.common.util/spy-first
-               (pred__ 4 expr__)
-               (quote 4)
-               day8.re-frame.debux.common.macro-specs/indent))
-             (inc 5)
-             10)))))
-        (is (= f2 '(day8.re-frame.debux.core-test/trace
-           0
-           (clojure.core/let
-            (day8.re-frame.debux.common.macro-specs/o-skip
-             [(day8.re-frame.debux.common.macro-specs/skip pred__)
-              (day8.re-frame.debux.core-test/trace 3 =)
-              (day8.re-frame.debux.common.macro-specs/skip expr__)
-              4])
-            (day8.re-frame.debux.core-test/trace
-             2
-             (if
-              (day8.re-frame.debux.common.macro-specs/skip
-               (day8.re-frame.debux.common.util/spy-first
-                (pred__ (inc 2) expr__)
-                (quote (inc 2))
-                day8.re-frame.debux.common.macro-specs/indent))
-              5
-              (day8.re-frame.debux.core-test/trace
-               4
-               (if
-                (day8.re-frame.debux.common.macro-specs/skip
-                 (day8.re-frame.debux.common.util/spy-first
-                  (pred__ 4 expr__)
-                  (quote 4)
-                  day8.re-frame.debux.common.macro-specs/indent))
-                (day8.re-frame.debux.core-test/trace 6 (inc 5))
-                10))))))))
-        (is (= f3 '(day8.re-frame.debux.core-test/trace
-           0
-           (clojure.core/let
-            [pred__ (day8.re-frame.debux.core-test/trace 3 =) expr__ 4]
-            (day8.re-frame.debux.core-test/trace
-             2
-             (if
-              (day8.re-frame.debux.common.util/spy-first
-               (pred__ (inc 2) expr__)
-               (quote (inc 2))
-               day8.re-frame.debux.common.macro-specs/indent)
-              5
-              (day8.re-frame.debux.core-test/trace
-               4
-               (if
-                (day8.re-frame.debux.common.util/spy-first
-                 (pred__ 4 expr__)
-                 (quote 4)
-                 day8.re-frame.debux.common.macro-specs/indent)
-                (day8.re-frame.debux.core-test/trace 6 (inc 5))
-                10))))))))
-        (is (= (eval f3)
-               (condp = 4
+
+(deftest doc-condp-test
+    (let [f  '(condp = 4
                 (inc 2) 5
                 4       (inc 5)
-                10)))))
-             
-(deftest doc-thread-first-test
-    (let [f1 (dbgn/insert-skip
-                             '(-> 5
-                                  inc)
-                             {})
+                10)
+          f1 (with-redefs [gensym symbol]
+                          (dbgn/insert-skip
+                             f
+                             {}))
+          f2 (dbgn/insert-trace f1 `trace {})
+          f3 (dbgn/remove-skip f2)
+          f4 `(dbgn ~f)]
+        (is (= f1 f))
+        (is (= f2 '(day8.re-frame.debux.core-test/trace
+                       0
+                       (condp
+                        (day8.re-frame.debux.core-test/trace 2 =)
+                        4
+                        (day8.re-frame.debux.core-test/trace 2 (inc 2))
+                        5
+                        4
+                        (day8.re-frame.debux.core-test/trace 2 (inc 5))
+                        10))))
+        (is (= f3 '(day8.re-frame.debux.core-test/trace
+                       0
+                       (condp
+                        (day8.re-frame.debux.core-test/trace 2 =)
+                        4
+                        (day8.re-frame.debux.core-test/trace 2 (inc 2))
+                        5
+                        4
+                        (day8.re-frame.debux.core-test/trace 2 (inc 5))
+                        10))))
+        (is (= (eval f3)
+               (eval f)))
+        (is (= (eval f4)
+               (eval f)))
+        (is (= @traces [{:form '=, :indent-level 1, :result =}
+                        {:form '(inc 2), :indent-level 1, :result 3}
+                        {:form '(inc 5), :indent-level 1, :result 6}
+                        {:form '(condp = 4 (inc 2) 5 4 (inc 5) 10),
+                         :indent-level 0, :result 6}]))
+        (is (= @form f))
+             ))
+
+(deftest ^:current doc-thread-first-test
+    (let [f  '(-> 5 inc)
+          f1 (dbgn/insert-skip f {})
           f2 (dbgn/insert-trace f1 `trace {})
           f3 (dbgn/remove-skip f2)]
         (is (= f1 '(day8.re-frame.debux.common.macro-specs/skip-outer
