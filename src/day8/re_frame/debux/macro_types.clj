@@ -17,13 +17,10 @@
          :for-type `#{for doseq}
          :case-type `#{case}
 
-         :thread-first-type `#{->}
-         :thread-last-type `#{->>}
-         :some-first-type `#{some->}
-         :some-last-type `#{some->>}
+         :thread-first-type `#{-> some->}
+         :thread-last-type `#{->> some->>}
          :cond-first-type `#{cond->}
          :cond-last-type `#{cond->>}
-         #_#_:condp-type `#{condp}
 
          :skip-arg-1-type `#{set! with-precision}
          :skip-arg-2-type `#{as->}
@@ -38,8 +35,8 @@
             var throw day8.re-frame.debux.core/dbg day8.re-frame.debux.core/dbgn}
 
          :expand-type
-         `#{clojure.core/.. -> ->> doto cond-> cond->> #_condp import
-            some-> some->>}
+         `#{clojure.core/.. #_-> #_->> doto #_cond-> #_cond->> #_condp import
+            #_some-> #_some->>}
          :dot-type `#{.}}))
 
 (defn merge-symbols [old-symbols new-symbols]

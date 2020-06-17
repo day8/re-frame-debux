@@ -75,21 +75,13 @@
 
 (deftest indent-test3
   (let [f `(dbgn (-> 1
-                                 (+ 2 (+ 3))
-                                 (+ 5)))]
+                    (+ 2 (+ 3))
+                    (+ 5)))]
     (eval f)
-    (is (= '[{:form 1
-              :indent-level 2
-              :result 1}
-             {:form (+ 3)
-              :indent-level 2
-              :result 3}
-             {:form (+ 2 (+ 3))
-              :indent-level 1
-              :result 6}
-             {:form (+ 5)
-              :indent-level 0
-              :result 11}] 
+    (is (= [ {:form '(+ 3) :indent-level 2 :result 3}
+             {:form '(+ 2 (+ 3)) :indent-level 1 :result 6}
+             {:form '(+ 5) :indent-level 1 :result 11}
+             {:form '(-> 1 (+ 2 (+ 3)) (+ 5)), :indent-level 0, :result 11}] 
           @traces))))
 
 (deftest indent-test3-macroexpanded
@@ -126,13 +118,8 @@
 (deftest indent-test5
   (let [f `(dbgn (-> 1 (+ 2 (+ 3))))]
     (eval f)
-    (is (= @traces
-           '[{:form 1
-              :indent-level 1
-              :result 1}
-             {:form (+ 3)
-              :indent-level 1
-              :result 3}
-             {:form (+ 2 (+ 3))
-              :indent-level 0
-              :result 6}]))))
+    (is (= [{:form '(+ 3) :indent-level 2 :result 3}
+            {:form '(+ 2 (+ 3)) :indent-level 1 :result 6}
+            {:form '(-> 1 (+ 2 (+ 3))), :indent-level 0, :result 6}]
+            @traces
+           ))))

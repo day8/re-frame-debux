@@ -70,12 +70,87 @@
       :label "->"
       :on-click #(re-frame/dispatch [::events/->])]]])
 
+
+(defn cond->-example
+  []
+  [:tr
+   [:td
+    [:pre 
+"(re-frame/reg-event-db
+ ::cond->
+ (fn-traced [db _]
+   (cond-> db
+       true             (assoc ::-> (inc 5))
+       (and true false) (assoc ::-> (dec 5)))))"]]
+    [:td
+     [re-com/button
+      :label "cond->"
+      :on-click #(re-frame/dispatch [::events/cond->])]]])
+
+
+      
+(defn cond->>-example
+  []
+  [:tr
+   [:td
+    [:pre 
+"(re-frame/reg-event-db
+ ::cond->>
+ (fn-traced [db _]
+   (cond->> db
+       true             (#(assoc %1 ::->> (inc 5)))
+       (and true false) (#(assoc %1 ::->> (dec 5))))))"]]
+    [:td
+     [re-com/button
+      :label "cond->>"
+      :on-click #(re-frame/dispatch [::events/cond->>])]]])
+
+(defn tricky-example
+  []
+  [:tr
+   [:td
+    [:pre 
+"(re-frame/reg-event-db
+ ::tricky
+ (fn-traced [db _]
+   (let [res (-> [1 2 3 4 5]
+                 (->> (map (fn [val] (condp = val
+                                        3 33
+                                        100 100
+                                        5 55
+                                        val))))
+                 vec)]
+      (assoc db ::tricky res))))"]]
+    [:td
+     [re-com/button
+      :label "tricky"
+      :on-click #(re-frame/dispatch [::events/tricky])]]])
+
+(defn some->example
+  []
+  [:tr
+   [:td
+    [:pre 
+"(re-frame/reg-event-db
+ ::some->
+ (fn-traced [db _]
+   (assoc db ::some-> (some-> {:a 1} :a inc)))"]]
+    [:td
+     [re-com/button
+      :label "some->"
+      :on-click #(re-frame/dispatch [::events/some->])]]])
+      
 (defn main-panel []
   [re-com/v-box
    :height "100%"
    :children [[title]
               [:table
+               [:tbody
                  [let-example]
                  [cond-example]
                  [condp-example]
-                 [->-example]]]])
+                 [->-example]
+                 [cond->-example]
+                 [cond->>-example]
+                 [some->example]
+                 [tricky-example]]]]])

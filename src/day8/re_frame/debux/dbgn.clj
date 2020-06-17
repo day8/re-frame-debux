@@ -58,7 +58,7 @@
 
         (and (seq? node) (symbol? (first node)))
         (let [sym (ut/ns-symbol (first node) env)]
-          ; (ut/d sym)
+          ; (println "NODE" node "SYM" sym)
           (cond
             ((:def-type (macro-types env)) sym)
             (-> (z/replace loc (sk/insert-skip-in-def node))
@@ -98,6 +98,25 @@
                 z/next
                 recur)
 
+            ((:thread-first-type (macro-types env)) sym)
+            (-> (z/replace loc (sk/insert-skip-thread-first node))
+                z/next
+                recur)
+
+            ((:thread-last-type (macro-types env)) sym)
+            (-> (z/replace loc (sk/insert-skip-thread-last node))
+                z/next
+                recur)
+
+            ((:cond-first-type (macro-types env)) sym)
+            (-> (z/replace loc (sk/insert-skip-cond-first node))
+                z/next
+                recur)
+
+            ((:cond-last-type (macro-types env)) sym)
+            (-> (z/replace loc (sk/insert-skip-cond-last node))
+                z/next
+                recur)
 
             ((:skip-arg-1-type (macro-types env)) sym)
             (-> (z/replace loc (sk/insert-skip-arg-1 node))
@@ -128,52 +147,6 @@
             (-> (z/replace loc (sk/insert-skip-form-itself node))
                 ut/right-or-next
                 recur)
-
-            ((:thread-first-type (macro-types env)) sym)
-            (do #_(println "SYMLOCNODE" loc node)
-              (let [new-node (sk/insert-spy-first node)]
-                ;(zp/czprint new-node)
-                ;(println "NEW" (macroexpand-1 new-node))
-                (recur (z/replace loc (if (ut/cljs-env? env)
-                                        (analyzer/macroexpand-1 {} new-node)
-                                        (macroexpand-1 new-node))))))
-
-            ((:thread-last-type (macro-types env)) sym)
-            (let [new-node (sk/insert-spy-last node)]
-              (recur (z/replace loc (if (ut/cljs-env? env)
-                                      (analyzer/macroexpand-1 {} new-node)
-                                      (macroexpand-1 new-node)))))
-
-            ((:some-first-type (macro-types env)) sym)
-            (let [new-node (sk/skip-some-> node)]
-              (recur (z/replace loc (if (ut/cljs-env? env)
-                                      (analyzer/macroexpand-1 {} new-node)
-                                      (macroexpand-1 new-node)))))
-
-            ((:some-last-type (macro-types env)) sym)
-            (let [new-node (sk/skip-some->> node)]
-              (recur (z/replace loc (if (ut/cljs-env? env)
-                                      (analyzer/macroexpand-1 {} new-node)
-                                      (macroexpand-1 new-node)))))
-
-            ((:cond-first-type (macro-types env)) sym)
-            (let [new-node (sk/skip-cond-> node)]
-              (recur (z/replace loc (if (ut/cljs-env? env)
-                                      (analyzer/macroexpand-1 {} new-node)
-                                      (macroexpand-1 new-node)))))
-
-
-            ((:cond-last-type (macro-types env)) sym)
-            (let [new-node (sk/skip-cond->> node)]
-              (recur (z/replace loc (if (ut/cljs-env? env)
-                                      (analyzer/macroexpand-1 {} new-node)
-                                      (macroexpand-1 new-node)))))
-
-            #_#_((:condp-type (macro-types env)) sym)
-            (let [new-node (sk/skip-condp node)]
-              (recur (z/replace loc (if (ut/cljs-env? env)
-                                      (analyzer/macroexpand-1 {} new-node)
-                                      (macroexpand-1 new-node)))))
 
             ; TODO: add comment about this one being different
             ((:expand-type (macro-types env)) sym)
@@ -258,6 +231,10 @@
 
         ;; TODO: is it more efficient to remove the skips here
         ;; rather than taking another pass through the form?
+
+        ;; in case of (.. skip ...)
+        (= ::ms/skip node)
+        (recur (ut/right-or-next loc) indent)
 
         ;; in case of (skip ...)
         (and (seq? node) (= `ms/skip (first node)))
@@ -344,10 +321,7 @@
 
         (= node `day8.re-frame.debux.common.macro-specs/indent)
         ;; TODO: does this real-depth need an inc/dec to bring it into line with the d?
-        #_(recur (z/edit loc real-depth) indent)
-        (do #_(println "Found " node)
-            #_(println "Real depth" (real-depth loc))
-            (recur (z/replace loc (real-depth loc)) indent))
+        (recur (z/replace loc (real-depth loc)) indent)
 
         ;; DC: We might also want to trace inside maps, especially for fx
         ;; in case of symbol, map, or set
@@ -361,17 +335,57 @@
         :else
         (recur (z/next loc) indent)))))
 
+(defmulti trace*
+  (fn [& args]
+      ; (println "trace*" args)
+      (cond
+        (= 2 (count args))  :trace
+        (= java.lang.Long
+           (-> args
+               second
+               type))     :trace->
+        :else :trace->>)))
 
-(defmacro trace [indent form]
-  ; (println "FORM" form)
-   (let [org-form (-> form
-                      (remove-d 'day8.re-frame.debux.dbgn/trace))]
+(defmethod trace* :trace
+  [indent form]
+  ; (println "TRACE" indent form)
+  (let [org-form (-> form
+                     (remove-d 'day8.re-frame.debux.dbgn/trace))]
     `(let [opts#   ~'+debux-dbg-opts+
            result# ~form]
        (ut/send-trace! {:form '~org-form
                         :result result#
                         :indent-level ~indent})
        result#)))
+
+
+(defmethod trace* :trace->
+  [f indent form]
+  ; (println "TRACE->" indent f form)
+   (let [org-form (-> form
+                      (remove-d 'day8.re-frame.debux.dbgn/trace))]
+    `(let [opts#   ~'+debux-dbg-opts+
+           result# (-> ~f ~form)]
+       (ut/send-trace! {:form '~org-form
+                        :result result#
+                        :indent-level ~indent})
+       result#)))
+
+(defmethod trace* :trace->>
+  [indent form f]
+  ; (println "TRACE->>" indent f form)
+   (let [org-form (-> form
+                      (remove-d 'day8.re-frame.debux.dbgn/trace))]
+    `(let [opts#   ~'+debux-dbg-opts+
+           result# (->> ~f ~form)]
+       (ut/send-trace! {:form '~org-form
+                        :result result#
+                        :indent-level ~indent})
+       result#)))
+
+(defmacro trace [& args]
+  (apply trace* args))
+
 
 (defn spy [x]
   ;(zprint.core/czprint x)
@@ -384,6 +398,11 @@
       ;(ut/d node)
       (cond
         (z/end? loc) (z/root loc)
+
+        ;; in case of (.. skip ...)
+        (= ::ms/skip-place node)
+        (recur (-> (z/remove loc)
+                  ut/right-or-next))
 
         ;; in case of (skip ...)
         (and (seq? node)

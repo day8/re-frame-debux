@@ -18,46 +18,44 @@
 (deftest skip-outer-skip-inner-test
   (is (= (macroexpand-1 `(mini-dbgn
                            (-> '())))
-         '(do
-            (day8.re-frame.debux.common.util/spy-first
-              (quote ())
-              (quote (quote ()))
-              0)))))
+         '(do (day8.re-frame.debux.dbgn/trace 0 (clojure.core/-> (quote ())))))))
 
 
 ;; Commented out as we no longer print the traces, we need to get the traced data instead.
 (deftest ->-test
   (let [f `(dbgn (-> '()))]
     (is (= (eval f) '()))
-    (is (= [{:form '(quote ()), :indent-level 0, :result ()}]
+    (is (= [{:form '(-> (quote ())), :indent-level 0, :result ()}]
            @traces))
     (is (= '(-> (quote ()))
            @form))))
 
 (deftest ->-test2
-  (let [f `(dbgn (-> {} 
-                                (assoc :a 1) 
-                                (get :a (identity :missing))))]
+  (let [f `(dbgn (-> {}
+                     (assoc :a 1)
+                     (get :a (identity :missing))))]
     (is (= (eval f) 1))
-    (is (= [{:form {}, :indent-level 2, :result {}}
+    (is (= [{:form {}, :indent-level 1, :result {}}
             {:form '(assoc :a 1), :indent-level 1, :result {:a 1}}
-            {:form '(identity :missing), :indent-level 1, :result :missing}
-            {:form '(get :a (identity :missing)), :indent-level 0, :result 1}]
+            {:form '(identity :missing), :indent-level 2, :result :missing}
+            {:form '(get :a (identity :missing)), :indent-level 1, :result 1}
+            {:form '(-> {} (assoc :a 1) (get :a (identity :missing))), :indent-level 0, :result 1}]
            @traces))
-    (is (= '(-> {} 
-                (assoc :a 1) 
+    (is (= '(-> {}
+                (assoc :a 1)
                 (get :a (identity :missing)))
            @form))))
 
-;; Failing test raises an error
-(deftest ^:failing cond->>-test
-  (let [f `(dbgn (cond->> 1 
-                                       true inc 
-                                       false (+ 2) 
-                                       (= 2 2) (* 45) 
-                                       :always (+ 6)))]
-    (is (= (with-out-str (eval f))
-           "\ndbgn: (cond->> 1 true inc false (+ 2) (= 2 2) (* 45) :always (+ 6)) =>\n| 1 =>\n|   1\n| true =>\n|   true\n| inc =>\n|   2\n| false =>\n|   false\n| (= 2 2) =>\n|   true\n| (* 45) =>\n|   90\n| :always =>\n|   :always\n| (+ 6) =>\n|   96\n"))))
+(deftest cond->>-test
+  (let [f  '(cond->> 1
+                   true inc
+                   false (+ 2)
+                   (= 2 2) (* 45)
+                   :always (+ 6))
+        f1 `(dbgn ~f)]
+    (is (= (eval f1)
+           (eval f)))
+    (is (= @form f))))
 
 (deftest condp-test
   (let [f1 `(dbgn (condp some [1 2 3 4]
@@ -78,7 +76,7 @@
                                  1 "one"
                                  2 "two"
                                  3 "three"))]
-                             
+
     (is (= (eval f1)
            3))
     (is (= (eval f2)
@@ -90,17 +88,16 @@
 
 (deftest thread-first-test
     (is
-      (= (macroexpand-1 '(day8.re-frame.debux.dbgn/mini-dbgn
+      (= '(do
+           (day8.re-frame.debux.dbgn/trace
+            0
+            (->
+             (day8.re-frame.debux.dbgn/trace 1 {:a 1})
+             (day8.re-frame.debux.dbgn/trace 1 (assoc :a 3)))))
+          (macroexpand-1 '(day8.re-frame.debux.dbgn/mini-dbgn
                            (-> {:a 1}
                                (assoc :a 3))))
-         '(do
-           (day8.re-frame.debux.common.util/spy-first
-            (assoc
-             (day8.re-frame.debux.common.util/spy-first {:a 1} (quote {:a 1}) 1)
-             :a
-             3)
-            (quote (assoc :a 3))
-            0))))
+         ))
           ; Old result
           ; #_'(clojure.core/let
           ;   []
@@ -126,19 +123,17 @@
 
 
     (is
-      (= (macroexpand-1 '(day8.re-frame.debux.dbgn/mini-dbgn
+      (= '(do
+           (day8.re-frame.debux.dbgn/trace
+            0
+            (->
+             (day8.re-frame.debux.dbgn/trace 1 {:a 1})
+             (day8.re-frame.debux.dbgn/trace 1 (assoc :a 3))
+             (day8.re-frame.debux.dbgn/trace 1 frequencies))))
+          (macroexpand-1 '(day8.re-frame.debux.dbgn/mini-dbgn
                            (-> {:a 1}
                                (assoc :a 3)
-                               frequencies)))
-         '(do
-           (day8.re-frame.debux.common.util/spy-first
-            (frequencies
-             (day8.re-frame.debux.common.util/spy-first
-              (assoc (day8.re-frame.debux.common.util/spy-first {:a 1} (quote {:a 1}) 2) :a 3)
-              (quote (assoc :a 3))
-              1))
-            (quote frequencies)
-            0))))
+                               frequencies)))))
           ;  Old result
         ; '(clojure.core/let
         ;     []

@@ -10,7 +10,7 @@
 ; o-skip => outermost skip --> skip this form but process children
 ; skip-outer => ????
 ; indent => increase indentation and dont trace ?????
-
+; ::skip-place is a placeholder (inserted in threading macros) that is removed before they are expanded
 
 ;;; def
 (defn name-unformer [name]

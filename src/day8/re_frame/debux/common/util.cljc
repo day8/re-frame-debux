@@ -363,13 +363,14 @@
 ;; Remove trace info
 
 (defn debux-skip-symbol? [sym]
-  (contains? #{'debux.common.macro-specs/skip-outer
-               'debux.common.macro-specs/skip
-               'debux.common.macro-specs/o-skip}
+  (contains? #{'day8.re-frame.debux.common.macro-specs/skip-outer
+               'day8.re-frame.debux.common.macro-specs/skip
+               'day8.re-frame.debux.common.macro-specs/o-skip
+               :day8.re-frame.debux.common.macro-specs/skip-place}
              sym))
 
 (defn spy-first? [sym]
-  (= 'debux.common.util/spy-first sym))
+  (= 'day8.re-frame.debux.common.util/spy-first sym))
 
 (defn third [coll]
   (first (next (next coll))))
