@@ -144,6 +144,12 @@
   (let [arg1' (if (symbol? arg1) `(ms/skip ~arg1) arg1)]
     `(~name ~arg1' (ms/skip ~arg2))))
 
+;;; :dot-type
+(defn insert-skip-in-dot-dot
+  [[name arg1 arg2 arg3]]
+  (let [arg1' (if (symbol? arg1) `(ms/skip ~arg1) arg1)]
+    `(~name ~arg1' (ms/skip ~arg2) (ms/skip ~arg3))))
+
 ;;; :thread-first-type
 (defn insert-skip-thread-first
   [form]

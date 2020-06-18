@@ -17,7 +17,7 @@
          :for-type `#{for doseq}
          :case-type `#{case}
 
-         :thread-first-type `#{-> some->}
+         :thread-first-type `#{-> some-> doto}
          :thread-last-type `#{->> some->>}
          :cond-first-type `#{cond->}
          :cond-last-type `#{cond->>}
@@ -34,10 +34,8 @@
             new ns proxy proxy-super quote refer-clojure reify sync
             var throw day8.re-frame.debux.core/dbg day8.re-frame.debux.core/dbgn}
 
-         :expand-type
-         `#{clojure.core/.. #_-> #_->> doto #_cond-> #_cond->> #_condp import
-            #_some-> #_some->>}
-         :dot-type `#{.}}))
+         :dot-type `#{.}
+         :dot-dot-type `#{clojure.core/..}}))
 
 (defn merge-symbols [old-symbols new-symbols]
   (->> (map #(ut/ns-symbol %) new-symbols)

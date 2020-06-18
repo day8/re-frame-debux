@@ -72,3 +72,22 @@
  ::some->
  (fn-traced [db _]
    (assoc db ::some-> (some-> {:a 1} :a inc))))
+  
+(re-frame/reg-event-db
+ ::everything->
+ (fn-traced [db _]
+     (-> db
+         (assoc ::everything-> (-> [10 11]
+                                   (cond->
+                                    true       (conj 12)
+                                    true       (as-> xs (map - xs [3 2 1]))
+                                    true       (->> (map inc))
+                                    true       (some->> (map inc))
+                                    false      (reverse)))))))
+
+(re-frame/reg-event-db
+ ::dot
+ (fn-traced [db _]
+     (-> db
+         (assoc ::dot "abc")
+         (update ::dot #(.. % toUpperCase (concat "ABC"))))))

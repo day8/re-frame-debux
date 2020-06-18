@@ -17,7 +17,7 @@
          :for-type '#{cljs.core/for cljs.core/doseq}
          :case-type '#{cljs.core/case}
 
-         :thread-first-type `#{cljs.core/-> cljs.core/some->}
+         :thread-first-type `#{cljs.core/-> cljs.core/some-> cljs.core/doto}
          :thread-last-type `#{cljs.core/->> cljs.core/some->>}
          :cond-first-type `#{cljs.core/cond->}
          :cond-last-type `#{cljs.core/cond->>}
@@ -36,11 +36,8 @@
             day8.re-frame.debux.cs.core/dbg debux.cs.core/dbgn
             day8.re-frame.debux.cs.core/clog debux.cs.core/clogn}
 
-         :expand-type
-         '#{cljs.core/.. #_cljs.core/-> #_cljs.core/->> cljs.core/doto
-            #_cljs.core/cond-> #_cljs.core/cond->> #_cljs.core/condp cljs.core/import
-            #_cljs.core/some-> #_cljs.core/some->>}
-         :dot-type '#{.}}))
+         :dot-type '#{.}
+         :dot-dot-type `#{cljs.core/..}}))
 
 
 (defn- merge-symbols [old-symbols new-symbols env]

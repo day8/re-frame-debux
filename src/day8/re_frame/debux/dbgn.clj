@@ -161,6 +161,11 @@
                 z/down z/right
                 recur)
 
+            ((:dot-dot-type (macro-types env)) sym)
+            (-> (z/replace loc (sk/insert-skip-in-dot-dot node))
+                z/down z/right
+                recur)
+
             :else
             (recur (z/next loc))))
 

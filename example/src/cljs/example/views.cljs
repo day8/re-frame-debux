@@ -140,6 +140,43 @@
       :label "some->"
       :on-click #(re-frame/dispatch [::events/some->])]]])
       
+(defn everything->example
+  []
+  [:tr
+   [:td
+    [:pre 
+"(re-frame/reg-event-db
+ ::everything->
+ (fn-traced [db _]
+     (-> db
+         (assoc ::everything-> (-> [10 11]
+                                   (cond->
+                                    true       (conj 12)
+                                    true       (as-> xs (map - xs [3 2 1]))
+                                    true       (->> (map inc))
+                                    true       (some->> (map inc))
+                                    false      (reverse)))))))"]]
+    [:td
+     [re-com/button
+      :label "everything->"
+      :on-click #(re-frame/dispatch [::events/everything->])]]])
+      
+(defn dot-example
+  []
+  [:tr
+   [:td
+    [:pre 
+"(re-frame/reg-event-db
+ ::dot
+ (fn-traced [db _]
+     (-> db
+         (assoc ::dot \"abc\")
+         (update ::dot #(.. % toUpperCase (concat \"ABC\"))))))"]]
+    [:td
+     [re-com/button
+      :label "dot"
+      :on-click #(re-frame/dispatch [::events/dot])]]])
+
 (defn main-panel []
   [re-com/v-box
    :height "100%"
@@ -153,4 +190,6 @@
                  [cond->-example]
                  [cond->>-example]
                  [some->example]
-                 [tricky-example]]]]])
+                 [tricky-example]
+                 [everything->example]
+                 [dot-example]]]]])

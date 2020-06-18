@@ -557,3 +557,49 @@
                                 pr-str)))
                  (every? #(clojure.string/includes? (pr-str f) %))))))
              
+(deftest doto-test
+    (let [f   '(doto (java.util.HashMap.)
+                      (.put "a" 1)
+                      (.put "b" 2)
+                      (as-> x (println x)))
+          f1 (dbgn/insert-skip f {})
+          f2 (dbgn/insert-trace f1 `trace {})
+          f3 (dbgn/remove-skip f2)
+          f4 `(dbgn ~f)]
+        (println "F1" f1)
+        (println "F2" f2)
+        (println "F3" f3)
+        (println "F4" f4)
+        (is (= (eval f3)
+               (eval f)))
+        (is (= (eval f4)
+               (eval f)))
+        (is (= @form f))
+        (is (->> @traces
+                 (map (fn [f'] (->> f'
+                                :form
+                                pr-str)))
+                 (every? #(clojure.string/includes? (pr-str f) %))))))
+
+(deftest ^:current dot-test
+    (let [f   '(do (. "abc" toUpperCase)
+                   (.. "abc" toUpperCase (concat "ABC")))
+          f1 (dbgn/insert-skip f {})
+          f2 (dbgn/insert-trace f1 `trace {})
+          f3 (dbgn/remove-skip f2)
+          f4 `(dbgn ~f)]
+        (println "F1" f1)
+        (println "F2" f2)
+        (println "F3" f3)
+        (println "F4" f4)
+        (is (= (eval f3)
+               (eval f)))
+        (is (= (eval f4)
+               (eval f)))
+        (is (= @form f))
+        (is (->> @traces
+                 (map (fn [f'] (->> f'
+                                :form
+                                pr-str)))
+                 (every? #(clojure.string/includes? (pr-str f) %))))))
+             
