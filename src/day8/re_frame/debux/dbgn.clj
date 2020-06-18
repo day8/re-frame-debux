@@ -148,14 +148,6 @@
                 ut/right-or-next
                 recur)
 
-            ; TODO: add comment about this one being different
-            ((:expand-type (macro-types env)) sym)
-            ;; Why do we add a seq call here?
-            (-> (z/replace loc (seq (if (ut/cljs-env? env)
-                                      (analyzer/macroexpand-1 {} node)
-                                      (macroexpand-1 node))))
-                recur)
-
             ((:dot-type (macro-types env)) sym)
             (-> (z/replace loc (sk/insert-skip-in-dot node))
                 z/down z/right
