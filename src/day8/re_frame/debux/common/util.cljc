@@ -21,16 +21,18 @@
   (z/zipper #(or (sequential? %) (map? %)) 
             (fn [x]
               (cond 
-                (map? x)    (map->seq x) 
+                (map? x)    (with-meta (map->seq x) (meta x))
                 :else       x))
             (fn [x children]
               (cond 
-                (vector? x) (vec children)
-                (map? x)    (reduce
+                (vector? x) (with-meta (vec children) (meta x))
+                (map? x)    (with-meta
+                              (reduce
                                 (fn [r [k v]]
                                     (assoc r k v))
                                   {}
                                   (partition 2 children))
+                              (meta x))
                 :else children))
             root))
 
