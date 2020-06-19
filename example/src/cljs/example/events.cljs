@@ -15,7 +15,12 @@
  ::let
  (fn-traced [db _]
    (let [a 10
-         b (+ a 20)]
+         b (+ a 20)
+         logo          "logo"
+         original-logo "old-logo"
+         new-logo? (not
+                     (or (empty? logo)
+                         (= logo original-logo)))]
      (assoc db ::let (+ a b)))))
 
 (re-frame/reg-event-db
