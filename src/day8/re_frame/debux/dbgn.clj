@@ -211,12 +211,12 @@
 ;;; insert/remove d
 (defn insert-trace [form d-sym env]
 
-  ;(println "INSERT-TRACE" (prn-str form))
+  ; (println "INSERT-TRACE" (prn-str form))
   (loop [loc (ut/sequential-zip form)
          indent 0]
     (let [node (z/node loc)
           #_ #_ indent (real-depth loc)]
-      ;(ut/d node)
+    ;   (println "node" node)
       (cond
         (z/end? loc) (z/root loc)
 
@@ -316,6 +316,11 @@
                    z/down z/right z/right z/down)
                indent)
 
+        (map? node)
+        (recur (-> (z/replace loc (concat [d-sym (real-depth loc) node]))
+                   z/down z/right z/right z/down)
+               indent)
+
         (= node `day8.re-frame.debux.common.macro-specs/indent)
         ;; TODO: does this real-depth need an inc/dec to bring it into line with the d?
         (recur (z/replace loc (real-depth loc)) indent)
@@ -345,7 +350,7 @@
 
 (defmethod trace* :trace
   [indent form]
-  ; (println "TRACE" indent form)
+;   (println "TRACE" indent form)
   (let [org-form (-> form
                      (remove-d 'day8.re-frame.debux.dbgn/trace))]
     `(let [opts#   ~'+debux-dbg-opts+
@@ -390,6 +395,7 @@
 
 ;;; remove skip
 (defn remove-skip [form]
+;   (println "REMOVE-SKIP")
   (loop [loc (ut/sequential-zip form)]
     (let [node (z/node loc)]
       ;(ut/d node)

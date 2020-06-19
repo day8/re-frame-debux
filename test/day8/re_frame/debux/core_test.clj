@@ -581,7 +581,7 @@
                                 pr-str)))
                  (every? #(clojure.string/includes? (pr-str f) %))))))
 
-(deftest ^:current dot-test
+(deftest dot-test
     (let [f   '(do (. "abc" toUpperCase)
                    (.. "abc" toUpperCase (concat "ABC")))
           f1 (dbgn/insert-skip f {})
@@ -594,6 +594,51 @@
         (println "F4" f4)
         (is (= (eval f3)
                (eval f)))
+        (is (= (eval f4)
+               (eval f)))
+        (is (= @form f))
+        (is (->> @traces
+                 (map (fn [f'] (->> f'
+                                :form
+                                pr-str)))
+                 (every? #(clojure.string/includes? (pr-str f) %))))))
+
+(deftest  vector-test
+    (let [f   '[:div {:style {:background (if true (inc 5) "blue")}} (str "Hello " "World")]
+          f1 (dbgn/insert-skip f {})
+          f2 (dbgn/insert-trace f1 `trace {})
+          f3 (dbgn/remove-skip f2)
+          f4 `(dbgn ~f)]
+        (println "F1" f1)
+        (println "F2" f2)
+        (println "F3" f3)
+        (println "F4" f4)
+        (is (= (eval f3)
+              (eval f)))
+        (is (= (eval f4)
+               (eval f)))
+        (is (= @form f))
+        (is (->> @traces
+                 (map (fn [f'] (->> f'
+                                :form
+                                pr-str)))
+                 (every? #(clojure.string/includes? (pr-str f) %))))
+        ))
+
+
+(deftest ^:current map-test
+    (let [f   '{:db (assoc {} :a (inc 5) 
+                              :b (if true :t :f))}
+          f1 (dbgn/insert-skip f {})
+          f2 (dbgn/insert-trace f1 `trace {})
+          f3 (dbgn/remove-skip f2)
+          f4 `(dbgn ~f)]
+        (println "F1" f1)
+        (println "F2" f2)
+        (println "F3" f3)
+        (println "F4" f4)
+        (is (= (eval f3)
+              (eval f)))
         (is (= (eval f4)
                (eval f)))
         (is (= @form f))

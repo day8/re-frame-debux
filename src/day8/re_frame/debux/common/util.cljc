@@ -9,12 +9,29 @@
             [clojure.repl :as repl]
             [re-frame.trace :as trace]))
 
+(defn map->seq[m]
+  (reduce
+    (fn [r [k v]]
+      (concat r [k v]))
+    []
+    m))
+  
 ;;; zipper
 (defn sequential-zip [root]
-  (z/zipper sequential?
-            identity
+  (z/zipper #(or (sequential? %) (map? %)) 
+            (fn [x]
+              (cond 
+                (map? x)    (map->seq x) 
+                :else       x))
             (fn [x children]
-              (if (vector? x) (vec children) children))
+              (cond 
+                (vector? x) (vec children)
+                (map? x)    (reduce
+                                (fn [r [k v]]
+                                    (assoc r k v))
+                                  {}
+                                  (partition 2 children))
+                :else children))
             root))
 
 (defn right-or-next [loc]

@@ -91,3 +91,16 @@
      (-> db
          (assoc ::dot "abc")
          (update ::dot #(.. % toUpperCase (concat "ABC"))))))
+
+(re-frame/reg-event-db
+ ::vec
+ (fn-traced [db _]
+     (-> db
+         (assoc ::vec [:div {:style {:color (if true (str "hello " "world") :never)}} 
+                             (when true [inc "putting inc symbol inside a vector"])]))))
+
+(re-frame/reg-event-fx
+ ::map
+ (fn-traced [{:keys [db]} _]
+     {:db (assoc db :a (inc 5) 
+                    :b (if true :t :f))}))

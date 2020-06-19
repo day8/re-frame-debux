@@ -177,6 +177,38 @@
       :label "dot"
       :on-click #(re-frame/dispatch [::events/dot])]]])
 
+
+(defn vec-example
+  []
+  [:tr
+   [:td
+    [:pre 
+"(re-frame/reg-event-db
+ ::vec
+ (fn-traced [db _]
+     (-> db
+         (assoc ::vec [:div {:style {:color (if true (str \"hello \" \"world\") :never)}} 
+                             (when true [inc \"putting inc symbol inside a vector\"])]))))"]]
+    [:td
+     [re-com/button
+      :label "vec"
+      :on-click #(re-frame/dispatch [::events/vec])]]])
+
+(defn map-example
+  []
+  [:tr
+   [:td
+    [:pre 
+"(re-frame/reg-event-fx
+ ::map
+ (fn-traced [{:keys [db]} _]
+     {:db (assoc db :a (inc 5) 
+                    :b (if true :t :f))}))"]]
+    [:td
+     [re-com/button
+      :label "map"
+      :on-click #(re-frame/dispatch [::events/map])]]])
+
 (defn main-panel []
   [re-com/v-box
    :height "100%"
@@ -192,4 +224,6 @@
                  [some->example]
                  [tricky-example]
                  [everything->example]
-                 [dot-example]]]]])
+                 [dot-example]
+                 [vec-example]
+                 [map-example]]]]])
