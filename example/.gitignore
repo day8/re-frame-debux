@@ -3,6 +3,8 @@
 /target/
 /*-init.clj
 /*.log
+/package.json
+/package-lock.json
 
 # Leiningen
 /.lein-*
