@@ -638,7 +638,7 @@
         (println "F3" f3)
         (println "F4" f4)
         (is (= (eval f3)
-              (eval f)))
+               (eval f)))
         (is (= (eval f4)
                (eval f)))
         (is (= @form f))

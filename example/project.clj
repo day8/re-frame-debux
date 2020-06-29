@@ -7,7 +7,7 @@
                  [thheller/shadow-cljs "2.9.3"]
                  [reagent "0.10.0"]
                  [re-frame "0.12.0"]
-                 [day8.re-frame/tracing "0.5.5"]
+                 [day8.re-frame/tracing "RELEASE"]
                  [re-com "2.8.0"]]
 
   :plugins [[lein-shadow "0.2.0"]
@@ -16,7 +16,7 @@
 
   :min-lein-version "2.9.0"
 
-  :source-paths ["src/clj" "src/cljs"]
+  :source-paths ["src/cljs"]
 
   :clean-targets ^{:protect false} ["resources/public/js/compiled" "target"]
 

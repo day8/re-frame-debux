@@ -75,10 +75,10 @@
                           :ns-regexp "-test$"
                           :output-to "target/karma-test.js"}}}
 
-  :aliases {"dev-auto"   ["with-profile" "dev" "do"
-                          ["shadow" "watch" "dev"]]
-            "test-auto"  ["with-profile" "dev" "do"
-                          ["shadow" "watch" "browser-test"]]
-            "karma-once" ["do"
-                          ["shadow" "compile" "karma-test"]
-                          ["shell" "karma" "start" "--single-run" "--reporters" "junit,dots"]]})
+  :aliases {"dev"           ["with-profile" "dev" "do"
+                             ["shadow" "watch" "dev"]]
+            "browser-test"  ["with-profile" "dev" "do"
+                             ["shadow" "watch" "browser-test"]]
+            "karma-once"    ["do"
+                             ["shadow" "compile" "karma-test"]
+                             ["shell" "karma" "start" "--single-run" "--reporters" "junit,dots"]]})
