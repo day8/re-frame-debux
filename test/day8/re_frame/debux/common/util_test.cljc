@@ -26,15 +26,15 @@
     (is (= (vals (ut/with-gensyms-names '#(%1 %2) {}))
            ["%1" "%2"])))
   (testing "symbols with numbers at the end shouldn't match named gensyms"
-    (is (= (ut/with-gensyms-names '[s3 s12 s123 s1234 s12345 s123456] {})
+    (is (= (ut/with-gensyms-names '[s1234 s12345 s123456] {})
            {"s1234" "s#" "s12345" "s#" "s123456" "s#"}))))
 
 (deftest tidy-macroexpanded-form-test
-  (is (= (ut/tidy-macroexpanded-form `(let [a# 1]
-                                        a#)
-                                     {})
-         '(let [a# 1]
-            a#)))
+ (is (= (ut/tidy-macroexpanded-form '(let [a# 1]
+                                       a#)
+                                    {})
+        '(let [a# 1]
+           a#)))
   (is (= (ut/tidy-macroexpanded-form '#(let [a (gensym)
                                              b %2]
                                          (gensym "def"))

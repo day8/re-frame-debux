@@ -57,7 +57,8 @@
 
 (def auto-gensym-pattern #"(.*)__\d+__auto__")              ;; form#
 (def anon-gensym-pattern #"G__\d+")                         ;; (gensym)
-(def named-gensym-pattern #"(.*?)\d{4,}")                   ;; (gensym 'form), must match at least 4 numbers so we don't catch symbols with trailing numbers
+(def named-gensym-pattern #?(:clj #"(.*?)\d{4,}"            ;; (gensym 'form), must match at least 4 numbers so we don't catch symbols with trailing numbers
+                             :cljs #"(.*?)\d{2,}"))         ;; (gensym 'form), must match at least 2 numbers for cljs so we don't catch symbols with trailing numbers
 (def anon-param-pattern #"p(\d+)__\d+#")                    ;; #(%1 %2 %3)
 
 (defn form-tree-seq [form]

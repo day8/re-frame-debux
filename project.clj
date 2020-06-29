@@ -11,14 +11,16 @@
                                org.clojure/google-closure-library-third-party]]
                  [thheller/shadow-cljs      "2.8.110" :scope "provided"]
                  [clojure-future-spec       "1.9.0"]
-                 [re-frame                  "0.12.0" :scope "provided"]]
+                 [re-frame                  "0.12.0" :scope "provided"]
+                 [net.cgrand/macrovich      "0.2.1"]]
 
   :min-lein-version "2.6.0"
 
   :plugins      [[day8/lein-git-inject "0.0.14"]
                  [lein-shadow          "0.2.0"]
                  [lein-shell           "0.5.0"]
-                 [lein-eftest "0.5.9"]]
+                 [lein-eftest "0.5.9"]
+                 [lein-tach "1.0.0"]]
 
   :eftest {:multithread? false}
   
@@ -81,4 +83,7 @@
                              ["shadow" "watch" "browser-test"]]
             "karma-once"    ["do"
                              ["shadow" "compile" "karma-test"]
-                             ["shell" "karma" "start" "--single-run" "--reporters" "junit,dots"]]})
+                             ["shell" "karma" "start" "--single-run" "--reporters" "junit,dots"]]}
+  
+  :tach {:test-runner-ns 'day8.re-frame.debux.runner
+         :source-paths ["src/cljs" "src/cljc" "test"]})
