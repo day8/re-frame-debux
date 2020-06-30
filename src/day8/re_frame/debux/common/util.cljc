@@ -7,7 +7,8 @@
             [clojure.walk :as walk]
             [cljs.analyzer.api :as ana]
             [clojure.repl :as repl]
-            [re-frame.trace :as trace]))
+            [re-frame.trace :as trace]
+            [net.cgrand.macrovich :as macros]))
 
 (defn map->seq[m]
   (reduce
@@ -212,32 +213,32 @@
            name (str (:name m))]
        (symbol ns name))))
 
-#?(:clj
-   (defn- ns-symbol-for-clj [sym]
-     (if-let [v (resolve sym)]
-       (var->symbol v)
-       sym)))
 
-#?(:clj
-   (defn- ns-symbol-for-cljs [sym env]
-     (if-let [meta (ana/resolve env sym)]
-       ;; normal symbol
-       (let [[ns name] (str/split (str (:name meta)) #"/")]
-         ;; The special symbol `.` must be handled in the following special symbol part.
-         ;; However, the special symbol `.` returns meta {:name / :ns nil}, which may be a bug.
-         (if (nil? ns)
-           sym
-           (symbol ns name)))
-       ;; special symbols except for `.`
-       sym)))
+(defn- ns-symbol-for-clj [sym]
+  #?(:clj
+    (if-let [v (resolve sym)]
+      (var->symbol v)
+      sym)
+    :cljs sym))  ;; not needed
 
-#?(:clj
-   (defn ns-symbol [sym & [env]]
-     (if (symbol? sym)
-       (if (cljs-env? env)
-         (ns-symbol-for-cljs sym env)
-         (ns-symbol-for-clj sym))
-       sym)))
+(defn- ns-symbol-for-cljs [sym env]
+  (if-let [meta (ana/resolve env sym)]
+    ;; normal symbol
+    (let [[ns name] (str/split (str (:name meta)) #"/")]
+      ;; The special symbol `.` must be handled in the following special symbol part.
+      ;; However, the special symbol `.` returns meta {:name / :ns nil}, which may be a bug.
+      (if (nil? ns)
+        sym
+        (symbol ns name)))
+    ;; special symbols except for `.`
+    sym))
+
+(defn ns-symbol [sym & [env]]
+  (if (symbol? sym)
+    (macros/case
+      :cljs (ns-symbol-for-cljs sym env)
+      :clj (ns-symbol-for-clj sym))
+    sym))
 
 
 ;;; print
