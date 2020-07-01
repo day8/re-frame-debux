@@ -6,7 +6,8 @@
             [day8.re-frame.debux.common.util :as ut :refer [remove-d]]
             [day8.re-frame.debux.macro-types :as mt]
             [day8.re-frame.debux.cs.macro-types :as cs.mt]
-            [re-frame.trace :as trace]))
+            [re-frame.trace :as trace]
+            [net.cgrand.macrovich :as macros]))
 
 ;;; Basic strategy for dbgn
 
@@ -447,9 +448,9 @@
             (insert-trace 'day8.re-frame.debux.dbgn/trace &env)
             remove-skip)
        ;; TODO: can we remove try/catch too?
-       (catch ~(if (ut/cljs-env? &env)
-                 :default
-                 Exception)
+       (catch ~(macros/case 
+                 :cljs :default
+                 :clj  Exception)
               ~'e (throw ~'e)))))
 
 (defmacro mini-dbgn

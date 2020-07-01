@@ -342,13 +342,12 @@
 (defn include-recur? [form]
   (((comp set flatten) form) 'recur))
 
-#?(:clj
-   (defn final-target? [sym targets env]
-     (let [ns-sym (ns-symbol sym env)]
-       (or (get targets ns-sym)
-           (some #(= % ns-sym)
-                 '[clojure.core/defn clojure.core/defn- clojure.core/fn
-                   cljs.core/defn cljs.core/defn- cljs.core/fn])))))
+(defn final-target? [sym targets env]
+  (let [ns-sym (ns-symbol sym env)]
+    (or (get targets ns-sym)
+        (some #(= % ns-sym)
+              '[clojure.core/defn clojure.core/defn- clojure.core/fn
+                cljs.core/defn cljs.core/defn- cljs.core/fn]))))
 
 (defn o-skip? [sym]
   (= 'debux.common.macro-specs/o-skip sym))

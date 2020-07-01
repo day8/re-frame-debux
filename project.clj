@@ -23,7 +23,7 @@
                  [lein-tach            "1.0.0"]]
 
   :eftest {:multithread? false}
-  
+
   :test-selectors {:default (complement :failing)
                    :failing :failing
                    :current :current}
@@ -45,7 +45,7 @@
   [:target-path
    "resources/public/js/out"
    "resources/public/js/main.js"]
-  
+
   :deploy-repositories [["clojars" {:sign-releases false
                                     :url           "https://clojars.org/repo"
                                     :username      :env/CLOJARS_USERNAME
@@ -61,7 +61,7 @@
                           :asset-path       "/js"
                           :compiler-options {:pretty-print true}
                           :modules          {:debux {:entries [debux.cs.test.main]}}
-                          :devtools         {:http-port 8780 
+                          :devtools         {:http-port 8780
                                              :http-root "resources/public"}}
 
                          :browser-test
@@ -84,6 +84,8 @@
             "karma-once"    ["do"
                              ["shadow" "compile" "karma-test"]
                              ["shell" "karma" "start" "--single-run" "--reporters" "junit,dots"]]}
-  
+
   :tach {:test-runner-ns 'day8.re-frame.debux.runner
-         :source-paths ["src/cljs" "src/cljc" "test"]})
+         :source-paths ["src/cljs" "src/cljc" "test"]
+         :debug? true})
+
