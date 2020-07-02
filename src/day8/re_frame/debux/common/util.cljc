@@ -6,7 +6,7 @@
             [clojure.zip :as z]
             [clojure.walk :as walk]
             [cljs.analyzer.api :as ana]
-            [clojure.repl :as repl]
+            #_[clojure.repl :as repl]
             [re-frame.trace :as trace]))
 
 (defn map->seq[m]
@@ -180,9 +180,10 @@
 
 ;;; general
 (defmacro read-source [sym]
-  `(-> (repl/source ~sym)
-       with-out-str
-       read-string))
+  sym)
+  ;;`(-> (repl/source ~sym)
+  ;;     with-out-str
+  ;;     read-string))
 
 (defn cljs-env? [env]
   (boolean (:ns env)))

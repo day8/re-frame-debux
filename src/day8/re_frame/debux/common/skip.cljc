@@ -1,12 +1,11 @@
 (ns day8.re-frame.debux.common.skip
   (:require [clojure.zip :as z]
-    #?(:clj
-            [clojure.spec.alpha :as s]
+    #?(:clj  [clojure.spec.alpha :as s]
        :cljs [cljs.spec.alpha :as s])
-            [day8.re-frame.debux.macro-types :as mt]
-            [day8.re-frame.debux.cs.macro-types :as cs.mt]
-            [day8.re-frame.debux.common.macro-specs :as ms]
-            [day8.re-frame.debux.common.util :as ut]))
+    [day8.re-frame.debux.common.macro-specs :as ms]
+    [day8.re-frame.debux.common.util :as ut])
+  (:require-macros [day8.re-frame.debux.macro-types :as mt]
+                   [day8.re-frame.debux.cs.macro-types :as cs.mt]))
 
 (defn- macro-types [env]
   (if (ut/cljs-env? env)
