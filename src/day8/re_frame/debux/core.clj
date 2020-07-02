@@ -1,6 +1,5 @@
 (ns day8.re-frame.debux.core
   (:require [day8.re-frame.debux.dbgn :as dbgn]
-            [day8.re-frame.debux.macro-types :as mt]
             [day8.re-frame.debux.common.util :as ut]
             [clojure.walk :as walk]
             [clojure.spec.alpha :as s]
@@ -22,15 +21,6 @@
 (defmacro dbgn [form & opts]
   (let [opts' (ut/parse-opts opts)]
     `(dbgn/dbgn ~form ~opts')))
-
-
-;;; macro registering APIs
-(defmacro register-macros! [macro-type symbols]
-  `(mt/register-macros! ~macro-type ~symbols))
-
-(defmacro show-macros
-  ([] `(mt/show-macros))
-  ([macro-type] `(mt/show-macros ~macro-type)))
 
 ;; defn-traced and fn-traced macros
 

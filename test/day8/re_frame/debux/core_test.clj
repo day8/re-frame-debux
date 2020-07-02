@@ -4,6 +4,7 @@
             [day8.re-frame.debux.common.util :as ut]
             [day8.re-frame.debux.dbgn :as dbgn]
             [re-frame.trace]
+            [day8.re-frame.tracing :as tracing]
             [zprint.core]))
 
 (def traces (atom []))
@@ -626,7 +627,7 @@
         ))
 
 
-(deftest ^:current map-test
+(deftest map-test
     (let [f   '{:db (assoc {} :a (inc 5) 
                               :b (if true :t :f))}
           f1 (dbgn/insert-skip f {})
@@ -647,4 +648,32 @@
                                 :form
                                 pr-str)))
                  (every? #(clojure.string/includes? (pr-str f) %))))))
-             
+
+(defmacro my->
+  [& forms]
+  `(-> ~@forms))
+
+(deftest ^:current register-test
+  (let [f   '(day8.re-frame.debux.core-test/my-> 1
+                                                 (as-> x (inc x))
+                                                 inc)
+        f1 (dbgn/insert-skip f {})
+        f2 (dbgn/insert-trace f1 `trace {})
+        f3 (dbgn/remove-skip f2)
+        f4 `(dbgn ~f)]
+    (println "F1" f1)
+    (println "F2" f2)
+    (println "F3" f3)
+    (println "F4" f4)
+    (tracing/register-macros! :thread-first-type [my->])
+    (println (:thread-first-type (tracing/show-macros)))
+    (is (= (eval f3)
+           (eval f)))
+    (is (= (eval f4)
+           (eval f)))
+    (is (= @form f))
+    (is (->> @traces
+             (map (fn [f'] (->> f'
+                                :form
+                                pr-str)))
+             (every? #(clojure.string/includes? (pr-str f) %))))))
