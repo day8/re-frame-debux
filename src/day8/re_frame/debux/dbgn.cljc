@@ -206,7 +206,10 @@
                             (debux-symbol? (first node)))
                      depth
                      (inc depth)))))))
-    (catch java.lang.NullPointerException e -1)))  ;; not a zipper
+    (catch 
+      #?(:clj  java.lang.NullPointerException
+         :cljs js/Error) 
+      e -1)))  ;; not a zipper
 
 ;;; insert/remove d
 (defn insert-trace [form d-sym env]
@@ -342,7 +345,7 @@
       ; (println "trace*" args)
       (cond
         (= 2 (count args))  :trace
-        (= java.lang.Long
+        (number?
            (-> args
                second
                type))     :trace->

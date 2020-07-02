@@ -212,33 +212,49 @@
            name (str (:name m))]
        (symbol ns name))))
 
-#?(:clj
-   (defn- ns-symbol-for-clj [sym]
-     (if-let [v (resolve sym)]
-       (var->symbol v)
-       sym)))
+;;#?(:clj
+;;   (defn- ns-symbol-for-clj [sym]
+;;     (if-let [v (resolve sym)]
+;;       (var->symbol v)
+;;       sym)))
+;;
+;;#?(:cljs
+;;   (defn- ns-symbol-for-cljs [sym env]
+;;     (if-let [meta (ana/resolve env sym)]
+;;       ;; normal symbol
+;;       (let [[ns name] (str/split (str (:name meta)) #"/")]
+;;         ;; The special symbol `.` must be handled in the following special symbol part.
+;;         ;; However, the special symbol `.` returns meta {:name / :ns nil}, which may be a bug.
+;;         (if (nil? ns)
+;;           sym
+;;           (symbol ns name)))
+;;       ;; special symbols except for `.`
+;;       sym)))
+;;
+;; #?(:clj
+;;    (defn ns-symbol [sym & [env]]
+;;      (if (symbol? sym)
+;;        (if (cljs-env? env)
+;;          (ns-symbol-for-cljs sym env)
+;;          (ns-symbol-for-clj sym))
+;;        sym))
+;;    :cljs
+;;    (defn ns-symbol [sym & [env]]
+;;      (if (symbol? sym)
+;;        (ns-symbol-for-cljs sym env)
+;;        sym)))
 
-#?(:clj
-   (defn- ns-symbol-for-cljs [sym env]
-     (if-let [meta (ana/resolve env sym)]
-       ;; normal symbol
-       (let [[ns name] (str/split (str (:name meta)) #"/")]
-         ;; The special symbol `.` must be handled in the following special symbol part.
-         ;; However, the special symbol `.` returns meta {:name / :ns nil}, which may be a bug.
-         (if (nil? ns)
-           sym
-           (symbol ns name)))
-       ;; special symbols except for `.`
-       sym)))
-
-#?(:clj
-   (defn ns-symbol [sym & [env]]
-     (if (symbol? sym)
-       (if (cljs-env? env)
-         (ns-symbol-for-cljs sym env)
-         (ns-symbol-for-clj sym))
-       sym)))
-
+(defn ns-symbol [sym env]
+  (if-let [meta (ana/resolve env sym)]
+    ;; normal symbol
+    (let [[ns name] (str/split (str (:name meta)) #"/")]
+      ;; The special symbol `.` must be handled in the following special symbol part.
+      ;; However, the special symbol `.` returns meta {:name / :ns nil}, which may be a bug.
+      (if (nil? ns)
+        sym
+        (symbol ns name)))
+    ;; special symbols except for `.`
+    sym))
 
 ;;; print
 (defn take-n-if-seq [n result]
@@ -341,13 +357,13 @@
 (defn include-recur? [form]
   (((comp set flatten) form) 'recur))
 
-#?(:clj
+
    (defn final-target? [sym targets env]
      (let [ns-sym (ns-symbol sym env)]
        (or (get targets ns-sym)
            (some #(= % ns-sym)
                  '[clojure.core/defn clojure.core/defn- clojure.core/fn
-                   cljs.core/defn cljs.core/defn- cljs.core/fn])))))
+                   cljs.core/defn cljs.core/defn- cljs.core/fn]))))
 
 (defn o-skip? [sym]
   (= 'debux.common.macro-specs/o-skip sym))

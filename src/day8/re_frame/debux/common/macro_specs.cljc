@@ -2,7 +2,7 @@
   "clojure.core macro specs which are minified, simplified and modified."
   (:require #?(:clj [clojure.spec.alpha :as s]
                :cljs [cljs.spec.alpha :as s])
-    #?(:clj
+    #_(:clj
                     [clojure.future :refer :all])))
 
 (declare skip o-skip skip-outer indent)
