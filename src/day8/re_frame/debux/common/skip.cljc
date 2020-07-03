@@ -3,9 +3,15 @@
     #?(:clj  [clojure.spec.alpha :as s]
        :cljs [cljs.spec.alpha :as s])
     [day8.re-frame.debux.common.macro-specs :as ms]
-    [day8.re-frame.debux.common.util :as ut])
-  (:require-macros [day8.re-frame.debux.macro-types :as mt]
-                   [day8.re-frame.debux.cs.macro-types :as cs.mt]))
+    [day8.re-frame.debux.common.util :as ut]
+    ;; TODO
+    ;; 1. can we not repeat these ns for require vs require-macros ?
+    ;; 2. how is the cljs path for this file ever compiled ?
+    #?(:clj [day8.re-frame.debux.macro-types :as mt])
+    #?(:clj [day8.re-frame.debux.cs.macro-types :as cs.mt]))
+  #?(:cljs
+      (:require-macros [day8.re-frame.debux.macro-types :as mt]
+                       [day8.re-frame.debux.cs.macro-types :as cs.mt])))
 
 (defn- macro-types [env]
   (if (ut/cljs-env? env)

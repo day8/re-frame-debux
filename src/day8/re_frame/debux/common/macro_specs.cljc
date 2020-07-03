@@ -1,9 +1,9 @@
 (ns day8.re-frame.debux.common.macro-specs
   "clojure.core macro specs which are minified, simplified and modified."
   (:require #?(:clj [clojure.spec.alpha :as s]
-               :cljs [cljs.spec.alpha :as s])
-    #?(:clj
-                    [clojure.future :refer :all])))
+               :cljs [cljs.spec.alpha :as s])))
+    ;;#?(:clj
+    ;;                #_[clojure.future :refer :all])))
 
 (declare skip o-skip skip-outer indent)
 ; skip => full skip  -- skip this form and all children
