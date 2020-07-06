@@ -34,8 +34,8 @@
 ;;      (d (+ (d a) (d b))))
 
 
-(defn- macro-types [env]
-  @mt/macro-types*)
+(defn- macro-types [t]
+  (t @mt/macro-types*))
 
 ;;; insert skip
 (defn insert-skip
@@ -55,102 +55,102 @@
 
         (and (seq? node) (symbol? (first node)))
         (let [sym (ut/ns-symbol (first node) env)]
-          ; (println "NODE" node "SYM" sym)
+          ;; (println "NODE" node "SYM" sym)
           (cond
-            ((:def-type (macro-types env)) sym)
+            ((macro-types :def-type) sym)
             (-> (z/replace loc (sk/insert-skip-in-def node))
                 z/next
                 recur)
 
-            ((:defn-type (macro-types env)) sym)
+            ((macro-types :defn-type) sym)
             (-> (z/replace loc (sk/insert-skip-in-defn node))
                 z/next
                 recur)
 
-            ((:fn-type (macro-types env)) sym)
+            ((macro-types :fn-type) sym)
             (-> (z/replace loc (sk/insert-skip-in-fn node))
                 z/next
                 recur)
 
 
-            (or ((:let-type (macro-types env)) sym)
-                ((:loop-type (macro-types env)) sym))
+            (or ((macro-types :let-type) sym)
+                ((macro-types :loop-type) sym))
             (-> (z/replace loc (sk/insert-skip-in-let node))
                 z/next
                 recur)
 
-            ((:letfn-type (macro-types env)) sym)
+            ((macro-types :letfn-type) sym)
             (-> (z/replace loc (sk/insert-skip-in-letfn node))
                 z/next
                 recur)
 
 
-            ((:for-type (macro-types env)) sym)
+            ((macro-types :for-type) sym)
             (-> (z/replace loc (sk/insert-skip-in-for node))
                 z/next
                 recur)
 
-            ((:case-type (macro-types env)) sym)
+            ((macro-types :case-type) sym)
             (-> (z/replace loc (sk/insert-skip-in-case node))
                 z/next
                 recur)
 
-            ((:thread-first-type (macro-types env)) sym)
+            ((macro-types :thread-first-type) sym)
             (-> (z/replace loc (sk/insert-skip-thread-first node))
                 z/next
                 recur)
 
-            ((:thread-last-type (macro-types env)) sym)
+            ((macro-types :thread-last-type) sym)
             (-> (z/replace loc (sk/insert-skip-thread-last node))
                 z/next
                 recur)
 
-            ((:cond-first-type (macro-types env)) sym)
+            ((macro-types :cond-first-type) sym)
             (-> (z/replace loc (sk/insert-skip-cond-first node))
                 z/next
                 recur)
 
-            ((:cond-last-type (macro-types env)) sym)
+            ((macro-types :cond-last-type) sym)
             (-> (z/replace loc (sk/insert-skip-cond-last node))
                 z/next
                 recur)
 
-            ((:skip-arg-1-type (macro-types env)) sym)
+            ((macro-types :skip-arg-1-type) sym)
             (-> (z/replace loc (sk/insert-skip-arg-1 node))
                 z/next
                 recur)
 
-            ((:skip-arg-2-type (macro-types env)) sym)
+            ((macro-types :skip-arg-2-type) sym)
             (-> (z/replace loc (sk/insert-skip-arg-2 node))
                 z/next
                 recur)
 
-            ((:skip-arg-1-2-type (macro-types env)) sym)
+            ((macro-types :skip-arg-1-2-type) sym)
             (-> (z/replace loc (sk/insert-skip-arg-1-2 node))
                 z/next
                 recur)
 
-            ((:skip-arg-2-3-type (macro-types env)) sym)
+            ((macro-types :skip-arg-2-3-type) sym)
             (-> (z/replace loc (sk/insert-skip-arg-2-3 node))
                 z/next
                 recur)
 
-            ((:skip-arg-1-3-type (macro-types env)) sym)
+            ((macro-types :skip-arg-1-3-type) sym)
             (-> (z/replace loc (sk/insert-skip-arg-1-3 node))
                 z/next
                 recur)
 
-            ((:skip-form-itself-type (macro-types env)) sym)
+            ((macro-types :skip-form-itself-type) sym)
             (-> (z/replace loc (sk/insert-skip-form-itself node))
                 ut/right-or-next
                 recur)
 
-            ((:dot-type (macro-types env)) sym)
+            ((macro-types :dot-type) sym)
             (-> (z/replace loc (sk/insert-skip-in-dot node))
                 z/down z/right
                 recur)
 
-            ((:dot-dot-type (macro-types env)) sym)
+            ((macro-types :dot-dot-type) sym)
             (-> (z/replace loc (sk/insert-skip-in-dot-dot node))
                 z/down z/right
                 recur)
