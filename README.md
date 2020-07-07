@@ -107,6 +107,8 @@ Add Closure defines to your config to enable re-frame tracing + the function tra
 
 ## Option 2: Namespace Aliases with shadow-cljs
 
+Requires version 0.5.5 or greater.
+
 The `day8.re-frame.tracing-stubs` ns is also available in the main package so
 that if you are using shadow-cljs use `:ns-aliases` in a shadow-cljs build
 config to achieve the same result as option 1:
