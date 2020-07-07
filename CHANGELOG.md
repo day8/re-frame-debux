@@ -3,6 +3,8 @@ All notable changes to this project will be documented in this file. This change
 
 ## Unreleased
 
+## [0.5.5] - 2020-05-01
+
 #### Fixed
 
 * Fix require-macros in tracing-stubs ns for shadow-cljs compatibility. Thanks
