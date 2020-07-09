@@ -152,7 +152,10 @@
   (let [code (get-in trace/*current-trace* [:tags :code] [])]
     ;; TODO: also capture macroexpanded form? Might be useful in some cases?
     (trace/merge-trace!
-      {:tags {:code (conj code {:form (tidy-macroexpanded-form (:form code-trace) {}) :result (:result code-trace) :indent-level (:indent-level code-trace)})}})))
+      {:tags {:code (conj code {:form (tidy-macroexpanded-form (:form code-trace) {}) 
+                                :result (:result code-trace) 
+                                :indent-level (:indent-level code-trace) 
+                                :syntax-order (:syntax-order code-trace)})}})))
 
 ;;; For internal debugging
 (defmacro d
@@ -392,9 +395,6 @@
 (defn spy-first? [sym]
   (= 'day8.re-frame.debux.common.util/spy-first sym))
 
-(defn third [coll]
-  (first (next (next coll))))
-
 (defn remove-d [form d-sym]
   ;; TODO: should we instead look to rewrite the quoted/spied forms
   ;; at macro compile time, rather than filtering them out
@@ -412,7 +412,7 @@
                  (spy-first? (first node))))
         ;; We take the third node, because the first two are
         ;; (d <indent-level> ...)
-        (recur (z/replace loc (third node)))
+        (recur (z/replace loc (last node)))
 
         ;; in case of spy-last
         (and (seq? node)

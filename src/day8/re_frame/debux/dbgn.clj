@@ -205,12 +205,23 @@
                      (inc depth)))))))
     (catch java.lang.NullPointerException e -1)))  ;; not a zipper
 
+(defn skip-past-trace
+  "skips past added trace"
+  [loc]
+  (-> loc
+      z/down
+      z/right
+      z/right
+      z/right
+      z/down))
+
 ;;; insert/remove d
 (defn insert-trace [form d-sym env]
 
   ; (println "INSERT-TRACE" (prn-str form))
   (loop [loc (ut/sequential-zip form)
-         indent 0]
+         indent 0
+         syntax-order 0]
     (let [node (z/node loc)
           #_ #_ indent (real-depth loc)]
     ;   (println "node" node)
@@ -222,17 +233,17 @@
         ;(recur (-> (z/down node)
         ;           z/right
         ;           z/down))
-
+        
         ;; TODO: is it more efficient to remove the skips here
         ;; rather than taking another pass through the form?
-
+        
         ;; in case of (.. skip ...)
         (= ::ms/skip node)
-        (recur (ut/right-or-next loc) indent)
+        (recur (ut/right-or-next loc) indent (inc syntax-order))
 
         ;; in case of (skip ...)
         (and (seq? node) (= `ms/skip (first node)))
-        (recur (ut/right-or-next loc) indent)
+        (recur (ut/right-or-next loc) indent (inc syntax-order))
 
         ;; in case of (o-skip ...)
         (and (seq? node)
@@ -240,14 +251,14 @@
         (cond
           ;; <ex> (o-skip [(skip a) ...])
           (vector? (second node))
-          (recur (-> loc z/down z/next z/down) indent)
+          (recur (-> loc z/down z/next z/down) indent (inc syntax-order))
 
           ;; <ex> (o-skip (recur ...))
           :else
-          (recur (-> loc z/down z/next z/down ut/right-or-next) indent))
+          (recur (-> loc z/down z/next z/down ut/right-or-next) indent (inc syntax-order)))
 
         ;; TODO: handle lists that are just lists, not function calls
-
+        
 
         ;; in case of (skip-outer ...)
         (and (seq? node)
@@ -258,23 +269,23 @@
             (and (seq? inner-node)
                  (= `ms/skip (first inner-node)))
             ;; Recur once and let skip handle case
-            (recur inner-loc indent)
+            (recur inner-loc indent (inc syntax-order))
 
             (seq? inner-node)
-            (recur (-> inner-loc z/down ut/right-or-next) indent)
+            (recur (-> inner-loc z/down ut/right-or-next) indent (inc syntax-order))
 
             (vector? inner-node)
-            (recur (-> inner-loc z/down) indent)
+            (recur (-> inner-loc z/down) indent (inc syntax-order))
 
             :else
-            (recur (-> inner-loc ut/right-or-next) indent)
+            (recur (-> inner-loc ut/right-or-next) indent (inc syntax-order))
 
 
             ;true (throw (ex-info "Pause" {}))
             ;; vector
             ;; map
             ;; form
-
+            
             ))
 
 
@@ -282,12 +293,12 @@
         (and (seq? node)
              (symbol? (first node))
              (`#{defn defn-} (ut/ns-symbol (first node) env)))
-        (recur (-> loc z/down z/next) indent)
+        (recur (-> loc z/down z/next) indent (inc syntax-order))
 
         ;;; we need to z/replace of the next argument to spy-first with outer-skip
         ;;; then move onto skip-outer
         ;(recur (-> loc z/down z/next))
-
+        
         #_(let [new-loc  (-> loc z/down z/next)
                 new-node (z/node new-loc)]
             (if (and (seq? node)
@@ -297,69 +308,73 @@
               ))
 
         ;; in case of the first symbol except defn/defn-/def
-
+        
         ;; DC: why not def? where is that handled?
         (and (seq? node) (ifn? (first node)))
-        (recur (-> (z/replace loc (concat [d-sym (real-depth loc) node ]))
-                   z/down z/right z/right z/down ut/right-or-next)
-               (inc indent))
+        (recur (-> (z/replace loc  `(~d-sym ~(real-depth loc) ~syntax-order ~node))
+                   skip-past-trace 
+                   ut/right-or-next)
+               (inc indent) (inc syntax-order))
 
         ;; |[1 2 (+ 3 4)]
         ;; |(d [1 2 (+ 3 4)])
-
+        
 
         (vector? node)
-        (recur (-> (z/replace loc (concat [d-sym (real-depth loc) node]))
-                   z/down z/right z/right z/down)
-               indent)
+        (recur (-> loc
+                   (z/replace `(~d-sym ~(real-depth loc) ~syntax-order ~node))
+                   skip-past-trace)
+               indent (inc syntax-order))
 
         (map? node)
-        (recur (-> (z/replace loc (concat [d-sym (real-depth loc) node]))
-                   z/down z/right z/right z/down)
-               indent)
+        (recur (-> loc 
+                   (z/replace `(~d-sym ~(real-depth loc) ~syntax-order ~node))
+                   skip-past-trace)
+               indent (inc syntax-order))
 
         (= node `day8.re-frame.debux.common.macro-specs/indent)
         ;; TODO: does this real-depth need an inc/dec to bring it into line with the d?
-        (recur (z/replace loc (real-depth loc)) indent)
+        (recur (z/replace loc (real-depth loc)) indent  (inc syntax-order))
 
         ;; DC: We might also want to trace inside maps, especially for fx
         ;; in case of symbol, map, or set
         (or (symbol? node) (map? node) (set? node))
-        (recur (-> (z/replace loc (concat [d-sym (real-depth loc) node]))
+        (recur (-> (z/replace loc `(~d-sym ~(real-depth loc) ~syntax-order ~node))
                    ;; We're not zipping down inside the node further, so we don't need to add a
                    ;; second z/right like we do in the case of a vector or ifn? node above.
                    ut/right-or-next)
-               indent)
+               indent (inc syntax-order))
 
         :else
-        (recur (z/next loc) indent)))))
+        (recur (z/next loc) indent (inc syntax-order))))))
 
 (defmulti trace*
   (fn [& args]
-      ; (println "trace*" args)
+      ;; (println "trace*" args)
       (cond
-        (= 2 (count args))  :trace
+        (= 3 (count args))  :trace
         (= java.lang.Long
            (-> args
-               second
+               (nth 2)
                type))     :trace->
         :else :trace->>)))
 
 (defmethod trace* :trace
-  [indent form]
-;   (println "TRACE" indent form)
+  [indent syntax-order form]
+  ;; (println "TRACE" indent form)
   (let [org-form (-> form
                      (remove-d 'day8.re-frame.debux.dbgn/trace))]
     `(let [opts#   ~'+debux-dbg-opts+
            result# ~form]
        (ut/send-trace! {:form '~org-form
                         :result result#
-                        :indent-level ~indent})
+                        :indent-level ~indent
+                        :syntax-order ~syntax-order})
        result#)))
 
 
 (defmethod trace* :trace->
-  [f indent form]
+  [f indent syntax-order form]
   ; (println "TRACE->" indent f form)
    (let [org-form (-> form
                       (remove-d 'day8.re-frame.debux.dbgn/trace))]
@@ -367,11 +382,12 @@
            result# (-> ~f ~form)]
        (ut/send-trace! {:form '~org-form
                         :result result#
-                        :indent-level ~indent})
+                        :indent-level ~indent
+                        :syntax-order ~syntax-order})
        result#)))
 
 (defmethod trace* :trace->>
-  [indent form f]
+  [indent syntax-order form f]
   ; (println "TRACE->>" indent f form)
    (let [org-form (-> form
                       (remove-d 'day8.re-frame.debux.dbgn/trace))]
@@ -379,7 +395,8 @@
            result# (->> ~f ~form)]
        (ut/send-trace! {:form '~org-form
                         :result result#
-                        :indent-level ~indent})
+                        :indent-level ~indent
+                        :syntax-order ~syntax-order})
        result#)))
 
 (defmacro trace [& args]

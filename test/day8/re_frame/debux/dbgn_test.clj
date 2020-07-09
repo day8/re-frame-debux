@@ -18,7 +18,7 @@
 (deftest skip-outer-skip-inner-test
   (is (= (macroexpand-1 `(mini-dbgn
                            (-> '())))
-         '(do (day8.re-frame.debux.dbgn/trace 0 (clojure.core/-> (quote ())))))))
+         '(do (day8.re-frame.debux.dbgn/trace 0 0 (clojure.core/-> (quote ())))))))
 
 
 ;; Commented out as we no longer print the traces, we need to get the traced data instead.
@@ -90,10 +90,10 @@
     (is
       (= '(do
            (day8.re-frame.debux.dbgn/trace
-            0
+            0 0
             (->
-             (day8.re-frame.debux.dbgn/trace 1 {:a 1})
-             (day8.re-frame.debux.dbgn/trace 1 (assoc :a 3)))))
+             (day8.re-frame.debux.dbgn/trace 1 1 {:a 1})
+             (day8.re-frame.debux.dbgn/trace 1 4 (assoc :a 3)))))
           (macroexpand-1 '(day8.re-frame.debux.dbgn/mini-dbgn
                            (-> {:a 1}
                                (assoc :a 3))))
@@ -125,11 +125,11 @@
     (is
       (= '(do
            (day8.re-frame.debux.dbgn/trace
-            0
+            0 0
             (->
-             (day8.re-frame.debux.dbgn/trace 1 {:a 1})
-             (day8.re-frame.debux.dbgn/trace 1 (assoc :a 3))
-             (day8.re-frame.debux.dbgn/trace 1 frequencies))))
+             (day8.re-frame.debux.dbgn/trace 1 1 {:a 1})
+             (day8.re-frame.debux.dbgn/trace 1 4 (assoc :a 3))
+             (day8.re-frame.debux.dbgn/trace 1 8 frequencies))))
           (macroexpand-1 '(day8.re-frame.debux.dbgn/mini-dbgn
                            (-> {:a 1}
                                (assoc :a 3)

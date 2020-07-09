@@ -57,8 +57,7 @@
   :profiles
   {:dev
    {:dependencies [[binaryage/devtools "1.0.0"]
-                   [day8.re-frame/re-frame-10x "0.6.5"]]
-    :source-paths ["dev"  "../src"]}
+                   [day8.re-frame/re-frame-10x "0.6.7"]]
 
    :prod {}
    
