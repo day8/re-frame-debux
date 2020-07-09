@@ -21,7 +21,7 @@
   (let [f `(dbgn (inc 1))]
       (is (= (eval f) 2))
       (is (= @traces
-             [{:form '(inc 1) :indent-level 0 :result 2}]))
+             [{:form '(inc 1) :indent-level 0 :result 2 :syntax-order 0}]))
       (is (= @form
              '(inc 1)))))
 
@@ -301,11 +301,11 @@
                (eval f)))
         (is (= (eval f4)
                (eval f)))
-        (is (= @traces [{:form '=, :indent-level 1, :result =}
-                        {:form '(inc 2), :indent-level 1, :result 3}
-                        {:form '(inc 5), :indent-level 1, :result 6}
+        (is (= @traces [{:form '=, :indent-level 1, :result = :syntax-order 1}
+                        {:form '(inc 2), :indent-level 1, :result 3 :syntax-order 3}
+                        {:form '(inc 5), :indent-level 1, :result 6 :syntax-order 7}
                         {:form '(condp = 4 (inc 2) 5 4 (inc 5) 10),
-                         :indent-level 0, :result 6}]))
+                         :indent-level 0, :result 6 :syntax-order 0}]))
         (is (= @form f))))
              
 (deftest ^:current doc-thread-first-test

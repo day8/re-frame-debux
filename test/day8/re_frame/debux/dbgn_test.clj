@@ -25,7 +25,7 @@
 (deftest ->-test
   (let [f `(dbgn (-> '()))]
     (is (= (eval f) '()))
-    (is (= [{:form '(-> (quote ())), :indent-level 0, :result ()}]
+    (is (= [{:form '(-> (quote ())), :indent-level 0, :result () :syntax-order 0}]
            @traces))
     (is (= '(-> (quote ()))
            @form))))
@@ -35,11 +35,11 @@
                      (assoc :a 1)
                      (get :a (identity :missing))))]
     (is (= (eval f) 1))
-    (is (= [{:form {}, :indent-level 1, :result {}}
-            {:form '(assoc :a 1), :indent-level 1, :result {:a 1}}
-            {:form '(identity :missing), :indent-level 2, :result :missing}
-            {:form '(get :a (identity :missing)), :indent-level 1, :result 1}
-            {:form '(-> {} (assoc :a 1) (get :a (identity :missing))), :indent-level 0, :result 1}]
+    (is (= [{:form {}, :indent-level 1, :result {} :syntax-order 1}
+            {:form '(assoc :a 1), :indent-level 1, :result {:a 1} :syntax-order 3}
+            {:form '(identity :missing), :indent-level 2, :result :missing :syntax-order 10}
+            {:form '(get :a (identity :missing)), :indent-level 1, :result 1 :syntax-order 7}
+            {:form '(-> {} (assoc :a 1) (get :a (identity :missing))), :indent-level 0, :result 1 :syntax-order 0}]
            @traces))
     (is (= '(-> {}
                 (assoc :a 1)
