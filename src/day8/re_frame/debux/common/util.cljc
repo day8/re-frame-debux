@@ -108,24 +108,7 @@
           mapping
           (->> (form-tree-seq form)
                ;; TODO: use qualified-symbol? once we are on Clojure 1.9
-               (filter #(and (symbol? %) (namespace %)))))
-
-  #_(reduce (fn [result sym]
-              (let [sym-ns (namespace sym)
-                    alias  (get aliases sym-ns)
-                    refers (get refers sym-ns)]
-                (cond
-                  ; Referred symbol, or from this ns
-                  (or (= :all (:refer refers))
-                      (contains? (:refer refers) (name sym))
-                      (= (context/namespace context) sym-ns))
-                  (assoc result (names/qualified-name sym) (name sym))
-                  ; Aliased symbol
-                  alias (assoc result (names/qualified-name sym) (str alias \/ (name sym)))
-                  :else result)))
-            mapping
-            (->> (visible-tree-seq form)
-                 (filter #(and (psi/symbol? %) (namespace %))))))
+               (filter #(and (symbol? %) (namespace %))))))
 
 (defn tidy-macroexpanded-form
   "Takes a macroexpanded form and tidies it up to be more readable by
@@ -143,8 +126,6 @@
           (recur (z/next (z/edit loc (fn [sym] (symbol (get mapping (pr-str sym) sym))))))
           (recur (z/next loc)))))))
 
-;;
-
 (defn send-form! [form]
   (trace/merge-trace! {:tags {:form form}}))
 
@@ -155,7 +136,8 @@
       {:tags {:code (conj code {:form (tidy-macroexpanded-form (:form code-trace) {}) 
                                 :result (:result code-trace) 
                                 :indent-level (:indent-level code-trace) 
-                                :syntax-order (:syntax-order code-trace)})}})))
+                                :syntax-order (:syntax-order code-trace) 
+                                :num-seen (:num-seen code-trace)})}})))
 
 ;;; For internal debugging
 (defmacro d

@@ -44,7 +44,7 @@
 (defn condp-example
   []
   [:tr 
-   [:td {:width "100px"} 
+   [:td
     [:pre 
 "(fn-traced [db _]
    (assoc db ::condp
@@ -149,13 +149,14 @@
  ::everything->
  (fn-traced [db _]
      (-> db
-         (assoc ::everything-> (-> [10 11]
-                                   (cond->
-                                    true       (conj 12)
-                                    true       (as-> xs (map - xs [3 2 1]))
-                                    true       (->> (map inc))
-                                    true       (some->> (map inc))
-                                    false      (reverse)))))))"]]
+         (assoc ::everything-> 
+                (-> [10 11]
+                    (cond->
+                    true       (conj 12)
+                    true       (as-> xs (map - xs [3 2 1]))
+                    true       (->> (map inc))
+                    true       (some->> (map inc))
+                    false      (reverse)))))))"]]
     [:td
      [re-com/button
       :label "everything->"
@@ -187,8 +188,12 @@
  ::vec
  (fn-traced [db _]
      (-> db
-         (assoc ::vec [:div {:style {:color (if true (str \"hello \" \"world\") :never)}} 
-                             (when true [inc \"putting inc symbol inside a vector\"])]))))"]]
+         (assoc ::vec 
+           [:div {:style {:color (if true 
+                                     (str \"hello \" \"world\") 
+                                     :never)}} 
+            (when true 
+                  [inc \"putting inc symbol inside a vector\"])]))))"]]
     [:td
      [re-com/button
       :label "vec"
@@ -209,6 +214,22 @@
       :label "map"
       :on-click #(re-frame/dispatch [::events/map])]]])
 
+(defn implied-do-example
+  []
+  [:tr
+   [:td
+    [:pre
+     "(re-frame/reg-event-fx
+ ::implied-do
+ (fn-traced [{:keys [db]} _]
+     (inc 1)
+     {:db (assoc db :a (inc 5) 
+                    :b (if true :t :f))}))"]]
+   [:td
+    [re-com/button
+     :label "implied-do"
+     :on-click #(re-frame/dispatch [::events/implied-do])]]])
+
 (defn main-panel []
   [re-com/v-box
    :height "100%"
@@ -226,4 +247,5 @@
                  [everything->example]
                  [dot-example]
                  [vec-example]
-                 [map-example]]]]])
+                 [map-example]
+                 [implied-do-example]]]]])

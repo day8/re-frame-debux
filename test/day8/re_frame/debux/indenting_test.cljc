@@ -53,85 +53,126 @@
     (is (= (eval f) 7))
     (is (= '[{:form (* 2 3)
               :indent-level 1
+              :num-seen 1
               :result 6
-              :syntax-order 2}
+              :syntax-order 3}
              {:form (+ 1 (* 2 3))
               :indent-level 0
+              :num-seen 1
               :result 7
-              :syntax-order 0}] 
-          @traces))))
+              :syntax-order 1}] 
+           @traces))))
 
 (deftest indent-test2
   (let [f `(dbgn (+ 1 (* 2 3) (+ 4 5)))]
     (eval f)
     (is (= '[{:form (* 2 3)
               :indent-level 1
+              :num-seen 1
               :result 6
-              :syntax-order 2}
+              :syntax-order 3}
              {:form (+ 4 5)
               :indent-level 1
+              :num-seen 1
               :result 9
-              :syntax-order 5}
+              :syntax-order 6}
              {:form (+ 1 (* 2 3) (+ 4 5))
               :indent-level 0
+              :num-seen 1
               :result 16
-              :syntax-order 0}] 
-          @traces))))
+              :syntax-order 1}] 
+           @traces))))
 
 (deftest indent-test3
   (let [f `(dbgn (-> 1
                     (+ 2 (+ 3))
                     (+ 5)))]
     (eval f)
-    (is (= [ {:form '(+ 3) :indent-level 2 :result 3 :syntax-order 5}
-             {:form '(+ 2 (+ 3)) :indent-level 1 :result 6 :syntax-order 2}
-             {:form '(+ 5) :indent-level 1 :result 11 :syntax-order 7}
-             {:form '(-> 1 (+ 2 (+ 3)) (+ 5)), :indent-level 0, :result 11 :syntax-order 0}] 
-          @traces))))
+    (is (= '[{:form (+ 3)
+              :indent-level 2
+              :num-seen 1
+              :result 3
+              :syntax-order 6}
+             {:form (+ 2 (+ 3))
+              :indent-level 1
+              :num-seen 1
+              :result 6
+              :syntax-order 3}
+             {:form (+ 5)
+              :indent-level 1
+              :num-seen 1
+              :result 11
+              :syntax-order 8}
+             {:form (-> 1 (+ 2 (+ 3)) (+ 5))
+              :indent-level 0
+              :num-seen 1
+              :result 11
+              :syntax-order 1}] 
+           @traces))))
 
 (deftest indent-test3-macroexpanded
   (let [f `(dbgn (+ (+ 1 2 (+ 3)) 5))]
     (eval f)
-    (is (= @traces
-           '[{:form (+ 3)
+    (is (= '[{:form (+ 3)
               :indent-level 2
+              :num-seen 1
               :result 3
-              :syntax-order 4}
+              :syntax-order 5}
              {:form (+ 1 2 (+ 3))
               :indent-level 1
+              :num-seen 1
               :result 6
-              :syntax-order 1}
+              :syntax-order 2}
              {:form (+ (+ 1 2 (+ 3)) 5)
               :indent-level 0
+              :num-seen 1
               :result 11
-              :syntax-order 0}]))))
+              :syntax-order 1}]
+           @traces
+           ))))
 
 (deftest indent-test4
   (let [f `(dbgn (+ 1 (* 2 (* 7 1)) (+ 4 5)))]
     (eval f)
     (is (= '[{:form (* 7 1)
               :indent-level 2
+              :num-seen 1
               :result 7
-              :syntax-order 4}
+              :syntax-order 5}
              {:form (* 2 (* 7 1))
               :indent-level 1
+              :num-seen 1
               :result 14
-              :syntax-order 2}
+              :syntax-order 3}
              {:form (+ 4 5)
               :indent-level 1
+              :num-seen 1
               :result 9
-              :syntax-order 7}
+              :syntax-order 8}
              {:form (+ 1 (* 2 (* 7 1)) (+ 4 5))
               :indent-level 0
+              :num-seen 1
               :result 24
-              :syntax-order 0}] 
-          @traces))))
+              :syntax-order 1}] 
+           @traces))))
 
 (deftest indent-test5
   (let [f `(dbgn (-> 1 (+ 2 (+ 3))))]
     (eval f)
-    (is (= [{:form '(+ 3) :indent-level 2 :result 3 :syntax-order 5}
-            {:form '(+ 2 (+ 3)) :indent-level 1 :result 6 :syntax-order 2}
-            {:form '(-> 1 (+ 2 (+ 3))), :indent-level 0, :result 6 :syntax-order 0}]
-            @traces
+    (is (= '[{:form (+ 3)
+              :indent-level 2
+              :num-seen 1
+              :result 3
+              :syntax-order 6}
+             {:form (+ 2 (+ 3))
+              :indent-level 1
+              :num-seen 1
+              :result 6
+              :syntax-order 3}
+             {:form (-> 1 (+ 2 (+ 3)))
+              :indent-level 0
+              :num-seen 1
+              :result 6
+              :syntax-order 1}]
+           @traces
            ))))

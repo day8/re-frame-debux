@@ -109,3 +109,10 @@
  (fn-traced [{:keys [db]} _]
      {:db (assoc db :a (inc 5) 
                     :b (if true :t :f))}))
+
+(re-frame/reg-event-fx
+ ::implied-do
+ (fn-traced [{:keys [db]} _]
+            (inc 1)
+            {:db (assoc db :a (inc 5)
+                        :b (if true :t :f))}))

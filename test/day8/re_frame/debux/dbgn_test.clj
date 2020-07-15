@@ -18,14 +18,21 @@
 (deftest skip-outer-skip-inner-test
   (is (= (macroexpand-1 `(mini-dbgn
                            (-> '())))
-         '(do (day8.re-frame.debux.dbgn/trace 0 0 (clojure.core/-> (quote ())))))))
+         '(do (day8.re-frame.debux.dbgn/trace {:day8.re-frame.debux.dbgn/indent 0
+                                               :day8.re-frame.debux.dbgn/num-seen 1
+                                               :day8.re-frame.debux.dbgn/syntax-order 1} 
+                                              (clojure.core/-> (quote ())))))))
 
 
 ;; Commented out as we no longer print the traces, we need to get the traced data instead.
 (deftest ->-test
   (let [f `(dbgn (-> '()))]
     (is (= (eval f) '()))
-    (is (= [{:form '(-> (quote ())), :indent-level 0, :result () :syntax-order 0}]
+    (is (= [{:form '(-> (quote ()))
+             :indent-level 0
+             :num-seen 1
+             :result ()
+             :syntax-order 1}]
            @traces))
     (is (= '(-> (quote ()))
            @form))))
@@ -35,11 +42,27 @@
                      (assoc :a 1)
                      (get :a (identity :missing))))]
     (is (= (eval f) 1))
-    (is (= [{:form {}, :indent-level 1, :result {} :syntax-order 1}
-            {:form '(assoc :a 1), :indent-level 1, :result {:a 1} :syntax-order 3}
-            {:form '(identity :missing), :indent-level 2, :result :missing :syntax-order 10}
-            {:form '(get :a (identity :missing)), :indent-level 1, :result 1 :syntax-order 7}
-            {:form '(-> {} (assoc :a 1) (get :a (identity :missing))), :indent-level 0, :result 1 :syntax-order 0}]
+    (is (= '[{:form {}, :indent-level 1, :num-seen 1, :result {}, :syntax-order 2}
+             {:form (assoc :a 1)
+              :indent-level 1
+              :num-seen 1
+              :result {:a 1}
+              :syntax-order 4}
+             {:form (identity :missing)
+              :indent-level 2
+              :num-seen 1
+              :result :missing
+              :syntax-order 11}
+             {:form (get :a (identity :missing))
+              :indent-level 1
+              :num-seen 1
+              :result 1
+              :syntax-order 8}
+             {:form (-> {} (assoc :a 1) (get :a (identity :missing)))
+              :indent-level 0
+              :num-seen 1
+              :result 1
+              :syntax-order 1}]
            @traces))
     (is (= '(-> {}
                 (assoc :a 1)
@@ -89,14 +112,21 @@
 (deftest thread-first-test
     (is
       (= '(do
-           (day8.re-frame.debux.dbgn/trace
-            0 0
-            (->
-             (day8.re-frame.debux.dbgn/trace 1 1 {:a 1})
-             (day8.re-frame.debux.dbgn/trace 1 4 (assoc :a 3)))))
-          (macroexpand-1 '(day8.re-frame.debux.dbgn/mini-dbgn
-                           (-> {:a 1}
-                               (assoc :a 3))))
+            (day8.re-frame.debux.dbgn/trace
+             {:day8.re-frame.debux.dbgn/indent 0
+              :day8.re-frame.debux.dbgn/num-seen 1
+              :day8.re-frame.debux.dbgn/syntax-order 1}
+             (->
+              (day8.re-frame.debux.dbgn/trace
+               {:day8.re-frame.debux.dbgn/indent 1
+                :day8.re-frame.debux.dbgn/num-seen 1
+                :day8.re-frame.debux.dbgn/syntax-order 2}
+               {:a 1})
+              (day8.re-frame.debux.dbgn/trace
+               {:day8.re-frame.debux.dbgn/indent 1
+                :day8.re-frame.debux.dbgn/num-seen 1
+                :day8.re-frame.debux.dbgn/syntax-order 5}
+               (assoc :a 3)))))
          ))
           ; Old result
           ; #_'(clojure.core/let
@@ -124,12 +154,26 @@
 
     (is
       (= '(do
-           (day8.re-frame.debux.dbgn/trace
-            0 0
-            (->
-             (day8.re-frame.debux.dbgn/trace 1 1 {:a 1})
-             (day8.re-frame.debux.dbgn/trace 1 4 (assoc :a 3))
-             (day8.re-frame.debux.dbgn/trace 1 8 frequencies))))
+            (day8.re-frame.debux.dbgn/trace
+             {:day8.re-frame.debux.dbgn/indent 0
+              :day8.re-frame.debux.dbgn/num-seen 1
+              :day8.re-frame.debux.dbgn/syntax-order 1}
+             (->
+              (day8.re-frame.debux.dbgn/trace
+               {:day8.re-frame.debux.dbgn/indent 1
+                :day8.re-frame.debux.dbgn/num-seen 1
+                :day8.re-frame.debux.dbgn/syntax-order 2}
+               {:a 1})
+              (day8.re-frame.debux.dbgn/trace
+               {:day8.re-frame.debux.dbgn/indent 1
+                :day8.re-frame.debux.dbgn/num-seen 1
+                :day8.re-frame.debux.dbgn/syntax-order 5}
+               (assoc :a 3))
+              (day8.re-frame.debux.dbgn/trace
+               {:day8.re-frame.debux.dbgn/indent 1
+                :day8.re-frame.debux.dbgn/num-seen 1
+                :day8.re-frame.debux.dbgn/syntax-order 9}
+               frequencies))))
           (macroexpand-1 '(day8.re-frame.debux.dbgn/mini-dbgn
                            (-> {:a 1}
                                (assoc :a 3)
