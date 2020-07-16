@@ -143,7 +143,7 @@
 (defn everything->example
   []
   [:tr
-   [:td
+   [:td {:width "70px"}
     [:pre 
 "(re-frame/reg-event-db
  ::everything->

@@ -42,14 +42,18 @@
   ([macro-type] `(day8.re-frame.debux.cs.macro-types/show-macros ~macro-type)))
 
 
-(defn fn-body [args+body]
-  (if (= :body (nth (:body args+body) 0))
-    `(~(or (:args (:args args+body)) [])
-       ~@(map (fn [body] `(dbgn ~body)) (nth (:body args+body) 1)))
+(defn fn-body [args+body & send-form]
+  (let [args            (or (-> args+body :args :args) [])
+        body-or-prepost (-> args+body :body (nth 0))
+        body            (nth (:body args+body) 1)]
+    (if (= :body body-or-prepost)   ;; no pre and post conditions
+      `(~args
+      ;;  ~@(map (fn [body] `(dbgn ~body)) (nth (:body args+body) 1)))
+        (dbgn/dbgn-forms ~body ~send-form))
     ;; prepost+body
-    `(~(or (:args (:args args+body)) [])
-       ~(:prepost (nth (:body args+body) 1))
-       ~@(map (fn [body] `(dbgn ~body)) (:body (nth (:body args+body) 1))))))
+      `(~args
+        ~(:prepost body)
+        (dbgn/dbgn-forms ~(:body body) ~send-form)))))
 
 ;; Components of a defn
 ;; name
@@ -67,8 +71,8 @@
         arity-1?  (= (nth bs 0) :arity-1)
         args+body (nth bs 1)]
     (if arity-1?
-      `(defn ~name ~@(fn-body args+body))
-      `(defn ~name ~@(map fn-body (:bodies args+body))))))
+      `(defn ~name ~@(fn-body args+body &form))
+      `(defn ~name ~@(map #(fn-body % &form) (:bodies args+body))))))
 
 (defmacro defn-traced
   "Traced defn"
@@ -98,11 +102,11 @@
     (if arity-1?
       ;; If name is nil, then the empty vector is removed by the unquote
       `(fn ~@(when name [name])
-         ~@(fn-body args+body))
+         ~@(fn-body args+body &form))
       ;; arity-n
       (let [bodies (:bodies args+body)]
         `(fn ~@(when name [name])
-           ~@(map fn-body bodies))))))
+           ~@(map #(fn-body % &form) bodies))))))
 
 (defmacro fn-traced
   "Defines a traced fn"

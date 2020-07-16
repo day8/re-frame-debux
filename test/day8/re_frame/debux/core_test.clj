@@ -4,14 +4,16 @@
             [day8.re-frame.debux.common.util :as ut]
             [day8.re-frame.debux.dbgn :as dbgn]
             [re-frame.trace]
-            [day8.re-frame.tracing :as tracing]
-            [zprint.core]))
+            [day8.re-frame.tracing :as tracing :refer [fn-traced]]
+            [zprint.core]
+            [clojure.walk :refer [macroexpand-all]]))
 
 (def traces (atom []))
 (def form (atom nil))
 
 (use-fixtures :each (fn [f]
-                      (with-redefs [ut/send-trace! (fn [code-trace] (swap! traces conj (update code-trace :form ut/tidy-macroexpanded-form {})))
+                      (with-redefs [tracing/trace-enabled? true
+                                    ut/send-trace! (fn [code-trace] (swap! traces conj (update code-trace :form ut/tidy-macroexpanded-form {})))
                                     ut/send-form!  (fn [traced-form] (reset! form (ut/tidy-macroexpanded-form traced-form {})))]
                         (f)
                         (reset! traces [])
@@ -843,7 +845,7 @@
                                 pr-str)))
                  (every? #(clojure.string/includes? (pr-str f) %))))))
                
-(deftest ^:current cond->as->test
+(deftest cond->as->test
     (let [f   '(cond-> [10 11]
                 true       (conj 12)
                 true       (as-> xs (map - xs [3 2 1]))
@@ -1011,6 +1013,62 @@
     (is (= (eval f4)
            (eval f)))
     (is (= @form f))
+    (is (->> @traces
+             (map (fn [f'] (->> f'
+                                :form
+                                pr-str)))
+             (every? #(clojure.string/includes? (pr-str f) %))))))
+
+(deftest fn-traced-test
+  (let [f   '{:db (assoc {} :a (inc 5)
+                         :b (if true :t :f))}
+        f4  `(fn-traced [] ~f)]
+    (println "F4" f4)
+    (println "F4-eval" (eval f4))
+    (is (= ((eval f4))
+           (eval f)))
+    (is (= (concat '(fn-traced* []) `(~f)) @form))
+    (is (->> @traces
+             (map (fn [f'] (->> f'
+                                :form
+                                pr-str)))
+             (every? #(clojure.string/includes? (pr-str f) %))))))
+
+(deftest fn-traced-mult-arity-test
+  (let [f   '{:db (assoc {} :a (inc 5)
+                         :b (if true :t :f))}
+        f4  `(fn-traced ([] ~f)
+                        ([_#] ~f))]
+    (println "F4" f4)
+    (println "F4-eval" (eval f4))
+    (is (= ((eval f4))
+           (eval f)))
+    (is (= '(fn-traced*
+             ([] {:db (assoc {} :a (inc 5) :b (if true :t :f))})
+             ([_#] {:db (assoc {} :a (inc 5) :b (if true :t :f))}))
+           @form))
+    (is (->> @traces
+             (map (fn [f'] (->> f'
+                                :form
+                                pr-str)))
+             (every? #(clojure.string/includes? (pr-str f) %))))))
+
+(deftest ^:current fn-traced-prepost-test
+  (let [f   '{:db (assoc {} :a (inc 5)
+                         :b (if true :t :f))}
+        f4  `(fn-traced []
+                        {:pre [true]
+                         :post [true]}
+                        ~f)]
+    (println "F4" f4)
+    (println "F4-eval" (eval f4))
+    (is (= ((eval f4))
+           (eval f)))
+    (is (= '(fn-traced*
+             []
+             {:post [true], :pre [true]}
+             {:db (assoc {} :a (inc 5) :b (if true :t :f))})
+           @form))
     (is (->> @traces
              (map (fn [f'] (->> f'
                                 :form

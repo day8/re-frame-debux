@@ -471,6 +471,33 @@
                  Exception)
               ~'e (throw ~'e)))))
 
+;;; dbgn
+(defmacro dbgn-forms
+  "Similar to dbgn but can deal with multiple forms and inject a specified form to send-form!"
+  [forms send-form & [opts]]
+  (let [send-form (-> send-form  ;;for some reason the form is wrapped in a list
+                      first)
+        func      (first send-form)
+        send-form (conj (rest send-form) (symbol (name func)))]  ;; get rid of the namespace
+    `(let [~'+debux-dbg-opts+ ~(if (ut/cljs-env? &env)
+                                 (dissoc opts :style :js :once)
+                                 opts)]
+       (try
+       ;; Send whole form to trace point
+         (ut/send-form! '~(-> send-form (ut/tidy-macroexpanded-form {})))
+         ~@(map (fn [form] (-> (if (ut/include-recur? form)
+                                 (sk/insert-o-skip-for-recur form &env)
+                                 form)
+                               (insert-skip &env)
+                               (insert-trace 'day8.re-frame.debux.dbgn/trace &env)
+                               remove-skip))
+                forms)
+       ;; TODO: can we remove try/catch too?
+         (catch ~(if (ut/cljs-env? &env)
+                   :default
+                   Exception)
+                ~'e (throw ~'e))))))
+
 (defmacro mini-dbgn
   "DeBuG every Nested forms of a form.s"
   [form]
