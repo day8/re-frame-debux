@@ -8,7 +8,8 @@
             [day8.re-frame.debux.cs.macro-types :as mt]))
   (:require [day8.re-frame.debux.common.util :as ut]
             [day8.re-frame.debux.common.macro-specs :as ms]
-            [clojure.spec.alpha :as s]))
+            [clojure.spec.alpha :as s]
+            [clojure.zip :as z]))
 
 #?(:cljs (enable-console-print!))
 
@@ -41,19 +42,30 @@
   ([] `(day8.re-frame.debux.cs.macro-types/show-macros))
   ([macro-type] `(day8.re-frame.debux.cs.macro-types/show-macros ~macro-type)))
 
+(defn find-symbols [args]
+  "iterate through the function args and get a list of the symbols"
+  (loop [loc (ut/sequential-zip args)
+         seen []]
+    (let [node (z/node loc)]
+      (cond
+        (z/end? loc) seen
+        (symbol? node) (recur (z/next loc) (conj seen node))
+        :else (recur (z/next loc) seen)
+        ))))
 
 (defn fn-body [args+body & send-form]
   (let [args            (or (-> args+body :args :args) [])
         body-or-prepost (-> args+body :body (nth 0))
-        body            (nth (:body args+body) 1)]
+        body            (nth (:body args+body) 1)
+        args-symbols    (find-symbols args)]
     (if (= :body body-or-prepost)   ;; no pre and post conditions
       `(~args
       ;;  ~@(map (fn [body] `(dbgn ~body)) (nth (:body args+body) 1)))
-        (dbgn/dbgn-forms ~body ~send-form))
+        (dbgn/dbgn-forms ~body ~send-form ~args-symbols))
     ;; prepost+body
       `(~args
         ~(:prepost body)
-        (dbgn/dbgn-forms ~(:body body) ~send-form)))))
+        (dbgn/dbgn-forms ~(:body body) ~send-form ~args-symbols)))))
 
 ;; Components of a defn
 ;; name

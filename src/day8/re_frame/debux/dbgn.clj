@@ -215,141 +215,142 @@
       z/down))
 
 ;;; insert/remove d
-(defn insert-trace [form d-sym env]
-
+(defn insert-trace 
+  ([form d-sym env] (insert-trace form d-sym env []))
+  ([form d-sym env seen]
   ; (println "INSERT-TRACE" (prn-str form))
   (loop [loc          (ut/sequential-zip form)
-         indent       0
-         syntax-order 0
-         seen         []]
-    (let [node (z/node loc)
-          seen (conj seen node)
-          syntax-order (inc syntax-order)
-          num-seen     (-> #{node}
-                           (keep seen)
-                           count)
-          #_ #_ indent (real-depth loc)]
+          indent       0
+          syntax-order 0
+          seen         seen]
+     (let [node (z/node loc)
+           seen (conj seen node)
+           syntax-order (inc syntax-order)
+           num-seen     (-> #{node}
+                            (keep seen)
+                            count)
+           #_ #_ indent (real-depth loc)]
     ;;  (println "node" node syntax-order num-seen)
-      (cond
-        (z/end? loc) (z/root loc)
+       (cond
+         (z/end? loc) (z/root loc)
 
         ;;; in case of (spy-first ...) (and more to come)
         ;(and (seq? node) (= `ms/skip (first node)))
         ;(recur (-> (z/down node)
         ;           z/right
         ;           z/down))
-        
+         
         ;; TODO: is it more efficient to remove the skips here
         ;; rather than taking another pass through the form?
-        
+         
         ;; in case of (.. skip ...)
-        (= ::ms/skip node)
-        (recur (ut/right-or-next loc) indent syntax-order seen)
+         (= ::ms/skip node)
+         (recur (ut/right-or-next loc) indent syntax-order seen)
 
         ;; in case of (skip ...)
-        (and (seq? node) (= `ms/skip (first node)) )
-        (recur (ut/right-or-next loc) indent syntax-order (concat seen  (-> node
-                                                                            next
-                                                                            flatten)))
+         (and (seq? node) (= `ms/skip (first node)) )
+         (recur (ut/right-or-next loc) indent syntax-order (concat seen  (-> node
+                                                                             next
+                                                                             flatten)))
 
         ;; in case of (o-skip ...)
-        (and (seq? node)
-             (= `ms/o-skip (first node)))
-        (cond
+         (and (seq? node)
+              (= `ms/o-skip (first node)))
+         (cond
           ;; <ex> (o-skip [(skip a) ...])
-          (vector? (second node))
-          (recur (-> loc z/down z/next z/down) indent syntax-order seen)
+           (vector? (second node))
+           (recur (-> loc z/down z/next z/down) indent syntax-order seen)
 
           ;; <ex> (o-skip (recur ...))
-          :else
-          (recur (-> loc z/down z/next z/down ut/right-or-next) indent syntax-order seen))
+           :else
+           (recur (-> loc z/down z/next z/down ut/right-or-next) indent syntax-order seen))
 
         ;; TODO: handle lists that are just lists, not function calls
-        
+         
 
         ;; in case of (skip-outer ...)
-        (and (seq? node)
-             (= `ms/skip-outer (first node)))
-        (let [inner-loc  (-> loc z/down z/right)
-              inner-node (z/node inner-loc)]
-          (cond
-            (and (seq? inner-node)
-                 (= `ms/skip (first inner-node)))
+         (and (seq? node)
+              (= `ms/skip-outer (first node)))
+         (let [inner-loc  (-> loc z/down z/right)
+               inner-node (z/node inner-loc)]
+           (cond
+             (and (seq? inner-node)
+                  (= `ms/skip (first inner-node)))
             ;; Recur once and let skip handle case
-            (recur inner-loc indent syntax-order seen)
+             (recur inner-loc indent syntax-order seen)
 
-            (seq? inner-node)
-            (recur (-> inner-loc z/down ut/right-or-next) indent syntax-order seen)
+             (seq? inner-node)
+             (recur (-> inner-loc z/down ut/right-or-next) indent syntax-order seen)
 
-            (vector? inner-node)
-            (recur (-> inner-loc z/down) indent syntax-order seen)
+             (vector? inner-node)
+             (recur (-> inner-loc z/down) indent syntax-order seen)
 
-            :else
-            (recur (-> inner-loc ut/right-or-next) indent syntax-order seen)
+             :else
+             (recur (-> inner-loc ut/right-or-next) indent syntax-order seen)
 
 
             ;true (throw (ex-info "Pause" {}))
             ;; vector
             ;; map
             ;; form
-            
-            ))
+             
+             ))
 
 
         ;; in case that the first symbol is defn/defn-
-        (and (seq? node)
-             (symbol? (first node))
-             (`#{defn defn-} (ut/ns-symbol (first node) env)))
-        (recur (-> loc z/down z/next) indent syntax-order seen)
+         (and (seq? node)
+              (symbol? (first node))
+              (`#{defn defn-} (ut/ns-symbol (first node) env)))
+         (recur (-> loc z/down z/next) indent syntax-order seen)
 
         ;; in case of the first symbol except defn/defn-/def
-        
+         
         ;; DC: why not def? where is that handled?
-        (and (seq? node) (ifn? (first node)))
-        (recur (-> (z/replace loc  `(~d-sym {::indent ~(real-depth loc)
-                                             ::syntax-order ~syntax-order
-                                             ::num-seen ~num-seen} ~node))
-                   skip-past-trace 
-                   ut/right-or-next)
-               (inc indent) syntax-order seen)
+         (and (seq? node) (ifn? (first node)))
+         (recur (-> (z/replace loc  `(~d-sym {::indent ~(real-depth loc)
+                                              ::syntax-order ~syntax-order
+                                              ::num-seen ~num-seen} ~node))
+                    skip-past-trace 
+                    ut/right-or-next)
+                (inc indent) syntax-order seen)
 
         ;; |[1 2 (+ 3 4)]
         ;; |(d [1 2 (+ 3 4)])
-        
+         
 
-        (vector? node)
-        (recur (-> loc
-                   (z/replace `(~d-sym {::indent ~(real-depth loc)
-                                        ::syntax-order ~syntax-order
-                                        ::num-seen ~num-seen} ~node))
-                   skip-past-trace)
-               indent syntax-order seen)
+         (vector? node)
+         (recur (-> loc
+                    (z/replace `(~d-sym {::indent ~(real-depth loc)
+                                         ::syntax-order ~syntax-order
+                                         ::num-seen ~num-seen} ~node))
+                    skip-past-trace)
+                indent syntax-order seen)
 
-        (map? node)
-        (recur (-> loc 
-                   (z/replace `(~d-sym {::indent ~(real-depth loc)
-                                        ::syntax-order ~syntax-order
-                                        ::num-seen ~num-seen} ~node))
-                   skip-past-trace)
-               indent syntax-order seen)
+         (map? node)
+         (recur (-> loc 
+                    (z/replace `(~d-sym {::indent ~(real-depth loc)
+                                         ::syntax-order ~syntax-order
+                                         ::num-seen ~num-seen} ~node))
+                    skip-past-trace)
+                indent syntax-order seen)
 
-        (= node `day8.re-frame.debux.common.macro-specs/indent)
+         (= node `day8.re-frame.debux.common.macro-specs/indent)
         ;; TODO: does this real-depth need an inc/dec to bring it into line with the d?
-        (recur (z/replace loc (real-depth loc)) indent  syntax-order seen)
+         (recur (z/replace loc (real-depth loc)) indent  syntax-order seen)
 
         ;; DC: We might also want to trace inside maps, especially for fx
         ;; in case of symbol, or set
-        (or (symbol? node) (map? node) (set? node))
-        (recur (-> (z/replace loc `(~d-sym {::indent ~(real-depth loc)
-                                            ::syntax-order ~syntax-order
-                                            ::num-seen ~num-seen} ~node))
+         (or (symbol? node) (map? node) (set? node))
+         (recur (-> (z/replace loc `(~d-sym {::indent ~(real-depth loc)
+                                             ::syntax-order ~syntax-order
+                                             ::num-seen ~num-seen} ~node))
                    ;; We're not zipping down inside the node further, so we don't need to add a
                    ;; second z/right like we do in the case of a vector or ifn? node above.
-                   ut/right-or-next)
-               indent syntax-order seen)
+                    ut/right-or-next)
+                indent syntax-order seen)
 
-        :else
-        (recur (z/next loc) indent syntax-order seen)))))
+         :else
+         (recur (z/next loc) indent syntax-order seen))))))
 
 (defmulti trace*
   (fn [& args]
@@ -473,8 +474,12 @@
 
 ;;; dbgn
 (defmacro dbgn-forms
-  "Similar to dbgn but can deal with multiple forms and inject a specified form to send-form!"
-  [forms send-form & [opts]]
+  "Similar to dbgn but can deal with multiple forms and inject a specified form to send-form!
+   args:
+    forms - the sequence of forms i.e. an implied do in a fn
+    send-form - the form sent to be traced
+    args - the symbols in the args (that need to be added to num-seen)"
+  [forms send-form args & [opts]]
   (let [send-form (-> send-form  ;;for some reason the form is wrapped in a list
                       first)
         func      (first send-form)
@@ -489,7 +494,7 @@
                                  (sk/insert-o-skip-for-recur form &env)
                                  form)
                                (insert-skip &env)
-                               (insert-trace 'day8.re-frame.debux.dbgn/trace &env)
+                               (insert-trace 'day8.re-frame.debux.dbgn/trace &env args)
                                remove-skip))
                 forms)
        ;; TODO: can we remove try/catch too?
