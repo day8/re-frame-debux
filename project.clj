@@ -19,8 +19,8 @@
   :plugins      [[day8/lein-git-inject "0.0.14"]
                  [lein-shadow          "0.2.0"]
                  [lein-shell           "0.5.0"]
-                 [lein-eftest "0.5.9"]
-                 [lein-tach "1.0.0"]]
+                 [lein-eftest          "0.5.9"]
+                 [lein-tach            "1.0.0"]]
 
   :eftest {:multithread? false}
   
