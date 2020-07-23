@@ -22,5 +22,4 @@ figwheel_server.log
 /node_modules/
 /.shadow-cljs/
 /shadow-cljs.edn
-/package.json
 /package-lock.json
