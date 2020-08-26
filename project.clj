@@ -14,7 +14,7 @@
                  [re-frame                  "1.1.1" :scope "provided"]
                  [net.cgrand/macrovich      "0.2.1"]]
 
-  :min-lein-version "2.6.0"
+  :min-lein-version "2.9.0"
 
   :plugins      [[day8/lein-git-inject "0.0.14"]
                  [lein-shadow          "0.2.2"]
