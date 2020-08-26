@@ -79,13 +79,20 @@
                           :ns-regexp "-test$"
                           :output-to "target/karma-test.js"}}}
 
-  :aliases {"dev"           ["with-profile" "dev" "do"
-                             ["shadow" "watch" "dev"]]
-            "browser-test"  ["with-profile" "dev" "do"
-                             ["shadow" "watch" "browser-test"]]
-            "karma-once"    ["do"
-                             ["shadow" "compile" "karma-test"]
-                             ["shell" "karma" "start" "--single-run" "--reporters" "junit,dots"]]}
+  :shell {:commands {"karma" {:windows         ["cmd" "/c" "karma"]
+                              :default-command "karma"}
+                     "open"  {:windows         ["cmd" "/c" "start"]
+                              :macosx          "open"
+                              :linux           "xdg-open"}}}
+
+  :aliases {"watch" ["with-profile" "dev" "do"
+                     ["clean"]
+                     ["shadow" "watch" "dev" "browser-test" "karma-test"]]
+
+            "ci"    ["do"
+                     ["clean"]
+                     ["shadow" "compile" "karma-test"]
+                     ["shell" "karma" "start" "--single-run" "--reporters" "junit,dots"]]}
   
   :tach {:test-runner-ns 'day8.re-frame.debux.runner
          :source-paths ["src/cljs" "src/cljc" "test"]})
