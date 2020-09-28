@@ -9,7 +9,7 @@
                   :exclusions [com.google.javascript/closure-compiler-unshaded
                                org.clojure/google-closure-library
                                org.clojure/google-closure-library-third-party]]
-                 [thheller/shadow-cljs      "2.11.0" :scope "provided"]
+                 [thheller/shadow-cljs      "2.11.4" :scope "provided"]
                  [clojure-future-spec       "1.9.0"]
                  [re-frame                  "1.1.1" :scope "provided"]
                  [net.cgrand/macrovich      "0.2.1"]]
@@ -17,7 +17,7 @@
   :min-lein-version "2.9.0"
 
   :plugins      [[day8/lein-git-inject "0.0.14"]
-                 [lein-shadow          "0.2.2"]
+                 [lein-shadow          "0.3.1"]
                  [lein-shell           "0.5.0"]
                  [lein-eftest          "0.5.9"]
                  [lein-tach            "1.0.0"]]
@@ -43,7 +43,7 @@
 
   :clean-targets ^{:protect false}
   [:target-path
-   "package.json"
+   "node_modules"
    "shadow-cljs.edn"
    "resources/public/js/out"
    "resources/public/js/main.js"]
