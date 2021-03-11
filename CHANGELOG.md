@@ -3,6 +3,10 @@ All notable changes to this project will be documented in this file. This change
 
 ## Unreleased
 
+#### Fixed
+
+- Fix deployment of tracing-stubs
+
 #### Changed
 
 - Upgrade Clojure to 1.10.3

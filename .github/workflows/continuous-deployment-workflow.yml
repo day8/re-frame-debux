@@ -87,7 +87,7 @@ jobs:
         working-directory: tracing-stubs
         env:
           CLOJARS_USERNAME: ${{ secrets.CLOJARS_USERNAME }}
-          CLOJARS_TOKEN: ${{ secrets.CLOJARS_TOKEN_FOR_TRACING }}
+          CLOJARS_TOKEN: ${{ secrets.CLOJARS_TOKEN_FOR_TRACING_STUBS }}
           GITHUB_USERNAME: ${{ github.actor }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
