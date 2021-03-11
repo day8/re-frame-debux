@@ -5,7 +5,7 @@
                 :url "http://www.eclipse.org/legal/epl-v10.html"}
   :scm         {:dir ".."}
 
-  :dependencies [[org.clojure/clojure "1.10.1" :scope "provided"]]
+  :dependencies [[org.clojure/clojure "1.10.3" :scope "provided"]]
 
   :plugins      [[day8/lein-git-inject "0.0.14"]]
 
