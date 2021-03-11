@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file. This change
 
 - Upgrade Clojure to 1.10.3
 - Upgrade shadow-cljs to 2.11.22
+- Upgrade lein-tach to 1.1.0
 
 ## [0.6.0] - 2020-05-16 
 

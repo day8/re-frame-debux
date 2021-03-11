@@ -21,7 +21,7 @@
                  [lein-ancient         "0.6.15"]
                  [lein-shell           "0.5.0"]
                  [lein-eftest          "0.5.9"]
-                 [lein-tach            "1.0.0"]]
+                 [lein-tach            "1.1.0"]]
 
   :eftest {:multithread? false}
   
