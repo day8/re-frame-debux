@@ -3,6 +3,14 @@ All notable changes to this project will be documented in this file. This change
 
 ## Unreleased
 
+#### Changed
+
+- Upgrade Clojure to 1.10.3
+
+## [0.6.0] - 2020-05-16 
+
+* [Changes](https://github.com/day8/re-frame-debux/compare/v0.5.6...v0.6.0).
+
 ## [0.5.5] - 2020-05-01
 
 #### Fixed

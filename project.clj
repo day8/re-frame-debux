@@ -4,14 +4,14 @@
   :license     {"Eclipse Public License"
                 "http://www.eclipse.org/legal/epl-v10.html"}
 
-  :dependencies [[org.clojure/clojure       "1.10.2" :scope "provided"]
+  :dependencies [[org.clojure/clojure       "1.10.3"   :scope "provided"]
                  [org.clojure/clojurescript "1.10.773" :scope "provided"
                   :exclusions [com.google.javascript/closure-compiler-unshaded
                                org.clojure/google-closure-library
                                org.clojure/google-closure-library-third-party]]
-                 [thheller/shadow-cljs      "2.11.18" :scope "provided"]
+                 [thheller/shadow-cljs      "2.11.18"  :scope "provided"]
                  [clojure-future-spec       "1.9.0"]
-                 [re-frame                  "1.2.0" :scope "provided"]
+                 [re-frame                  "1.2.0"    :scope "provided"]
                  [net.cgrand/macrovich      "0.2.1"]]
 
   :min-lein-version "2.9.0"
