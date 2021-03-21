@@ -1,10 +1,12 @@
-[![CI](https://github.com/day8/re-frame-debux/workflows/ci/badge.svg)](https://github.com/day8/re-frame-debux/actions?workflow=ci)
+<!-- [![CI](https://github.com/day8/re-frame-debux/workflows/ci/badge.svg)](https://github.com/day8/re-frame-debux/actions?workflow=ci)
 [![CD](https://github.com/day8/re-frame-debux/workflows/cd/badge.svg)](https://github.com/day8/re-frame-debux/actions?workflow=cd)
-[![GitHub tag (latest by date)](https://img.shields.io/github/v/tag/day8/re-frame-debux?style=flat)](https://github.com/day8/re-frame-debux/tags)
-[![Clojars Project](https://img.shields.io/clojars/v/day8.re-frame/tracing.svg)](https://clojars.org/day8.re-frame/tracing)
-[![GitHub issues](https://img.shields.io/github/issues-raw/day8/re-frame-debux?style=flat)](https://github.com/day8/re-frame-debux/issues)
+[![GitHub tag (latest by date)](https://img.shields.io/github/v/tag/day8/re-frame-debux?style=flat)](https://github.com/day8/re-frame-debux/tags) 
 [![GitHub pull requests](https://img.shields.io/github/issues-pr/day8/re-frame-debux)](https://github.com/day8/re-frame-debux/pulls)
-[![License](https://img.shields.io/github/license/day8/re-frame-debux?style=flat)](https://github.com/day8/re-frame-debux/blob/master/LICENSE)
+
+-->
+[![Clojars Project](https://img.shields.io/clojars/v/day8.re-frame/tracing?style=for-the-badge&logo=clojure&logoColor=fff)](https://clojars.org/day8.re-frame/tracing)
+[![GitHub issues](https://img.shields.io/github/issues-raw/day8/re-frame-debux?style=for-the-badge&logo=github)](https://github.com/day8/re-frame-debux/issues)
+[![License](https://img.shields.io/github/license/day8/re-frame-debux?style=for-the-badge)](https://github.com/day8/re-frame-debux/blob/master/LICENSE)
 
 # re-frame-debux
 
