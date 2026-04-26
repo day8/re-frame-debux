@@ -144,7 +144,39 @@ You can instruct [Cursive](https://cursive-ide.com) to treat the `fn-traced` and
 
 ## Testing
 
-As the macros are in clojure (not cljs) tests are run via `lein test`
+The canonical test entry-point is `bb test`, which compiles the
+`browser-test` shadow-cljs build and runs it via
+[day8.chrome-shadow-test-runner](https://github.com/day8/re-frame-test).
+Both the Clojure-side macroexpansion tests and the ClojureScript
+integration tests run in the same suite.
+
+```
+bb test
+```
+
+For interactive development:
+
+```
+bb watch-test           # rebuilds + reruns on file change
+```
+
+The legacy `lein test` path is still functional for one release
+cycle as a transition shim — `lein test` runs the Clojure-side
+suite only. New contributors should prefer `bb test`.
+
+## Releasing
+
+Two artefacts ship from this repo independently:
+
+```
+bb clojars              # day8.re-frame/tracing
+bb clojars-stubs        # day8.re-frame/tracing-stubs (from ./tracing-stubs/)
+```
+
+CI ([continuous-integration-workflow.yml](.github/workflows/continuous-integration-workflow.yml))
+runs `bb test` on every push; CD
+([continuous-deployment-workflow.yml](.github/workflows/continuous-deployment-workflow.yml))
+runs both clojars tasks on a `v*` tag.
 
 ## License
 Copyright © 2015--2018 Young Tae Kim, 2018 Day 8 Technology

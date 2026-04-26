@@ -1,3 +1,25 @@
+;; ---------------------------------------------------------------------
+;; project.clj — transitional shim (rfd-iqz, planned removal in v0.7).
+;; ---------------------------------------------------------------------
+;;
+;; The canonical toolchain post-rfd-iqz is tools.deps + bb tasks +
+;; shadow-cljs.edn at the root. See README "Testing" + "Releasing"
+;; sections, and deps.edn / bb.edn / shadow-cljs.edn for the
+;; authoritative configuration.
+;;
+;; This file remains as a fallback for contributors still on lein:
+;;   `lein test` — runs the Clojure-side macroexpansion tests
+;;   `lein release` — deploys via CLOJARS_USERNAME/CLOJARS_TOKEN env
+;; The shadow-cljs / browser-test paths are NO LONGER routed through
+;; lein-shadow — use `bb test` for those. lein-shadow has been removed
+;; from :plugins; the :shadow-cljs key + the lein-driven `watch` and
+;; `ci` aliases have been removed (they all live in shadow-cljs.edn /
+;; bb.edn now).
+;;
+;; To remove this file in v0.7, delete project.clj and the
+;; tracing-stubs/project.clj — both are superseded by their respective
+;; deps.edn files, and the GitHub workflows already drive bb tasks.
+
 (defproject    day8.re-frame/tracing "lein-git-inject/version"
   :description "A tool for inspecting code execution for re-frame applications"
   :url         "https://github.com/day8/re-frame-debux"
@@ -9,7 +31,6 @@
                   :exclusions [com.google.javascript/closure-compiler-unshaded
                                org.clojure/google-closure-library
                                org.clojure/google-closure-library-third-party]]
-                 [thheller/shadow-cljs      "2.28.23"  :scope "provided"]
                  [clojure-future-spec       "1.9.0"]
                  [re-frame                  "1.4.5"    :scope "provided"]
                  [net.cgrand/macrovich      "0.2.2"]]
@@ -17,11 +38,9 @@
   :min-lein-version "2.9.0"
 
   :plugins      [[day8/lein-git-inject "0.0.15"]
-                 [lein-shadow          "0.4.1"]
                  [lein-ancient         "0.6.15"]
                  [lein-shell           "0.5.0"]
-                 [lein-eftest          "0.6.0"]
-                 [lein-tach            "1.1.0"]]
+                 [lein-eftest          "0.6.0"]]
 
   :eftest {:multithread? false}
   
@@ -45,55 +64,19 @@
   :clean-targets ^{:protect false}
   [:target-path
    "node_modules"
-   "shadow-cljs.edn"
    "resources/public/js/out"
    "resources/public/js/main.js"]
- 
+
   :deploy-repositories [["clojars" {:sign-releases false
                                     :url           "https://clojars.org/repo"
                                     :username      :env/CLOJARS_USERNAME
                                     :password      :env/CLOJARS_TOKEN}]]
 
-  :release-tasks [["deploy" "clojars"]]
+  :release-tasks [["deploy" "clojars"]])
 
-  :shadow-cljs {:nrepl  {:port 8777}
-
-                :builds {:dev
-                         {:target           :browser
-                          :output-dir       "resources/public/js"
-                          :asset-path       "/js"
-                          :compiler-options {:pretty-print true}
-                          :modules          {:debux {:entries [debux.cs.test.main]}}
-                          :devtools         {:http-port 8780 
-                                             :http-root "resources/public"}}
-
-                         :browser-test
-                         {:target :browser-test
-                          :ns-regexp ".*-test$"
-                          :test-dir "target/test"
-                          :compiler-options {:pretty-print true}
-                          :devtools {:http-port 8790
-                                     :http-root "target/test"}}
-
-                         :karma-test
-                         {:target    :karma
-                          :ns-regexp "-test$"
-                          :output-to "target/karma-test.js"}}}
-
-  :shell {:commands {"karma" {:windows         ["cmd" "/c" "karma"]
-                              :default-command "karma"}
-                     "open"  {:windows         ["cmd" "/c" "start"]
-                              :macosx          "open"
-                              :linux           "xdg-open"}}}
-
-  :aliases {"watch" ["with-profile" "dev" "do"
-                     ["clean"]
-                     ["shadow" "watch" "dev" "browser-test" "karma-test"]]
-
-            "ci"    ["do"
-                     ["clean"]
-                     ["shadow" "compile" "karma-test"]
-                     ["shell" "karma" "start" "--single-run" "--reporters" "junit,dots"]]}
-  
-  :tach {:test-runner-ns 'day8.re-frame.debux.runner
-         :source-paths ["src/cljs" "src/cljc" "test"]})
+;; --- removed in rfd-iqz (live in shadow-cljs.edn / bb.edn now) ---
+;;   :shadow-cljs {...}                       — lifted to shadow-cljs.edn
+;;   :aliases {"watch" ..., "ci" ...}         — replaced by bb watch-test / bb test
+;;   :shell {...}                             — only used by the removed `ci` alias
+;;   :tach {...}                              — lein-tach plugin no longer in :plugins
+;;   :clean-targets entry "shadow-cljs.edn"   — file is now committed, not generated
