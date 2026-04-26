@@ -34,8 +34,8 @@ Sharp edges include:
 
 ## Prerequisites
 
-* clojure 1.8.0 or later
-* clojurescript 1.9.854 or later
+* clojure 1.11.0 or later
+* clojurescript 1.11.0 or later
 
 
 ## How to use
@@ -90,13 +90,13 @@ It is technically possible to use the `day8.re-frame/tracing` library in your pr
 To include *re-frame-debux* in your project, simply add the following to your *project.clj* development dependencies:
 
 ```
-[day8.re-frame/tracing "0.5.3"]
+[day8.re-frame/tracing "0.6.0"]
 ```
 
 and this to your production dependencies (make sure they are production only):
 
 ```
-[day8.re-frame/tracing-stubs "0.5.3"]
+[day8.re-frame/tracing-stubs "0.6.0"]
 ```
 
 Add Closure defines to your config to enable re-frame tracing + the function tracing:

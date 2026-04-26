@@ -4,23 +4,23 @@
   :license     {"Eclipse Public License"
                 "http://www.eclipse.org/legal/epl-v10.html"}
 
-  :dependencies [[org.clojure/clojure       "1.10.3"   :scope "provided"]
-                 [org.clojure/clojurescript "1.10.773" :scope "provided"
+  :dependencies [[org.clojure/clojure       "1.11.4"   :scope "provided"]
+                 [org.clojure/clojurescript "1.11.132" :scope "provided"
                   :exclusions [com.google.javascript/closure-compiler-unshaded
                                org.clojure/google-closure-library
                                org.clojure/google-closure-library-third-party]]
-                 [thheller/shadow-cljs      "2.11.22"  :scope "provided"]
+                 [thheller/shadow-cljs      "2.28.23"  :scope "provided"]
                  [clojure-future-spec       "1.9.0"]
-                 [re-frame                  "1.2.0"    :scope "provided"]
-                 [net.cgrand/macrovich      "0.2.1"]]
+                 [re-frame                  "1.4.5"    :scope "provided"]
+                 [net.cgrand/macrovich      "0.2.2"]]
 
   :min-lein-version "2.9.0"
 
-  :plugins      [[day8/lein-git-inject "0.0.14"]
-                 [lein-shadow          "0.3.1"]
+  :plugins      [[day8/lein-git-inject "0.0.15"]
+                 [lein-shadow          "0.4.1"]
                  [lein-ancient         "0.6.15"]
                  [lein-shell           "0.5.0"]
-                 [lein-eftest          "0.5.9"]
+                 [lein-eftest          "0.6.0"]
                  [lein-tach            "1.1.0"]]
 
   :eftest {:multithread? false}
@@ -32,7 +32,7 @@
   :middleware   [leiningen.git-inject/middleware]
 
   :profiles {:dev {:dependencies  [[zprint          "0.5.1"]
-                                   [eftest          "0.5.9"]
+                                   [eftest          "0.6.0"]
                                    [io.aviso/pretty "0.1.37"]
                                    [reloaded.repl   "0.2.4"]]
                    :source-paths   ["src" "dev"]
