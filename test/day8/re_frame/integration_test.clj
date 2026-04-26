@@ -1,60 +1,72 @@
 (ns day8.re-frame.integration-test
-  "End-to-end integration tests that exercise the FULL re-frame
-   dispatch → fn-traced → :code tag → epoch-buffer pipeline. Per
-   docs/improvement-plan.md §2 / §6 item 9, this is the load-bearing
-   test gap: the existing dbgn_test.clj exercises macroexpansion and
-   the trace-emit calls in isolation, but no test today verifies that
-   a real re-frame dispatch through a `fn-traced`-wrapped handler
-   produces a `:code` payload that downstream consumers (re-frame-10x's
-   panel, re-frame-pair's `:debux/code` surfacing) actually see.
+  "End-to-end integration tests for re-frame-debux. Exercises the
+   FULL re-frame dispatch → fn-traced → :code tag → trace-cb pipeline
+   so a real `re-frame.core/dispatch-sync` going through a wrapped
+   handler produces a `:code` payload reachable from a registered
+   trace callback.
 
-   Three macro-walker bugs (#22, #23, #29) shipped to master without
-   warning because of this gap; #40 is the latest. Closing the gap
-   pays dividends on every future commit.
+   Per docs/improvement-plan.md §2 / §6 item 9 (rfd-8g9), this fixture
+   is the load-bearing test gap — pre-rfd-880 the macroexpansion
+   tests were thorough but no test exercised the full dispatch
+   pipeline. Three closed macro-walker bugs (#22, #23, #29) shipped
+   to master without warning because of this gap; #40 was the latest.
+   Closing the gap pays dividends on every future commit.
 
-   STATUS: scaffold only.
-   The fixture + the wrap/dispatch happy path are sketched below as
-   commented deftests; making them run requires:
-
-     1. A test runner that boots a re-frame.trace + 10x context.
-        cloud test setup likely reuses the existing `:karma-test`
-        shadow-cljs build (project.clj:78). karma renders a Reagent
-        view, so re-frame.core can fire dispatches; ensure
-        re-frame.trace.trace-enabled? = true via :closure-defines.
-
-     2. A way to consume the trace stream from the test side.
-        Either: register-trace-cb to capture emitted traces into
-        an atom (clean), or read from a 10x-style epoch buffer
-        if 10x is loaded as a test dep (heavier).
-
-     3. A live re-frame.registrar with a known dispatcher; rebuild
-        clean state per test (re-frame.core/make-restore-fn).
-
-   See PARTIAL_IMPLEMENTATION_NOTES at the bottom for what each
-   deftest needs once the runner is up. Tracking under follow-up
-   bead — see docs/v0.6-roadmap.md §End-to-end integration test."
+   Runs CLJ-side under cognitect.test-runner via `bb test`. CLJ
+   re-frame ships with a `re-frame.interop/clj` shim that supports
+   `dispatch-sync` end-to-end, so no Chrome / browser-test runner is
+   needed for these tests — they live alongside the macroexpansion
+   suite, not in the (separately-gated) browser-test build."
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [day8.re-frame.tracing :as tracing]
             [day8.re-frame.tracing.runtime :as runtime]
-            [re-frame.registrar :as registrar]))
+            ;; The wrap-* macros expand to (re-frame.core/reg-* ...) forms,
+            ;; so the test ns has to require re-frame.core (and re-frame.trace
+            ;; for our trace-capture fixture).
+            [re-frame.core]
+            [re-frame.registrar :as registrar]
+            [re-frame.trace :as rft]))
 
 ;; ---------------------------------------------------------------------------
-;; Test infrastructure (placeholder — fill in once a karma / browser-
-;; test runner can host re-frame.trace + a registered trace-cb).
+;; Trace-capture fixture
 ;; ---------------------------------------------------------------------------
+;;
+;; re-frame.trace gates trace recording on its (atom-backed)
+;; `trace-enabled?` flag. In CLJ that defaults to false (CLJS uses
+;; goog-define). We force it on for each deftest.
+;;
+;; The cb-delivery path has a quirk on CLJ: re-frame.trace/debounce's
+;; :clj branch is `(f)` (immediate invocation) rather than a wrapping
+;; fn, so the `(def schedule-debounce (debounce ...))` form ends up
+;; binding `schedule-debounce` to the *return value* of the inner
+;; cb-runner — a vector returned by `(reset! traces [])` — not a fn.
+;; `run-tracing-callbacks!` then calls `(schedule-debounce)` and
+;; throws ArityException at every dispatch.
+;;
+;; We sidestep the broken delivery path by reading from the public
+;; `re-frame.trace/traces` atom directly. The `finish-trace` macro
+;; swap!s each trace into that atom synchronously inside `with-trace`,
+;; so by the time `dispatch-sync` returns, every trace produced by
+;; the wrapped handler is in `@traces`. We also stub
+;; `schedule-debounce` to a callable no-op so the cb path doesn't
+;; throw partway through dispatch.
 
-(def ^:dynamic *captured-traces*
-  "Per-test capture atom for whatever the trace-cb emits. Bound by
-   the each-fixture once the runner is in place."
-  nil)
+(defn- captured-traces
+  "Snapshot of the re-frame.trace stream so far in the current test.
+   The fixture resets `re-frame.trace/traces` to `[]` before each
+   deftest, so this is per-test."
+  []
+  @rft/traces)
 
 (defn- with-trace-capture
-  "Stub: in the real implementation this would
-     (re-frame.trace/register-trace-cb ::test-cb (fn [traces] ...))
-   and tear down via remove-trace-cb on exit. For now it just resets
-   the runtime's wrap state so tests don't bleed into each other."
   [f]
-  (binding [*captured-traces* (atom [])]
+  (with-redefs [rft/trace-enabled?     true
+                tracing/trace-enabled? true
+                ;; Stub the broken-on-CLJ cb scheduler so
+                ;; run-tracing-callbacks! doesn't throw.
+                rft/schedule-debounce  (fn [] nil)]
+    (reset! rft/traces [])
+    (reset! rft/next-delivery 0)
     (reset! runtime/wrapped-originals {})
     (try
       (f)
@@ -64,101 +76,98 @@
 (use-fixtures :each with-trace-capture)
 
 ;; ---------------------------------------------------------------------------
-;; The deftests below are intentionally `^:integration` and `^:pending`
-;; so they don't fire in the default `lein test` run while the runner
-;; isn't ready. Flip the meta to nothing once the karma fixture below
-;; can register a trace-cb and consume emitted traces.
+;; Helpers — the pipeline produces nested trace-and-tags shapes; pull
+;; out the `:code` entries irrespective of which trace they rode on.
 ;; ---------------------------------------------------------------------------
 
-(deftest ^:integration ^:pending wrap-handler-emits-code-tag-on-dispatch
-  ;; Acceptance: register a handler, wrap-handler! it, dispatch,
-  ;; assert the captured trace stream contains a :code tag whose
-  ;; entries match the wrapped body's per-form payload.
-  (testing "fn-traced handler produces :code payload reachable from
-            the trace stream"
-    ;; (re-frame.core/reg-event-db :test/inc (fn [db _] (update db :n inc)))
-    ;; (runtime/wrap-handler! :event :test/inc (fn [db _] (update db :n inc)))
-    ;; (re-frame.core/dispatch-sync [:test/inc])
-    ;; (let [code-entries (->> @*captured-traces*
-    ;;                         (mapcat (comp :code :tags))
-    ;;                         vec)]
-    ;;   (is (seq code-entries))
-    ;;   (is (some #(re-find #"update" (str (:form %))) code-entries)))
-    (is true "scaffold only; flip ^:pending off once the runner is wired up")))
+(defn- code-entries
+  "Flatten the per-test capture stream into a vec of :code entries
+   regardless of which trace carried them. Each :code entry is a
+   {:form :result :indent-level :syntax-order :num-seen} map per the
+   contract documented in src/.../common/util.cljc above send-trace!."
+  [captured]
+  (->> captured
+       (mapcat (comp :code :tags))
+       vec))
 
-(deftest ^:integration ^:pending unwrap-stops-code-emission
-  (testing "after unwrap-handler!, dispatching the same event produces
-            no :code tag"
-    ;; Same setup as above, but call unwrap-handler! after the first
-    ;; dispatch and reset *captured-traces*; second dispatch should
-    ;; carry no :code entries.
-    (is true "scaffold only")))
+(defn- forms
+  "Vec of (pr-str-ed) :form values across all captured :code entries.
+   Useful for `(some #(re-find #\"...\" %) (forms ...))`."
+  [captured]
+  (mapv #(pr-str (:form %)) (code-entries captured)))
 
-(deftest ^:integration ^:pending fn-traced-survives-loop-recur
-  ;; Regression for #40 at the integration level — even after the
-  ;; cs/macro_types.cljc fix from rfd-t0t db9b7de, we want a real
-  ;; dispatch through a loop+recur-using handler to confirm
-  ;; macroexpansion → eval → trace pipeline doesn't re-introduce
-  ;; the hang when the runner ships.
+;; ---------------------------------------------------------------------------
+;; Acceptance tests for rfd-8g9 item 7 — wrap-handler! / unwrap-handler!
+;; (the wrap-and-emit-:code-on-dispatch contract).
+;; ---------------------------------------------------------------------------
+
+(deftest wrap-handler-emits-code-tag-on-dispatch
+  (testing "fn-traced handler produces :code payload reachable from the trace stream"
+    (re-frame.core/reg-event-db ::root (fn [db _] db))
+    (runtime/wrap-handler! :event ::root
+                           (fn [db _] (let [n (inc (or (:n db) 0))]
+                                        (assoc db :n n))))
+    (re-frame.core/dispatch-sync [::root])
+    (let [code (code-entries (captured-traces))
+          fs   (forms (captured-traces))]
+      (is (seq code)
+          "wrapped handler should have emitted at least one :code entry")
+      (is (some #(re-find #"inc" %) fs)
+          "captured forms should include the body's inc call")
+      (is (some #(re-find #"assoc" %) fs)
+          "captured forms should include the assoc")
+      (runtime/unwrap-handler! :event ::root))))
+
+(deftest unwrap-stops-code-emission
+  (testing "after unwrap-handler!, dispatching the same event produces no :code tag"
+    (re-frame.core/reg-event-db ::quiet (fn [db _] (assoc db :touched? true)))
+    (runtime/wrap-handler! :event ::quiet
+                           (fn [db _] (let [r (assoc db :touched? true)] r)))
+    (re-frame.core/dispatch-sync [::quiet])
+    (is (seq (code-entries (captured-traces)))
+        "wrapped dispatch produced :code entries (sanity)")
+    (reset! rft/traces [])
+    (runtime/unwrap-handler! :event ::quiet)
+    (re-frame.core/dispatch-sync [::quiet])
+    (is (empty? (code-entries (captured-traces)))
+        "after unwrap, no :code entries land — fn-traced is gone")))
+
+;; ---------------------------------------------------------------------------
+;; rfd-t0t #40 regression at the integration level — complement the
+;; unit-level loop+recur deftests in regression_test.clj.
+;; ---------------------------------------------------------------------------
+
+(deftest fn-traced-survives-loop-recur
   (testing "loop+recur in a fn-traced body executes and emits traces"
-    (is true "scaffold only")))
+    (re-frame.core/reg-event-db ::looped (fn [db _] db))
+    (runtime/wrap-handler! :event ::looped
+                           (fn [db _]
+                             (loop [n 0 acc 0]
+                               (if (< n 3)
+                                 (recur (inc n) (+ acc n))
+                                 (assoc db :sum acc)))))
+    (re-frame.core/dispatch-sync [::looped])
+    (is (seq (code-entries (captured-traces)))
+        "fn-traced + loop+recur produces trace entries (was diverging at macroexpansion before rfd-d00 48de2e8)")
+    (runtime/unwrap-handler! :event ::looped)))
 
-(deftest ^:integration ^:pending wrap-fx-traces-effect-payload
-  ;; Acceptance for the dbgn.clj:341 'trace inside maps' TODO: a
-  ;; reg-fx wrapped via wrap-fx! traces the value-side of an effect
-  ;; map without modifying the zipper walker.
+;; ---------------------------------------------------------------------------
+;; rfd-8g9 item 7 — wrap-fx! traces effect-payload sub-forms (the
+;; dbgn.clj:341 'trace inside maps, especially for fx' TODO).
+;; ---------------------------------------------------------------------------
+
+(deftest wrap-fx-traces-effect-payload
   (testing "wrap-fx! emits :code entries when the fx fires"
-    ;; (re-frame.core/reg-fx :test/log (fn [v] (println v)))
-    ;; (runtime/wrap-fx! :test/log (fn [v] (let [s (str "got:" v)]
-    ;;                                       (js/console.log s))))
-    ;; (re-frame.core/reg-event-fx :test/trigger
-    ;;                              (fn [_ [_ v]] {:test/log v}))
-    ;; (re-frame.core/dispatch-sync [:test/trigger 42])
-    (is true "scaffold only")))
-
-;; ---------------------------------------------------------------------------
-;; PARTIAL_IMPLEMENTATION_NOTES
-;; ---------------------------------------------------------------------------
-;;
-;; To make the deftests above run, the next session needs:
-;;
-;; 1. A trace-cb capture wrapper that replaces the placeholder above:
-;;
-;;      (defn- with-trace-capture [f]
-;;        (binding [*captured-traces* (atom [])]
-;;          (re-frame.trace/register-trace-cb
-;;            ::integration-test
-;;            (fn [traces] (swap! *captured-traces* into traces)))
-;;          (reset! runtime/wrapped-originals {})
-;;          (try
-;;            (f)
-;;            (finally
-;;              (runtime/unwrap-all!)
-;;              (re-frame.trace/remove-trace-cb ::integration-test)))))
-;;
-;;    re-frame.trace's API is sufficient — no need to bring in 10x
-;;    just for the test runner. The trace-cb fires after a debounce
-;;    so tests should give it a beat (use a deferred / promise
-;;    pattern, or call re-frame.trace/flush-trace! explicitly if
-;;    that exists).
-;;
-;; 2. shadow-cljs runtime-test or karma-test build needs:
-;;      :compiler-options {:closure-defines
-;;                         {re-frame.trace.trace-enabled? true
-;;                          day8.re-frame.tracing.trace-enabled? true
-;;                          goog.DEBUG true}}
-;;    Already set for the existing :runtime-test build (project.clj:78).
-;;
-;; 3. cljs.test convention: the deftests' ^:pending meta should
-;;    correspond to a custom :test-selector in project.clj if we want
-;;    to run them with `lein test :integration`. Add:
-;;      :test-selectors {:integration :integration ...}
-;;
-;; 4. The fn-traced expansions need re-frame.registrar/register-handler
-;;    AND re-frame.core/reg-event-db / reg-sub / reg-fx to be reachable
-;;    from a CLJS test runtime, which they already are if re-frame is
-;;    on the test classpath.
-;;
-;; Once those four are in place, populate the (commented out) test
-;; bodies in each ^:pending deftest, flip the meta off, and verify
-;; via `lein test :integration` (or `lein with-profile dev karma test`).
+    (let [side-effect (atom nil)]
+      (re-frame.core/reg-fx ::log (fn [v] (reset! side-effect v)))
+      (re-frame.core/reg-event-fx ::trigger
+                                  (fn [_ [_ v]] {::log v}))
+      (runtime/wrap-fx! ::log (fn [v] (let [s (str "got:" v)] (reset! side-effect s))))
+      (re-frame.core/dispatch-sync [::trigger 42])
+      (is (= "got:42" @side-effect)
+          "wrapped fx ran and produced its side effect")
+      (is (seq (code-entries (captured-traces)))
+          "wrapped fx fired send-trace! at least once")
+      (is (some #(re-find #"got:" %) (forms (captured-traces)))
+          "captured trace forms include the wrapped body's str call")
+      (runtime/unwrap-fx! ::log))))

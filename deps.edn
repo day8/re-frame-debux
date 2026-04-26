@@ -64,14 +64,13 @@
                 ;; this exclude keeps `bb test` semantics aligned with
                 ;; what shipped under v0.6.2's CD pipeline.
                 ;;
-                ;; -e :integration covers the rfd-8g9 integration_test.clj
-                ;; ^:pending stubs — those need a real re-frame.trace
-                ;; capture fixture before they can run (see
-                ;; PARTIAL_IMPLEMENTATION_NOTES at the bottom of that file).
+                ;; ^:integration / ^:pending tags WERE excluded under
+                ;; rfd-d00 commit 4eee8a3 because integration_test.clj
+                ;; was a scaffold-only file. Now that rfd-880 has
+                ;; populated the integration tests with a real
+                ;; trace-capture fixture, they ride the default suite.
                 :main-opts   ["-m" "cognitect.test-runner"
-                              "-e" ":failing"
-                              "-e" ":integration"
-                              "-e" ":pending"]
+                              "-e" ":failing"]
                 :exec-fn     cognitect.test-runner.api/test}
 
   ;; CLJS browser-test — runs the CLJC tests under shadow-cljs's

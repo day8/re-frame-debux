@@ -261,7 +261,19 @@
            (vector? (second node))
            (recur (-> loc z/down z/next z/down) indent syntax-order seen)
 
-          ;; <ex> (o-skip (recur ...))
+          ;; <ex> (o-skip (skip (recur ...)))
+          ;; Post-rfd-d00, recur is wrapped in (skip ...) by
+          ;; insert-skip-form-itself. The whole (o-skip (skip ...))
+          ;; nest is opaque to insert-trace — wrapping recur in trace
+          ;; would put it out of tail position, breaking compilation
+          ;; (rfd-880 / integration test fn-traced-survives-loop-recur).
+           (and (seq? (second node))
+                (= `ms/skip (first (second node))))
+           (recur (ut/right-or-next loc) indent syntax-order seen)
+
+          ;; <ex> (o-skip (if ...)) — outer o-skip wrapping the
+          ;; ancestor of a recur. Navigate inside so we still trace
+          ;; the surrounding form's sub-expressions.
            :else
            (recur (-> loc z/down z/next z/down ut/right-or-next) indent syntax-order seen))
 
@@ -435,10 +447,16 @@
                    ut/right-or-next))
 
         ;; in case of (o-skip ...)
+        ;; Replace and re-evaluate the same loc — if the inner form
+        ;; is itself a (skip ...) (the recur-protection nest emitted
+        ;; by insert-skip-form-itself + insert-o-skip-for-recur), the
+        ;; next iteration must match the (skip ...) handler against
+        ;; the new node. Advancing with z/next here would descend
+        ;; into the skip's children and leave the (skip ...) wrapper
+        ;; intact in the output (rfd-880).
         (and (seq? node)
              (= `ms/o-skip (first node)))
-        (recur (-> (z/replace loc (second node))
-                   z/next))
+        (recur (z/replace loc (second node)))
 
         ;; in case of (skip-outer ...)
         (and (seq? node)
