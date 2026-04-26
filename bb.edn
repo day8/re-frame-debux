@@ -1,0 +1,38 @@
+;; Babashka task runner for re-frame-debux. Mirrors re-frame's bb.edn
+;; layout (rfd-iqz). bb tasks are the canonical entry-points for
+;; tests + release; project.clj's lein equivalents stay live for one
+;; cycle as a transitional shim.
+
+{:min-bb-version "0.4.0"
+ :deps           {day8/dev {:git/url "https://github.com/day8/dev.git"
+                            :git/sha "f7617846597f411fd646a46b283777584a1a02bb"}}
+ :tasks
+ {:requires    ([day8.dev :as dev])
+
+  ;; ---------------------------------------------------------------
+  ;; Tests
+  ;; ---------------------------------------------------------------
+  ;;
+  ;; `bb test` compiles the browser-test shadow build and runs it via
+  ;; day8.chrome-shadow-test-runner. Same pattern re-frame uses; the
+  ;; runner needs a Chrome binary on PATH (or pass :chrome-path).
+
+  test         (do (clojure "-M:test" "compile" "browser-test")
+                   (clojure "-X:test"))
+
+  watch-test   (clojure "-M:test" "watch" "browser-test")
+
+  ;; ---------------------------------------------------------------
+  ;; Release
+  ;; ---------------------------------------------------------------
+  ;;
+  ;; Two coords ship from this repo: day8.re-frame/tracing (root)
+  ;; and day8.re-frame/tracing-stubs (./tracing-stubs/). Each has
+  ;; its own clein/build alias and ships independently — `bb clojars`
+  ;; releases the root, `bb clojars-stubs` releases the stubs.
+  ;;
+  ;; The CD pipeline (.github/workflows/continuous-deployment-
+  ;; workflow.yml) calls both.
+
+  clojars       (clojure "-M:clein" "deploy")
+  clojars-stubs (shell {:dir "tracing-stubs"} "clojure -M:clein deploy")}}

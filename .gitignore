@@ -21,7 +21,10 @@ figwheel_server.log
 .lein-*
 /node_modules/
 /.shadow-cljs/
-/shadow-cljs.edn
+;; /shadow-cljs.edn was previously ignored because lein-shadow
+;; auto-generated it from project.clj's :shadow-cljs key. Post-rfd-iqz
+;; the file is committed at root as the canonical source.
+/run/
 
 # Gas City
 .beads/*

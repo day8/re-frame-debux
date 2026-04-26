@@ -1,0 +1,54 @@
+;; tools.deps configuration for re-frame-debux. Mirrors the shape used
+;; by re-frame and re-com (rfd-iqz: align day8 toolchain). project.clj
+;; remains as a transitional shim for one release cycle so existing
+;; lein-based workflows continue to work.
+;;
+;; Published artefact coords are unchanged:
+;;
+;;   day8.re-frame/tracing        — published from this directory
+;;   day8.re-frame/tracing-stubs  — published from ./tracing-stubs/
+;;
+;; The two-jar split is intentional (see README "Two libraries"
+;; section). Each subproject has its own deps.edn + clein build alias
+;; so they release independently.
+
+{:paths   ["src"]
+ :deps    {org.clojure/clojure       {:mvn/version "1.11.4"}
+           org.clojure/clojurescript {:mvn/version "1.11.132"
+                                      :exclusions  [com.google.javascript/closure-compiler-unshaded
+                                                    org.clojure/google-closure-library
+                                                    org.clojure/google-closure-library-third-party]}
+           net.cgrand/macrovich      {:mvn/version "0.2.2"}
+           re-frame/re-frame         {:mvn/version "1.4.5"}
+           clojure-future-spec       {:mvn/version "1.9.0"}}
+
+ :aliases
+ {:provided    {:extra-deps {org.clojure/clojure       {:mvn/version "1.11.4"}
+                             org.clojure/clojurescript {:mvn/version "1.11.132"}
+                             thheller/shadow-cljs      {:mvn/version "2.28.23"}
+                             re-frame/re-frame         {:mvn/version "1.4.5"}}}
+
+  :test        {:extra-paths ["test"]
+                :exec-fn     day8.chrome-shadow-test-runner/run
+                :main-opts   ["-m" "shadow.cljs.devtools.cli"]
+                :exec-args   {:test-dir    "run/compiled/browser/test"
+                              :chrome-path "chromium"}
+                :extra-deps  {day8.re-frame/test   {:mvn/version "0.1.7"}
+                              thheller/shadow-cljs {:mvn/version "2.28.23"}
+                              binaryage/devtools   {:mvn/version "1.0.7"}
+                              reagent/reagent      {:mvn/version "1.2.0"}}}
+
+  :clein       {:extra-deps {io.github.noahtheduke/clein {:git/url "https://github.com/day8/clein.git"
+                                                          :git/sha "2b83503246e8291fc023d688574640a9b23d8c50"}
+                             day8/dev                    {:git/url "https://github.com/day8/dev.git"
+                                                          :git/sha "f7617846597f411fd646a46b283777584a1a02bb"}}
+                :main-opts  ["-m" "noahtheduke.clein"]}
+
+  :clein/build {:extra-deps {}
+                :lib        day8.re-frame/tracing
+                :main       day8.re-frame.tracing
+                :url        "https://github.com/day8/re-frame-debux"
+                :version    day8.dev/git-app-version!
+                :license    {:name "Eclipse Public License"
+                             :url  "http://www.eclipse.org/legal/epl-v10.html"}
+                :src-dirs   ["src"]}}}

@@ -1,0 +1,39 @@
+;; Root-level shadow-cljs config for re-frame-debux (rfd-iqz). Lifted
+;; out of project.clj's :shadow-cljs key — same builds (:dev,
+;; :browser-test, :karma-test) but reachable directly via bb tasks
+;; without going through lein-shadow.
+;;
+;; Build summary:
+;;   :dev          — local dev REPL build, mounts the debug demo
+;;                   page at http://localhost:8780
+;;   :browser-test — runs the test suite headless via Chrome
+;;                   (day8.chrome-shadow-test-runner driven by `bb test`)
+;;   :karma-test   — kept for the Karma-driven CI path used historically;
+;;                   :browser-test is the new canonical path
+
+{:deps   {:aliases [:provided :test]}
+ :nrepl  {:port 8777}
+ :builds {:dev
+          {:target           :browser
+           :output-dir       "resources/public/js"
+           :asset-path       "/js"
+           :compiler-options {:pretty-print true}
+           :modules          {:debux {:entries [debux.cs.test.main]}}
+           :devtools         {:http-port 8780
+                              :http-root "resources/public"}}
+
+          :browser-test
+          {:target           :browser-test
+           :ns-regexp        "-test$"
+           :test-dir         "run/compiled/browser/test"
+           :compiler-options {:pretty-print true
+                              :external-config
+                              {:devtools/config
+                               {:features-to-install [:formatters :hints]}}}
+           :devtools         {:http-port 8790
+                              :http-root "run/compiled/browser/test"}}
+
+          :karma-test
+          {:target    :karma
+           :ns-regexp "-test$"
+           :output-to "target/karma-test.js"}}}
