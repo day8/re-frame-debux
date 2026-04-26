@@ -7,97 +7,128 @@ on:
 jobs:
   test:
     name: Test
-    runs-on: ubuntu-20.04
-    container:
-      # Source: https://github.com/day8/dockerfile-for-dev-ci-image
-      image: ghcr.io/day8/dockerfile-for-dev-ci-image/chrome-56:2 
-      credentials:
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      - run: git config --global --add safe.directory /__w/re-frame-debux/re-frame-debux
+
+      - name: Setup java
+        uses: actions/setup-java@17f84c3641ba7b8f6deff6309fc4c864478f5d62 # v3
         with:
-          # All of the Git history is required for day8/lein-git-inject to determine the version string.
-          fetch-depth: 0
+          distribution: 'temurin'
+          java-version: '24'
+
+      - name: Install clojure tools
+        uses: DeLaGuardo/setup-clojure@bc7570e912b028bbcc22f457adec7fdf98e2f4ed # 12.5
+        with:
+          cli: 'latest'
+          bb:  'latest'
+
       - name: Maven cache
-        uses: actions/cache@v2
+        id: maven-cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
-          path: /root/.m2/repository
-          key: ${{ runner.os }}-maven-${{ hashFiles('project.clj', '.github/workflows/**') }}
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/deps.edn', '**/project.clj', '.github/workflows/**') }}
           restore-keys: |
             ${{ runner.os }}-maven-
-      - name: npm cache
-        uses: actions/cache@v2
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-npm-${{ hashFiles('project.clj') }}-${{ hashFiles('**/deps.cljs') }}
-          restore-keys: |
-            ${{ runner.os }}-npm-
+
       - name: shadow-cljs compiler cache
-        uses: actions/cache@v2
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: .shadow-cljs
           key: ${{ runner.os }}-shadow-cljs-${{ github.sha }}
           restore-keys: |
             ${{ runner.os }}-shadow-cljs-
-      - run: lein test
-      - working-directory: tracing-stubs
-        run: lein test
+
+      - uses: browser-actions/setup-chrome@c785b87e244131f27c9f19c1a33e2ead956ab7ce # v1
+        id: setup-chrome
+        with:
+          chrome-version: 811961
+
+      - run: bb test :chrome-path '"${{ steps.setup-chrome.outputs.chrome-path }}"'
+
       - name: Slack notification
-        uses: homoluctus/slatify@v2.0.1
+        uses: homoluctus/slatify@61c6b12d2ae226db04062ff9b43d9679e2d53236 # v2.0.1
         if: failure() || cancelled()
         with:
           type: ${{ job.status }}
           job_name: re-frame-debux Tests
-          channel: '#re-frame'
+          channel: '#oss-robots'
           url: ${{ secrets.SLACK_WEBHOOK }}
           commit: true
           token: ${{ secrets.GITHUB_TOKEN }}
+
   release:
     name: Release
     needs: test
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     container:
-      # Source: https://github.com/day8/dockerfile-for-dev-ci-image
-      image: ghcr.io/day8/dockerfile-for-dev-ci-image/chrome-56:2 
+      # Source: https://github.com/day8/dockerfiles-for-dev-ci-images
+      image: ghcr.io/day8/chrome-56:5.0.0
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
         with:
-          # All of the Git history is required for day8/lein-git-inject to determine the version string.
+          # All Git history is required for day8.dev's git-app-version!
+          # to determine the version string.
           fetch-depth: 0
+      - run: git config --global --add safe.directory /__w/re-frame-debux/re-frame-debux
+
       - name: Maven cache
-        uses: actions/cache@v2
+        id: maven-cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
-          path: /root/.m2/repository
-          key: ${{ runner.os }}-maven-${{ hashFiles('project.clj', '.github/workflows/**') }}
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/deps.edn', '**/project.clj', '.github/workflows/**') }}
           restore-keys: |
             ${{ runner.os }}-maven-
-      - name: Run lein release
+
+      - name: Setup java
+        uses: actions/setup-java@17f84c3641ba7b8f6deff6309fc4c864478f5d62 # v3
+        with:
+          distribution: 'temurin'
+          java-version: '24'
+
+      - name: Install clojure tools
+        uses: DeLaGuardo/setup-clojure@bc7570e912b028bbcc22f457adec7fdf98e2f4ed # 12.5
+        with:
+          cli: 'latest'
+          bb:  'latest'
+
+      # re-frame-debux ships TWO coords: day8.re-frame/tracing (root)
+      # and day8.re-frame/tracing-stubs (./tracing-stubs/). Each has its
+      # own Clojars deployment token. Both must release for a tag to be
+      # complete; the order matters only for downstream-consumer
+      # discoverability — we ship tracing first, then stubs.
+
+      - name: Release day8.re-frame/tracing
+        run: bb clojars
         env:
           CLOJARS_USERNAME: ${{ secrets.CLOJARS_USERNAME }}
-          CLOJARS_TOKEN: ${{ secrets.CLOJARS_TOKEN_FOR_TRACING }}
-          GITHUB_USERNAME: ${{ github.actor }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          lein release
-      - name: Run lein release for stubs
-        working-directory: tracing-stubs
+          CLOJARS_TOKEN:    ${{ secrets.CLOJARS_TOKEN_FOR_TRACING }}
+          CLOJARS_PASSWORD: ${{ secrets.CLOJARS_TOKEN_FOR_TRACING }}
+          GITHUB_USERNAME:  ${{ github.actor }}
+          GITHUB_TOKEN:     ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Release day8.re-frame/tracing-stubs
+        run: bb clojars-stubs
         env:
           CLOJARS_USERNAME: ${{ secrets.CLOJARS_USERNAME }}
-          CLOJARS_TOKEN: ${{ secrets.CLOJARS_TOKEN_FOR_TRACING_STUBS }}
-          GITHUB_USERNAME: ${{ github.actor }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          lein release
-      # This creates a 'GitHub Release' from the tag and includes link to the CHANGELOG
-      # at that point in the Git history. We do not use draft or prerelease features as
-      # we always want the latest release to show in the right hand column of the project
-      # page regardless of if it is a stable release.
+          CLOJARS_TOKEN:    ${{ secrets.CLOJARS_TOKEN_FOR_TRACING_STUBS }}
+          CLOJARS_PASSWORD: ${{ secrets.CLOJARS_TOKEN_FOR_TRACING_STUBS }}
+          GITHUB_USERNAME:  ${{ github.actor }}
+          GITHUB_TOKEN:     ${{ secrets.GITHUB_TOKEN }}
+
+      # This creates a 'GitHub Release' from the tag and links to the
+      # CHANGELOG.md at that point in the Git history. We do not use
+      # draft or prerelease features as we always want the latest
+      # release to show in the right hand column of the project page
+      # regardless of whether it is a stable release.
       - name: Create GitHub Release
-        uses: actions/create-release@v1
+        uses: actions/create-release@0cb9c9b65d5d1901c1f53e5e66eaf4afd303e70e # v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -107,8 +138,9 @@ jobs:
             [Changelog](https://github.com/day8/re-frame-debux/blob/${{ github.ref }}/CHANGELOG.md)
           draft: false
           prerelease: false
+
       - name: Slack notification
-        uses: homoluctus/slatify@v2.0.1
+        uses: homoluctus/slatify@61c6b12d2ae226db04062ff9b43d9679e2d53236 # v2.0.1
         if: always()
         with:
           type: ${{ job.status }}
