@@ -177,6 +177,35 @@
 ;; Inspect — for tools that want to know what's wrapped
 ;; ---------------------------------------------------------------------------
 
+(defn ^boolean runtime-api?
+  "True when this namespace is loaded — i.e. when the on-demand
+   instrumentation surface (wrap-handler! / unwrap-handler! /
+   wrap-fx! / wrapped? / unwrap-all! / etc.) is reachable in this
+   runtime.
+
+   Stable feature-detection hook for tools (re-frame-pair, custom
+   10x panels, integrators) that want to dispatch between this
+   API and a fallback path on older releases that ship only the
+   fn-traced macro. The presence of the var IS the contract —
+   callers probe its munged JS path via `goog.global` so they
+   don't have to require the namespace at compile time:
+
+       ;; CLJS feature-detection from outside the lib
+       (boolean
+         (when-let [g (some-> js/goog .-global)]
+           (aget-path g [\"day8\" \"re_frame\" \"tracing\" \"runtime\"
+                         \"runtime_api_QMARK_\"])))
+
+   This is the recommended detection probe — more durable than
+   probing individual fns (e.g. wrap-handler!) since the var name
+   is dedicated to advertising availability and won't be renamed
+   away in a refactor.
+
+   The body is `true`; callers shouldn't read meaning into the
+   return value beyond 'this fn ran'."
+  []
+  true)
+
 (defn wrapped?
   "True iff [kind id] is currently wrapped (i.e. the side-table has
    an entry for it). Useful for re-frame-pair / custom panels that

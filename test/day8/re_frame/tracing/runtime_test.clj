@@ -34,6 +34,18 @@
       (runtime/unwrap-all!))))
 
 ;; ---------------------------------------------------------------------------
+;; Feature-detection hook — rf-yvu / ci-hpg
+;; ---------------------------------------------------------------------------
+
+(deftest runtime-api?-returns-true
+  (testing "runtime-api? is the feature-detection contract for the
+            wrap-handler! / unwrap-handler! / etc. surface — its
+            presence advertises availability; consumers probe the
+            var's JS-munged path via goog.global rather than
+            requiring this ns at compile time."
+    (is (true? (runtime/runtime-api?)))))
+
+;; ---------------------------------------------------------------------------
 ;; Side-table mechanics
 ;; ---------------------------------------------------------------------------
 
