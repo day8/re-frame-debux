@@ -126,6 +126,72 @@
           (recur (z/next (z/edit loc (fn [sym] (symbol (get mapping (pr-str sym) sym))))))
           (recur (z/next loc)))))))
 
+;;; ----------------------------------------------------------------------
+;;; Trace sink — re-frame-trace integration
+;;; ----------------------------------------------------------------------
+;;;
+;;; The two functions below are the only writers to re-frame's trace
+;;; stream from re-frame-debux. Everything in `dbgn`'s zipper walk
+;;; eventually funnels through one of them.
+;;;
+;;; `send-form!` writes a single `:form` tag once per traced function
+;;; invocation, carrying the outermost macroexpanded form.
+;;;
+;;; `send-trace!` is called once per instrumented sub-form during the
+;;; function's body. It accumulates each call into a vector under the
+;;; `:code` tag of the current trace event (`re-frame.trace/*current-trace*`).
+;;;
+;;; Each entry in `:code` has this shape — this is the contract that
+;;; re-frame-10x's "Code" panel and any other downstream consumer
+;;; (e.g. re-frame-pair surfacing :code as :debux/code in its epoch
+;;; coercion) reads:
+;;;
+;;;   {:form          <hiccup-printable form, post tidy-macroexpanded-form>
+;;;    :result        <evaluated value of that form>
+;;;    :indent-level  <int, nesting depth in the original source>
+;;;    :syntax-order  <int, position in evaluation order>
+;;;    :num-seen      <int, count of duplicate emissions for :once dedup>}
+;;;
+;;; Field semantics:
+;;;
+;;; - **`:form`** is the user-readable source form that was traced.
+;;;   `tidy-macroexpanded-form` (above, line 100ish) replaces fully-
+;;;   qualified names from `clojure.core` with their short forms and
+;;;   strips gensym-suffixed names from `let`/`loop`/`for`-introduced
+;;;   bindings. The result is human-readable, but NOT necessarily
+;;;   round-trippable through the reader if the source contained
+;;;   reader-conditional or shadow-cljs-specific forms.
+;;;
+;;; - **`:result`** is the value the form evaluated to. Stored as the
+;;;   live value (no pr-str coercion here — that's the consumer's call,
+;;;   typically with `set-print-seq-length!` to bound large collections).
+;;;
+;;; - **`:indent-level`** mirrors the form's nesting depth in the source
+;;;   (0 = top-level call within the fn body; 1 = one form deep; etc.).
+;;;   re-frame-10x uses this for tree-view indentation.
+;;;
+;;; - **`:syntax-order`** is the form's position in evaluation order
+;;;   (zipper-walk order, depth-first L→R). Stable across runs of the
+;;;   same handler. Used for tie-breaking when `:indent-level` matches.
+;;;
+;;; - **`:num-seen`** counts how many times this exact form has been
+;;;   emitted previously in the SAME trace event. Always 0 today; the
+;;;   field is reserved for a future `:once` / dedup option (debux has
+;;;   it; we don't yet — see docs/improvement-plan.md §4).
+;;;
+;;; Example payload shape after one traced dispatch through a handler
+;;; defined as `(fn-traced [db [_ x]] (let [n (* 2 x)] (assoc db :n n)))`:
+;;;
+;;;   {:form (let [n (* 2 x)] (assoc db :n n))
+;;;    :result {:n 10 ...}
+;;;    :indent-level 0 :syntax-order 0 :num-seen 0}
+;;;   {:form (* 2 x)         :result 10 :indent-level 1 :syntax-order 1 :num-seen 0}
+;;;   {:form (assoc db :n n) :result {:n 10 ...} :indent-level 1 :syntax-order 2 :num-seen 0}
+;;;
+;;; Stability: this shape has been stable since v0.5.x. If a future
+;;; release adds new fields, append-only is the contract — existing
+;;; consumers keep working.
+
 (defn send-form! [form]
   (trace/merge-trace! {:tags {:form form}}))
 
@@ -133,10 +199,10 @@
   (let [code (get-in trace/*current-trace* [:tags :code] [])]
     ;; TODO: also capture macroexpanded form? Might be useful in some cases?
     (trace/merge-trace!
-      {:tags {:code (conj code {:form (tidy-macroexpanded-form (:form code-trace) {}) 
-                                :result (:result code-trace) 
-                                :indent-level (:indent-level code-trace) 
-                                :syntax-order (:syntax-order code-trace) 
+      {:tags {:code (conj code {:form (tidy-macroexpanded-form (:form code-trace) {})
+                                :result (:result code-trace)
+                                :indent-level (:indent-level code-trace)
+                                :syntax-order (:syntax-order code-trace)
                                 :num-seen (:num-seen code-trace)})}})))
 
 ;;; For internal debugging
