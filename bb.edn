@@ -13,11 +13,20 @@
   ;; Tests
   ;; ---------------------------------------------------------------
   ;;
-  ;; `bb test` compiles the browser-test shadow build and runs it via
-  ;; day8.chrome-shadow-test-runner. Same pattern re-frame uses; the
-  ;; runner needs a Chrome binary on PATH (or pass :chrome-path).
+  ;; `bb test` runs the Clojure-side macroexpansion test suite via
+  ;; cognitect.test-runner — equivalent in scope to the legacy
+  ;; `lein test` invocation. Most of re-frame-debux's coverage lives
+  ;; here (dbgn zipper walker, wrap-handler! runtime API, the
+  ;; loop+recur regression suite).
+  ;;
+  ;; `bb test-browser` runs the CLJC browser-test suite via
+  ;; day8.chrome-shadow-test-runner — equivalent to the legacy
+  ;; `lein ci` karma invocation. Requires a Chrome binary on PATH
+  ;; (or pass :chrome-path '"<path>"' as a CLI kwarg).
 
-  test         (do (clojure "-M:test" "compile" "browser-test")
+  test         (clojure "-M:test-clj")
+
+  test-browser (do (clojure "-M:test" "compile" "browser-test")
                    (clojure "-X:test"))
 
   watch-test   (clojure "-M:test" "watch" "browser-test")
