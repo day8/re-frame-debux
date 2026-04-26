@@ -50,6 +50,38 @@ bd close <id>         # Complete work
 <!-- END BEADS INTEGRATION -->
 
 
+## Publish-on-completion policy — local-only commits (OVERRIDES "Session Completion" above)
+
+> **NOTE TO FUTURE EDITORS / `bd onboard` regenerators:** This section
+> intentionally overrides the bead-default "Session Completion" / "PUSH
+> TO REMOTE is MANDATORY" workflow inside the `BEGIN BEADS INTEGRATION`
+> block above. The default is wrong for this repository; if a future
+> `bd onboard` (or other tooling) regenerates the bead block in place,
+> THIS section is the final word and must be preserved. Do not delete
+> it as part of "cleaning up duplication" with the bead defaults.
+
+re-frame-debux is **not** owned by the agents working on it. It's a
+fork of `philoskim/debux` maintained by `day8`, and changes here are
+proposed via PRs that the human operator reviews and submits. Agents
+working through `gascity` or any local automation:
+
+- **DO NOT `git push`.** Commits are local-only.
+- **DO NOT `git tag`.** Releases are the operator's call.
+- **DO NOT `bd dolt push`.** The bead store is local-only too.
+- **DO NOT open or push to upstream PRs.** The operator opens PRs to
+  `day8/re-frame-debux` after reviewing the local commits.
+- **DO write commits.** Each commit should be cleanly self-describing,
+  carry a Claude co-author trailer, and reference the bead id it
+  satisfies — so the operator can rebase, squash, or re-author
+  trivially when preparing a PR.
+
+In short: complete the work, commit it, **stop**. The operator does
+the rest.
+
+This policy applies to the `re-frame-debux` rig only; the analogous
+note in re-frame-pair's `CLAUDE.md` covers that repo independently.
+
+
 ## Build & Test
 
 _Add your build and test commands here_
