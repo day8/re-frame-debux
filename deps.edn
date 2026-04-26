@@ -56,7 +56,22 @@
                               zprint/zprint             {:mvn/version "0.5.1"}
                               io.aviso/pretty           {:mvn/version "0.1.37"}
                               reloaded.repl/reloaded.repl {:mvn/version "0.2.4"}}
-                :main-opts   ["-m" "cognitect.test-runner"]
+                ;; -e :failing matches the legacy lein :test-selectors
+                ;; layout from project.clj — `lein test` (default
+                ;; selector) ran (complement :failing), so deftests
+                ;; tagged ^:failing were known-broken and skipped.
+                ;; cognitect.test-runner doesn't honor those automatically;
+                ;; this exclude keeps `bb test` semantics aligned with
+                ;; what shipped under v0.6.2's CD pipeline.
+                ;;
+                ;; -e :integration covers the rfd-8g9 integration_test.clj
+                ;; ^:pending stubs — those need a real re-frame.trace
+                ;; capture fixture before they can run (see
+                ;; PARTIAL_IMPLEMENTATION_NOTES at the bottom of that file).
+                :main-opts   ["-m" "cognitect.test-runner"
+                              "-e" ":failing"
+                              "-e" ":integration"
+                              "-e" ":pending"]
                 :exec-fn     cognitect.test-runner.api/test}
 
   ;; CLJS browser-test — runs the CLJC tests under shadow-cljs's
