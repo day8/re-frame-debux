@@ -192,10 +192,52 @@
 ;;; release adds new fields, append-only is the contract — existing
 ;;; consumers keep working.
 
+;;; Production-mode loud-fail check (rfd-8g9 item 8 / improvement-plan
+;;; §5(b)). If a release build accidentally bundles the live
+;;; day8.re-frame.tracing namespace instead of swapping to the stubs
+;;; (via :ns-aliases or the production profile), tracing runs in
+;;; production with no signal — bloating the bundle and emitting
+;;; trace noise into 10x. The first send-trace! call in such a build
+;;; fires a one-shot `console.warn` so the operator notices.
+;;;
+;;; goog.DEBUG is the closure-define that's true under :optimizations
+;;; :none / dev and false under :optimizations :advanced / release.
+;;; A live trace path running with goog.DEBUG=false is the smoking
+;;; gun for "release build, tracing not stubbed".
+
+(defonce ^:private prod-mode-warned? (atom false))
+
+(defn ^:private maybe-warn-production-mode! []
+  #?(:cljs
+     (when-not @prod-mode-warned?
+       (try
+         (when (false? js/goog.DEBUG)
+           (reset! prod-mode-warned? true)
+           (js/console.warn
+            (str "re-frame-debux: send-trace! is firing in a build with "
+                 "goog.DEBUG=false. The day8.re-frame.tracing namespace "
+                 "is loaded and active in what looks like a production "
+                 "build (advanced compilation usually sets goog.DEBUG to "
+                 "false). This bloats your bundle and emits trace noise "
+                 "into 10x. Check your build config: shadow-cljs users "
+                 "should set :ns-aliases to redirect day8.re-frame.tracing "
+                 "→ day8.re-frame.tracing-stubs in release builds; "
+                 "lein/cljsbuild users should put day8.re-frame/tracing-stubs "
+                 "in the production profile instead of day8.re-frame/tracing. "
+                 "See https://github.com/day8/re-frame-debux#two-libraries "
+                 "for details. (This warning fires once per session.)")))
+         (catch :default _
+           ;; If goog.DEBUG isn't accessible (bare CLJS without Closure?),
+           ;; mark as warned so we don't keep retrying.
+           (reset! prod-mode-warned? true))))
+     :clj nil))
+
 (defn send-form! [form]
+  (maybe-warn-production-mode!)
   (trace/merge-trace! {:tags {:form form}}))
 
 (defn send-trace! [code-trace]
+  (maybe-warn-production-mode!)
   (let [code (get-in trace/*current-trace* [:tags :code] [])]
     ;; TODO: also capture macroexpanded form? Might be useful in some cases?
     (trace/merge-trace!
