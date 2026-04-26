@@ -53,19 +53,29 @@
         :else (recur (z/next loc) seen)
         ))))
 
-(defn fn-body [args+body & send-form]
+(defn- split-opts
+  "If the leading form of a fn-traced / defn-traced definition is a
+   map literal, treat it as the opts map (rfd-880 item 6 — :locals,
+   :if) and return [opts (rest definition)]. Otherwise [nil definition].
+   The map sniffer is unambiguous because clojure.core/fn forbids a
+   map in this slot — `(fn {} [args] ...)` is always invalid."
+  [definition]
+  (if (map? (first definition))
+    [(first definition) (rest definition)]
+    [nil definition]))
+
+(defn fn-body [args+body opts & send-form]
   (let [args            (or (-> args+body :args :args) [])
         body-or-prepost (-> args+body :body (nth 0))
         body            (nth (:body args+body) 1)
         args-symbols    (find-symbols args)]
     (if (= :body body-or-prepost)   ;; no pre and post conditions
       `(~args
-      ;;  ~@(map (fn [body] `(dbgn ~body)) (nth (:body args+body) 1)))
-        (dbgn/dbgn-forms ~body ~send-form ~args-symbols))
+        (dbgn/dbgn-forms ~body ~send-form ~args-symbols ~opts))
     ;; prepost+body
       `(~args
         ~(:prepost body)
-        (dbgn/dbgn-forms ~(:body body) ~send-form ~args-symbols)))))
+        (dbgn/dbgn-forms ~(:body body) ~send-form ~args-symbols ~opts)))))
 
 ;; Components of a defn
 ;; name
@@ -76,24 +86,31 @@
 ;; prepost?
 
 (defmacro defn-traced*
-  [& definition]
+  [opts & definition]
   (let [conformed (s/conform ::ms/defn-args definition)
         name      (:name conformed)
         bs        (:bs conformed)
         arity-1?  (= (nth bs 0) :arity-1)
         args+body (nth bs 1)]
     (if arity-1?
-      `(defn ~name ~@(fn-body args+body &form))
-      `(defn ~name ~@(map #(fn-body % &form) (:bodies args+body))))))
+      `(defn ~name ~@(fn-body args+body opts &form))
+      `(defn ~name ~@(map #(fn-body % opts &form) (:bodies args+body))))))
 
 (defmacro defn-traced
-  "Traced defn"
-  {:arglists '([name doc-string? attr-map? [params*] prepost-map? body]
-                [name doc-string? attr-map? ([params*] prepost-map? body) + attr-map?])}
+  "Traced defn. Accepts an optional opts map immediately after the
+   macro name (rfd-880 item 6):
+     :locals true   — attach captured args as [[sym val] ...] to each
+                      :code trace entry.
+     :if      pred  — runtime predicate called with the per-form result;
+                      send-trace! fires only when pred returns truthy.
+   Example: (defn-traced {:locals true} my-handler [db event] ...)"
+  {:arglists '([opts? name doc-string? attr-map? [params*] prepost-map? body]
+                [opts? name doc-string? attr-map? ([params*] prepost-map? body) + attr-map?])}
   [& definition]
-  `(if (is-trace-enabled?)
-     (defn-traced* ~@definition)
-     (defn ~@definition)))
+  (let [[opts def'] (split-opts definition)]
+    `(if (is-trace-enabled?)
+       (defn-traced* ~opts ~@def')
+       (defn ~@def'))))
 
 
 
@@ -105,7 +122,7 @@
 
 (defmacro fn-traced*
   "Traced form of fn. Prefer fn-traced to compile out under advanced optimizations."
-  [& definition]
+  [opts & definition]
   (let [conformed (s/conform ::ms/fn-args definition)
         name      (:name conformed)
         bs        (:bs conformed)
@@ -114,17 +131,25 @@
     (if arity-1?
       ;; If name is nil, then the empty vector is removed by the unquote
       `(fn ~@(when name [name])
-         ~@(fn-body args+body &form))
+         ~@(fn-body args+body opts &form))
       ;; arity-n
       (let [bodies (:bodies args+body)]
         `(fn ~@(when name [name])
-           ~@(map #(fn-body % &form) bodies))))))
+           ~@(map #(fn-body % opts &form) bodies))))))
 
 (defmacro fn-traced
-  "Defines a traced fn"
-  {:arglists '[(fn name? [params*] exprs*) (fn name? ([params*] exprs*) +)]}
+  "Traced fn. Accepts an optional opts map immediately after the
+   macro name (rfd-880 item 6):
+     :locals true   — attach captured args as [[sym val] ...] to each
+                      :code trace entry.
+     :if      pred  — runtime predicate called with the per-form result;
+                      send-trace! fires only when pred returns truthy.
+   Example: (fn-traced {:locals true} [db event] ...)"
+  {:arglists '[(fn-traced opts? name? [params*] exprs*)
+               (fn-traced opts? name? ([params*] exprs*) +)]}
   [& definition]
-  `(if (is-trace-enabled?)
-     (fn-traced* ~@definition)
-     (fn ~@definition)))
+  (let [[opts def'] (split-opts definition)]
+    `(if (is-trace-enabled?)
+       (fn-traced* ~opts ~@def')
+       (fn ~@def'))))
 

@@ -1027,7 +1027,8 @@
     (println "F4-eval" (eval f4))
     (is (= ((eval f4))
            (eval f)))
-    (is (= (concat '(fn-traced* []) `(~f)) @form))
+    ;; rfd-880 item 6 — fn-traced* now takes leading opts arg.
+    (is (= (concat '(fn-traced* nil []) `(~f)) @form))
     (is (->> @traces
              (map (fn [f'] (->> f'
                                 :form
@@ -1043,7 +1044,9 @@
     (println "F4-eval" (eval f4))
     (is (= ((eval f4))
            (eval f)))
+    ;; rfd-880 item 6 — fn-traced* now takes leading opts arg.
     (is (= '(fn-traced*
+             nil
              ([] {:db (assoc {} :a (inc 5) :b (if true :t :f))})
              ([_#] {:db (assoc {} :a (inc 5) :b (if true :t :f))}))
            @form))
@@ -1064,7 +1067,9 @@
     (println "F4-eval" (eval f4))
     (is (= ((eval f4))
            (eval f)))
+    ;; rfd-880 item 6 — fn-traced* now takes leading opts arg.
     (is (= '(fn-traced*
+             nil
              []
              {:post [true], :pre [true]}
              {:db (assoc {} :a (inc 5) :b (if true :t :f))})

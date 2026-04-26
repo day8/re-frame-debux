@@ -377,45 +377,53 @@
                (contains? ::indent)))     :trace->
       :else :trace->>)))
 
+;; rfd-880 item 6 — every trace* arity reads `+debux-dbg-opts+` and
+;; `+debux-dbg-locals+` at runtime. Both are bound by the surrounding
+;; (dbgn / dbgn-forms / mini-dbgn) expansion, so they're always in
+;; scope by the time the emitted code runs. `:locals` adds the
+;; captured arg pairs to the payload; `:if` is a runtime predicate
+;; called with the per-form result, gating send-trace! emission so
+;; high-frequency traces can be filtered without recompilation.
+
+(defn- emit-trace-body
+  "Emits the `(let [r ...] (when ... (send-trace! ...)) r)` shape
+   shared by all three trace* arities. `bind-form` is the per-arity
+   computation (`form` for :trace, `(-> f form)` for :trace->,
+   `(->> f form)` for :trace->>). `org-form` is the cleaned-up
+   user form for the trace payload."
+  [bind-form org-form indent syntax-order num-seen]
+  (let [r (gensym "trace-result_")]
+    `(let [~r ~bind-form]
+       (when (or (not (:if ~'+debux-dbg-opts+))
+                 ((:if ~'+debux-dbg-opts+) ~r))
+         (ut/send-trace!
+           (cond-> {:form         '~org-form
+                    :result       ~r
+                    :indent-level ~indent
+                    :syntax-order ~syntax-order
+                    :num-seen     ~num-seen}
+             (:locals ~'+debux-dbg-opts+)
+             (assoc :locals ~'+debux-dbg-locals+))))
+       ~r)))
+
 (defmethod trace* :trace
   [{::keys [indent syntax-order num-seen]} form]
-  ;; (println "TRACE" indent form)
-  (let [org-form (-> form
-                     (remove-d 'day8.re-frame.debux.dbgn/trace))]
-    `(let [result# ~form]
-       (ut/send-trace! {:form '~org-form
-                        :result result#
-                        :indent-level ~indent
-                        :syntax-order ~syntax-order
-                        :num-seen ~num-seen})
-       result#)))
+  (emit-trace-body form
+                   (remove-d form 'day8.re-frame.debux.dbgn/trace)
+                   indent syntax-order num-seen))
 
 
 (defmethod trace* :trace->
   [f {::keys [indent syntax-order num-seen]} form]
-  ;;  (println "TRACE->" indent f form)
-   (let [org-form (-> form
-                      (remove-d 'day8.re-frame.debux.dbgn/trace))]
-    `(let [result# (-> ~f ~form)]
-       (ut/send-trace! {:form '~org-form
-                        :result result#
-                        :indent-level ~indent
-                        :syntax-order ~syntax-order
-                        :num-seen ~num-seen})
-       result#)))
+  (emit-trace-body `(-> ~f ~form)
+                   (remove-d form 'day8.re-frame.debux.dbgn/trace)
+                   indent syntax-order num-seen))
 
 (defmethod trace* :trace->>
   [{::keys [indent syntax-order num-seen]} form f]
-  ;;  (println "TRACE->>" indent f form)
-   (let [org-form (-> form
-                      (remove-d 'day8.re-frame.debux.dbgn/trace))]
-    `(let [result# (->> ~f ~form)]
-       (ut/send-trace! {:form '~org-form
-                        :result result#
-                        :indent-level ~indent
-                        :syntax-order ~syntax-order
-                        :num-seen ~num-seen})
-       result#)))
+  (emit-trace-body `(->> ~f ~form)
+                   (remove-d form 'day8.re-frame.debux.dbgn/trace)
+                   indent syntax-order num-seen))
 
 (defmacro trace [& args]
   ;; (println "TRACE" args)
@@ -470,11 +478,12 @@
 ;;; dbgn
 (defmacro dbgn
   "DeBuG every Nested forms of a form.s"
-  [form & [opts]] 
+  [form & [opts]]
   (println "FULLFORM" &form)
-  `(let [~'+debux-dbg-opts+ ~(if (ut/cljs-env? &env)
-                               (dissoc opts :style :js :once)
-                               opts)]
+  `(let [~'+debux-dbg-opts+   ~(if (ut/cljs-env? &env)
+                                 (dissoc opts :style :js :once)
+                                 opts)
+         ~'+debux-dbg-locals+ []]
      (try
        ;; Send whole form to trace point
        (ut/send-form! '~(-> form (ut/tidy-macroexpanded-form {})))
@@ -496,15 +505,29 @@
    args:
     forms - the sequence of forms i.e. an implied do in a fn
     send-form - the form sent to be traced
-    args - the symbols in the args (that need to be added to num-seen)"
+    args - the symbols in the args (that need to be added to num-seen)
+    opts - optional opts map; supports :locals (capture args as
+           [[sym val] ...] in the trace payload) and :if (a runtime
+           predicate gating send-trace! on the per-form result)."
   [forms send-form args & [opts]]
   (let [send-form (-> send-form  ;;for some reason the form is wrapped in a list
                       first)
         func      (first send-form)
-        send-form (conj (rest send-form) (symbol (name func)))]  ;; get rid of the namespace
-    `(let [~'+debux-dbg-opts+ ~(if (ut/cljs-env? &env)
-                                 (dissoc opts :style :js :once)
-                                 opts)]
+        send-form (conj (rest send-form) (symbol (name func)))
+        ;; rfd-880 item 6 — :locals capture: emit [[sym val] ...]
+        ;; pairs at expansion time. Symbols come from the function
+        ;; arity's args (already plumbed through `args`); the values
+        ;; resolve at runtime to whatever the function received.
+        ;; Inner let bindings introduced inside the body are NOT
+        ;; tracked here — &env at fn-traced expansion time only sees
+        ;; the function args, per the design note in
+        ;; docs/improvement-plan.md §4 ("&env only, accept that CLJS
+        ;; captures less").
+        locals-pairs (mapv (fn [s] `[(quote ~s) ~s]) args)]
+    `(let [~'+debux-dbg-opts+   ~(if (ut/cljs-env? &env)
+                                   (dissoc opts :style :js :once)
+                                   opts)
+           ~'+debux-dbg-locals+ ~locals-pairs]
        (try
        ;; Send whole form to trace point
          (ut/send-form! '~(-> send-form (ut/tidy-macroexpanded-form {})))
@@ -524,7 +547,9 @@
 (defmacro mini-dbgn
   "DeBuG every Nested forms of a form.s"
   [form]
-  `(do ~(-> (if (ut/include-recur? form)
+  `(let [~'+debux-dbg-opts+   nil
+         ~'+debux-dbg-locals+ []]
+     ~(-> (if (ut/include-recur? form)
             (sk/insert-o-skip-for-recur form &env)
             form)
           (insert-skip &env)

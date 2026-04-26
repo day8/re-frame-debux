@@ -171,3 +171,79 @@
       (is (some #(re-find #"got:" %) (forms (captured-traces)))
           "captured trace forms include the wrapped body's str call")
       (runtime/unwrap-fx! ::log))))
+
+;; ---------------------------------------------------------------------------
+;; rfd-880 item 6 — :locals and :if options for fn-traced
+;; ---------------------------------------------------------------------------
+
+(deftest fn-traced-locals-option-captures-args
+  (testing ":locals true attaches captured arg pairs to each :code entry"
+    (re-frame.core/reg-event-db ::with-locals (fn [db _] db))
+    (re-frame.core/reg-event-db ::with-locals
+                                (tracing/fn-traced
+                                  {:locals true}
+                                  [db [_ x]]
+                                  (let [n (inc x)]
+                                    (assoc db :n n))))
+    (re-frame.core/dispatch-sync [::with-locals 7])
+    (let [code (code-entries (captured-traces))]
+      (is (seq code)
+          "at least one :code entry was emitted")
+      (is (every? :locals code)
+          "every :code entry carries a :locals key when :locals true")
+      (let [a-locals (-> code first :locals)]
+        (is (vector? a-locals)
+            ":locals is a vec of pairs")
+        ;; The destructured handler args [db [_ x]] surface as
+        ;; symbols db, _, x — find-symbols flattens through the
+        ;; destructure form.
+        (is (some #(= 'x (first %)) a-locals)
+            ":locals includes the bound x arg")
+        (is (some #(= 7 (second %)) a-locals)
+            ":locals binds x to its runtime value (7)")))))
+
+(deftest fn-traced-locals-omitted-when-not-requested
+  (testing "no :locals key on entries when opts is absent / false"
+    (re-frame.core/reg-event-db ::no-locals (fn [db _] db))
+    (re-frame.core/reg-event-db ::no-locals
+                                (tracing/fn-traced
+                                  [db _]
+                                  (let [n (inc (:n db 0))]
+                                    (assoc db :n n))))
+    (re-frame.core/dispatch-sync [::no-locals])
+    (let [code (code-entries (captured-traces))]
+      (is (seq code)
+          "default :code emission still works without opts")
+      (is (every? #(not (contains? % :locals)) code)
+          "no :locals key on any entry — opt-in only"))))
+
+(deftest fn-traced-if-option-gates-emission
+  (testing ":if (constantly false) suppresses every :code entry"
+    (re-frame.core/reg-event-db ::quiet-if (fn [db _] db))
+    (re-frame.core/reg-event-db ::quiet-if
+                                (tracing/fn-traced
+                                  {:if (constantly false)}
+                                  [db _]
+                                  (let [n (inc (:n db 0))]
+                                    (assoc db :n n))))
+    (re-frame.core/dispatch-sync [::quiet-if])
+    (is (empty? (code-entries (captured-traces)))
+        ":if predicate returned false → send-trace! gated for every form")))
+
+(deftest fn-traced-if-option-passes-result-to-pred
+  (testing ":if pred receives the per-form result; truthy lets the trace through"
+    (re-frame.core/reg-event-db ::number-if (fn [db _] db))
+    ;; Predicate fires on numeric results only; let-bound string
+    ;; result and the final assoc map both should be filtered out.
+    (re-frame.core/reg-event-db ::number-if
+                                (tracing/fn-traced
+                                  {:if number?}
+                                  [db _]
+                                  (let [n (inc 41)]
+                                    (assoc db :s (str n)))))
+    (re-frame.core/dispatch-sync [::number-if])
+    (let [code (code-entries (captured-traces))]
+      (is (every? #(number? (:result %)) code)
+          "every kept :code entry has a number result; non-numeric results were filtered")
+      (is (some #(= 42 (:result %)) code)
+          "the (inc 41) → 42 entry made it through the :if filter"))))

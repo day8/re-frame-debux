@@ -238,14 +238,22 @@
 
 (defn send-trace! [code-trace]
   (maybe-warn-production-mode!)
-  (let [code (get-in trace/*current-trace* [:tags :code] [])]
+  (let [code  (get-in trace/*current-trace* [:tags :code] [])
+        ;; rfd-880 item 6 — :locals is an optional extension key
+        ;; emitted by trace* when fn-traced was called with
+        ;; {:locals true}. It carries [[sym val] ...] pairs captured
+        ;; from the function args. Whitelisted explicitly so the
+        ;; payload contract stays small (10x's Code panel reads
+        ;; specific keys; merging arbitrary extras would be brittle).
+        entry (cond-> {:form         (tidy-macroexpanded-form (:form code-trace) {})
+                       :result       (:result code-trace)
+                       :indent-level (:indent-level code-trace)
+                       :syntax-order (:syntax-order code-trace)
+                       :num-seen     (:num-seen code-trace)}
+                (contains? code-trace :locals)
+                (assoc :locals (:locals code-trace)))]
     ;; TODO: also capture macroexpanded form? Might be useful in some cases?
-    (trace/merge-trace!
-      {:tags {:code (conj code {:form (tidy-macroexpanded-form (:form code-trace) {})
-                                :result (:result code-trace)
-                                :indent-level (:indent-level code-trace)
-                                :syntax-order (:syntax-order code-trace)
-                                :num-seen (:num-seen code-trace)})}})))
+    (trace/merge-trace! {:tags {:code (conj code entry)}})))
 
 ;;; For internal debugging
 (defmacro d

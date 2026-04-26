@@ -16,12 +16,16 @@
 ;; Works in Cursive, fails with lein test
 ;; See https://github.com/technomancy/leiningen/issues/912
 (deftest skip-outer-skip-inner-test
+  ;; rfd-880 item 6 — mini-dbgn now binds +debux-dbg-opts+ /
+  ;; +debux-dbg-locals+ so trace*'s emit references resolve.
   (is (= (macroexpand-1 `(mini-dbgn
                            (-> '())))
-         '(do (day8.re-frame.debux.dbgn/trace {:day8.re-frame.debux.dbgn/indent 0
-                                               :day8.re-frame.debux.dbgn/num-seen 1
-                                               :day8.re-frame.debux.dbgn/syntax-order 1} 
-                                              (clojure.core/-> (quote ())))))))
+         '(clojure.core/let [+debux-dbg-opts+ nil
+                             +debux-dbg-locals+ []]
+            (day8.re-frame.debux.dbgn/trace {:day8.re-frame.debux.dbgn/indent 0
+                                             :day8.re-frame.debux.dbgn/num-seen 1
+                                             :day8.re-frame.debux.dbgn/syntax-order 1}
+                                            (clojure.core/-> (quote ())))))))
 
 
 ;; Commented out as we no longer print the traces, we need to get the traced data instead.
@@ -111,7 +115,11 @@
 
 (deftest thread-first-test
     (is
-      (= '(do
+      ;; rfd-880 item 6 — mini-dbgn now binds +debux-dbg-opts+ /
+      ;; +debux-dbg-locals+ so trace*'s emit references resolve.
+      (= '(clojure.core/let
+            [+debux-dbg-opts+ nil
+             +debux-dbg-locals+ []]
             (day8.re-frame.debux.dbgn/trace
              {:day8.re-frame.debux.dbgn/indent 0
               :day8.re-frame.debux.dbgn/num-seen 1
@@ -153,7 +161,11 @@
 
 
     (is
-      (= '(do
+      ;; rfd-880 item 6 — mini-dbgn now binds +debux-dbg-opts+ /
+      ;; +debux-dbg-locals+ so trace*'s emit references resolve.
+      (= '(clojure.core/let
+            [+debux-dbg-opts+ nil
+             +debux-dbg-locals+ []]
             (day8.re-frame.debux.dbgn/trace
              {:day8.re-frame.debux.dbgn/indent 0
               :day8.re-frame.debux.dbgn/num-seen 1
