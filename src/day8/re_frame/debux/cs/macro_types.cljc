@@ -32,6 +32,11 @@
                  cljs.core/defmulti cljs.core/defprotocol cljs.core/defrecord
                  cljs.core/deftype cljs.core/extend-protocol cljs.core/extend-type
                  finally cljs.core/import cljs.core/memfn new quote
+                 ;; recur is a special form whose arguments must be in tail
+                 ;; position of the enclosing loop; instrumenting it as a
+                 ;; normal call corrupts that contract and triggers a
+                 ;; macroexpansion non-termination (issue #40).
+                 recur
                  cljs.core/refer-clojure cljs.core/reify var throw
                  day8.re-frame.debux.cs.core/dbg debux.cs.core/dbgn
                  day8.re-frame.debux.cs.core/clog debux.cs.core/clogn}
@@ -66,7 +71,13 @@
              `#{catch comment declare definline definterface defmacro defmulti
                 defprotocol defrecord defstruct deftype extend-protocol
                 extend-type finally gen-class gen-interface import memfn
-                new ns proxy proxy-super quote refer-clojure reify sync
+                new ns proxy proxy-super quote
+                ;; recur is a special form whose arguments must be in tail
+                ;; position of the enclosing loop / fn; instrumenting it
+                ;; as a normal call corrupts that contract and triggers
+                ;; a macroexpansion non-termination (issue #40).
+                recur
+                refer-clojure reify sync
                 var throw day8.re-frame.debux.core/dbg day8.re-frame.debux.core/dbgn}
 
              :dot-type `#{.}
