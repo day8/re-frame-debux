@@ -123,20 +123,23 @@ Concrete sequencing. Each item has a rough effort estimate and a testable accept
 
 10. **`:once` / duplicate-suppression option** (~80 LOC, ~1 week). Lower priority; complicated by gensym scoping and lifecycle. Worth doing once `:locals` is in.
 11. **fx-map tracing (#341 TODO)** (~1 week). Walk effect maps inside `:effects` and emit per-effect traces. Could be implemented as a new macro `fx-traced` that wraps `reg-fx` instead of generalising `dbgn`'s walker.
-12. **Self-hosted ClojureScript support (#35)** (~1 month). Architectural; needs the macro to operate without compile-time `&env`. Defer until there's user demand.
-13. **Exception tracing (#34)** (~1 month). Surface thrown errors in the trace payload. Design tension with browser break-on-exception; needs a maintainer decision on whether to swallow or propagate.
-14. **Function entry/exit markers (#37)** (~1 week). Easier once `wrap-handler!` exists — entry/exit can be emitted by the wrapper rather than the macro.
-15. **"Show all" verbosity mode (#36)** (~1 week). Likely a flag on `send-trace!` that disables the noise filter.
+12. **Function entry/exit markers (#37)** (~1 week). Easier once `wrap-handler!` exists — entry/exit can be emitted by the wrapper rather than the macro.
+13. **"Show all" verbosity mode (#36)** (~1 week). Likely a flag on `send-trace!` that disables the noise filter.
+
+### Deliberately out of scope
+
+- **Self-hosted ClojureScript support (#35)** — declined 2026-04-27. Architectural cost too high for the demand. Close #35 with this context.
+- **Exception tracing (#34)** — declined 2026-04-27. Design tension with browser break-on-exception not worth resolving. Close #34 with this context.
 
 ---
 
-## 7. Open questions
+## 7. Open questions — resolved 2026-04-27
 
-- **Is the day8 team actively maintaining this library, or in a `bd init` + accept-PRs mode?** The 5+ year gap on issue #40 and the 2020-stalled sprint suggest the latter. If so, the roadmap should set realistic expectations (next release in 6 months, say, not next week). If active maintenance is intended, a public statement (in the README or a milestone) would help users prioritise.
-- **Is there a reason the fork doesn't expose `dbg` / single-form tracing alongside `fn-traced`?** Some users may want to trace a single expression at the REPL without wrapping the whole handler. This is debux's lowest-friction macro. Was its omission a deliberate scope decision or just unmet demand?
-- **Should `:locals` capture from `&env` (compile-time bindings) or use a runtime probe?** `&env` is richer in Clojure than CLJS; a runtime probe is uniform but requires every form to be wrapped in something that can read the JS scope. Likely answer: `&env` only, accept that CLJS captures less.
-- **What's the right home for re-frame-pair-specific helpers?** `wrap-handler!` is most useful to re-frame-pair, but other tools could use it too. Land it in `day8.re-frame.tracing`, in a new `day8.re-frame.tracing.runtime` ns, or only in re-frame-pair's runtime.cljs as a side-channel? Depends on whether other consumers exist; lean toward putting it in re-frame-debux so the contract is owned upstream.
-- **Does the maintainer have a CHANGELOG cadence?** A versioning + CHANGELOG entry on every dependency bump and every option addition makes downstream tooling (renovate, dependabot, manual audits) reliable. Recommend annotating every release with the user-visible delta.
+- **Is the day8 team actively maintaining this library?** **Yes — actively maintained.** The 2020 gap was a sprint stall, not abandonment. README / milestone statement to follow when next visible release lands.
+- **Is there a reason the fork doesn't expose `dbg` / single-form tracing alongside `fn-traced`?** **No deliberate omission.** `dbg` should be added for re-frame-pair (and other downstream consumers) to use at the REPL — single-expression tracing is debux's lowest-friction surface and the absence is unmet demand, not scope. Tracked as a future bead.
+- **Should `:locals` capture from `&env` (compile-time bindings) or use a runtime probe?** Resolved in `rfd-880` (commit `4d6e507`) — `&env` only; CLJS captures less, accepted.
+- **What's the right home for re-frame-pair-specific helpers?** Resolved 2026-04-26: re-frame-debux owns the contract. `wrap-handler!` / `unwrap-handler!` shipped in `day8.re-frame.tracing/runtime` (commit `4ed07c9`); re-frame-pair consumes via the public surface (rfp-6z2, commit `a285c1d`).
+- **CHANGELOG cadence?** **Yes — there should be a CHANGELOG file.** Every dependency bump and option addition gets a user-visible-delta entry. Tracked as a future bead.
 
 ---
 
