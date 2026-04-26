@@ -442,8 +442,22 @@
                  '[clojure.core/defn clojure.core/defn- clojure.core/fn
                    cljs.core/defn cljs.core/defn- cljs.core/fn])))))
 
-(defn o-skip? [sym]
-  (= 'debux.common.macro-specs/o-skip sym))
+(defn o-skip?
+  "True iff `sym` is the fully-qualified `o-skip` macro name. Used by
+   `insert-o-skip-for-recur` (skip.cljc) to detect a node that's
+   already been wrapped on a prior pass and avoid re-wrapping.
+
+   The fqn was `'debux.common.macro-specs/o-skip` — left over from
+   the upstream philoskim/debux library before this fork renamed the
+   namespace to `day8.re-frame.debux.common.macro-specs`. With the
+   stale fqn the predicate ALWAYS returned false, so the recur-walker
+   re-wrapped already-wrapped nodes and `dbgn` macroexpansion
+   diverged on `loop`+`recur` (issue #40).
+
+   Other callers (skip-place? at line 478ish) already used the right
+   fqn — only this defn was stale."
+  [sym]
+  (= 'day8.re-frame.debux.common.macro-specs/o-skip sym))
 
 (declare remove-d)
 
