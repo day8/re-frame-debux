@@ -102,9 +102,12 @@
           "wrapped fn produces the expected return value")
       (is (seq @captured-traces)
           "fn-traced fired send-trace! at least once")
-      (is (some #(re-find #"\* 2 v" (str (:form %))) @captured-traces)
+      ;; pr-str (not str) — `(str some-list)` returns a JVM-style
+      ;; "clojure.lang.PersistentList@<hash>" under CLJ; only CLJS's
+      ;; default str-on-coll prints the form. pr-str is uniform.
+      (is (some #(re-find #"\* 2 v" (pr-str (:form %))) @captured-traces)
           "captured trace forms include sub-forms of the wrapped body")
-      (is (some #(re-find #"let" (str (:form %))) @captured-traces)
+      (is (some #(re-find #"let" (pr-str (:form %))) @captured-traces)
           "captured trace forms include the let binding"))))
 
 (deftest unwrap-stops-trace-emission
