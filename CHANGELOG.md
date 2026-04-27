@@ -1,18 +1,51 @@
 # Change Log
 All notable changes to this project will be documented in this file. This change log follows the conventions of [keepachangelog.com](http://keepachangelog.com/).
 
-## Unreleased
+## [0.6.3] - 2026-04-27
 
 #### Fixed
 
-- Fix deployment of tracing-stubs
+* Issue [#40](https://github.com/day8/re-frame-debux/issues/40) — `fn-traced` / `defn-traced` no longer hang on `loop`/`recur`. Two-part fix: `recur` carve-out in `:skip-form-itself-type` (commit db9b7de) and `o-skip?` predicate now compares against the correct fully-qualified symbol (commit 48de2e8).
+* `remove-skip`'s `o-skip?` handler now re-evaluates the new loc instead of descending into the replaced form (commit 8d4e331).
+* Documentation images restored: `doc/img/cursive-{1,2,3}.png` re [#38](https://github.com/day8/re-frame-debux/issues/38) (commit ff5122a).
+* Test-selector parity between `lein test` and `cognitect.test-runner` — `^:failing` and `^:integration` tests are excluded by default in both runners (commit 4eee8a3).
+
+#### Added
+
+* `dbg` single-form tracing macro for inline expression debugging (commit 992fd28).
+* Runtime API: `day8.re-frame.tracing.runtime/wrap-handler!` and `unwrap-handler!` for ephemeral `fn-traced` wrap-and-restore at the REPL (commit 4ed07c9).
+* `runtime-api?` feature-detection predicate for downstream consumers (commit 6b04e6b).
+* `:locals` and `:if` options to `fn-traced` / `defn-traced` (commit 4d6e507).
+* Production-mode loud-fail check — macro-time assertion plus `console.warn` when `goog.DEBUG=false` (commit 10d27fd).
+* `:code` payload schema documented in `send-trace!` docstring (commit 6b4f042).
+* End-to-end integration-test scaffolding (4 deftests in `test/.../integration_test.clj`, commits 6e4f5d1 + 8d4e331).
 
 #### Changed
 
-- Upgrade Clojure to 1.10.3
-- Upgrade shadow-cljs to 2.11.22
-- Upgrade lein-tach to 1.1.0
-- Upgrade Karma to 6.2.0
+* Toolchain modernised: `deps.edn` + `bb.edn` + `shadow-cljs.edn` at the project root; CI/CD workflows ported to `bb` tasks (commits c940967 + a1fc73e + acea1d0 + 4109a0c).
+* Core dependency pins bumped to current versions (commit ee768f2).
+* `project.clj` retained as a transitional shim through the v0.6.x line; deletion targeted for v0.7.
+
+#### Internal
+
+* `docs/v0.6-roadmap.md` — milestone scope as a living document (commit 9d9fc3c).
+* `docs/improvement-plan.md` — long-term roadmap synthesis (commit 20ac8f4).
+* `docs/v0.6-cd-dry-run-report.md` — release-pipeline validation findings (commit f35e071).
+
+## [0.6.1] / [0.6.2] - 2021-03-11
+
+Both tags resolve to the same commit (ca70cb9); the "Unreleased" section was never promoted at release time.
+
+#### Fixed
+
+* Fix deployment of tracing-stubs.
+
+#### Changed
+
+* Upgrade Clojure to 1.10.3.
+* Upgrade shadow-cljs to 2.11.22.
+* Upgrade lein-tach to 1.1.0.
+* Upgrade Karma to 6.2.0.
 
 ## [0.6.0] - 2020-05-16 
 
