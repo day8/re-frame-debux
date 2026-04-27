@@ -166,6 +166,33 @@
     (runtime/unwrap-handler! :event ::looped)))
 
 ;; ---------------------------------------------------------------------------
+;; #31 regression at the integration level — cond in a dispatched handler.
+;; Unit-level cond-doesnt-throw in regression_test.clj covers macro
+;; expansion; this test pins the full dispatch → :code pipeline with cond.
+;; ---------------------------------------------------------------------------
+
+(deftest fn-traced-survives-cond
+  (testing "cond in a fn-traced body executes and emits :code entries"
+    (re-frame.core/reg-event-db ::branched (fn [db _] db))
+    (runtime/wrap-handler! :event ::branched
+                           (fn [db [_ x]]
+                             (let [label (cond
+                                           (neg? x)  :negative
+                                           (zero? x) :zero
+                                           :else      :positive)]
+                               (assoc db :label label))))
+    (re-frame.core/dispatch-sync [::branched 5])
+    (let [code (code-entries (captured-traces))
+          fs   (forms (captured-traces))]
+      (is (seq code)
+          "fn-traced + cond dispatched without throwing and emitted :code entries")
+      (is (some #(re-find #"cond" %) fs)
+          "captured forms include the cond expression")
+      (is (some #(= :positive (:result %)) code)
+          "the :positive branch result was captured"))
+    (runtime/unwrap-handler! :event ::branched)))
+
+;; ---------------------------------------------------------------------------
 ;; wrap-fx! traces effect-payload sub-forms (the
 ;; dbgn.clj:341 'trace inside maps, especially for fx' TODO).
 ;; ---------------------------------------------------------------------------
