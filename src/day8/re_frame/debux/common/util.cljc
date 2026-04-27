@@ -192,8 +192,8 @@
 ;;; release adds new fields, append-only is the contract — existing
 ;;; consumers keep working.
 
-;;; Production-mode loud-fail check (rfd-8g9 item 8 / improvement-plan
-;;; §5(b)). If a release build accidentally bundles the live
+;;; Production-mode loud-fail check (improvement-plan §5(b)).
+;;; If a release build accidentally bundles the live
 ;;; day8.re-frame.tracing namespace instead of swapping to the stubs
 ;;; (via :ns-aliases or the production profile), tracing runs in
 ;;; production with no signal — bloating the bundle and emitting
@@ -239,13 +239,13 @@
 (defn send-trace! [code-trace]
   (maybe-warn-production-mode!)
   (let [code  (get-in trace/*current-trace* [:tags :code] [])
-        ;; rfd-880 item 6 — :locals is an optional extension key
+        ;; :locals is an optional extension key
         ;; emitted by trace* when fn-traced was called with
         ;; {:locals true}. It carries [[sym val] ...] pairs captured
         ;; from the function args. Whitelisted explicitly so the
         ;; payload contract stays small (10x's Code panel reads
         ;; specific keys; merging arbitrary extras would be brittle).
-        ;; rfd-btn — :name (label from a `dbg` call) follows the same
+        ;; :name (label from a `dbg` call) follows the same
         ;; whitelist convention; consumers can branch on its presence.
         entry (cond-> {:form         (tidy-macroexpanded-form (:form code-trace) {})
                        :result       (:result code-trace)
@@ -259,7 +259,7 @@
     ;; TODO: also capture macroexpanded form? Might be useful in some cases?
     (trace/merge-trace! {:tags {:code (conj code entry)}})))
 
-;; rfd-btn — sink dispatch for the dbg macro. Inside a re-frame trace
+;; Sink dispatch for the dbg macro. Inside a re-frame trace
 ;; event (`*current-trace*` bound non-nil during with-trace) accumulate
 ;; onto the active event's :tags :code via send-trace!. Outside, fall
 ;; back to tap> so REPL callers still see output. Out-of-trace tap>

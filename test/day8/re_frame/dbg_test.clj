@@ -1,5 +1,5 @@
 (ns day8.re-frame.dbg-test
-  "Tests for `day8.re-frame.tracing/dbg` (rfd-btn). Single-form
+  "Tests for `day8.re-frame.tracing/dbg`. Single-form
    tracing macro — wraps a single expression and emits one trace
    record per evaluation. Inside a re-frame trace event the trace
    lands on :tags :code (same surface as fn-traced); outside, falls

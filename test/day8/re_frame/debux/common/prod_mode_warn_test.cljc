@@ -1,6 +1,6 @@
 (ns day8.re-frame.debux.common.prod-mode-warn-test
   "Tests for the production-mode loud-fail check in
-   day8.re-frame.debux.common.util (rfd-8g9 item 8). The check is
+   day8.re-frame.debux.common.util. The check is
    CLJS-only (the CLJ branch of `maybe-warn-production-mode!` is a
    no-op); tests are written .cljc so the CLJ side at least exercises
    the no-op path without crashing, and the CLJS side can be run

@@ -34,7 +34,7 @@
   (let [opts' (ut/parse-opts opts)]
     `(day8.re-frame.debux.dbgn/dbgn ~form ~opts')))
 
-;; rfd-btn — `dbg` is the single-form counterpart to `dbgn`. Wrap any
+;; `dbg` is the single-form counterpart to `dbgn`. Wrap any
 ;; expression to emit one trace record per evaluation; inside a
 ;; re-frame event handler the trace lands on :tags :code (same surface
 ;; as fn-traced — 10x's Code panel and re-frame-pair's :debux/code
@@ -59,7 +59,7 @@
       :locals?      <opt> :name? <opt>}
 
    Sink: `re-frame.trace/*current-trace*` non-nil → merge into the
-   active event's :tags :code (rfd-btn → re-frame-pair surfaces it
+   active event's :tags :code (re-frame-pair surfaces it
    as :debux/code in the coerced epoch); nil → tap> with `:debux/dbg
    true` so REPL `add-tap` consumers can branch.
 
@@ -82,7 +82,7 @@
          (assoc db :user (dbg (lookup-user creds) {:name \"login\"}))))
 
    Compiles out to a plain `~form` evaluation under tracing-stubs in
-   release builds (rfd-8g9 production-mode contract)."
+   release builds (production-mode contract)."
   ([form] `(day8.re-frame.tracing/dbg ~form nil))
   ([form opts]
    (let [r (gensym "dbg-result_")
@@ -124,8 +124,8 @@
 
 (defn- split-opts
   "If the leading form of a fn-traced / defn-traced definition is a
-   map literal, treat it as the opts map (rfd-880 item 6 — :locals,
-   :if) and return [opts (rest definition)]. Otherwise [nil definition].
+   map literal, treat it as the opts map (:locals, :if) and return
+   [opts (rest definition)]. Otherwise [nil definition].
    The map sniffer is unambiguous because clojure.core/fn forbids a
    map in this slot — `(fn {} [args] ...)` is always invalid."
   [definition]
@@ -167,7 +167,7 @@
 
 (defmacro defn-traced
   "Traced defn. Accepts an optional opts map immediately after the
-   macro name (rfd-880 item 6):
+   macro name:
      :locals true   — attach captured args as [[sym val] ...] to each
                       :code trace entry.
      :if      pred  — runtime predicate called with the per-form result;
@@ -208,7 +208,7 @@
 
 (defmacro fn-traced
   "Traced fn. Accepts an optional opts map immediately after the
-   macro name (rfd-880 item 6):
+   macro name:
      :locals true   — attach captured args as [[sym val] ...] to each
                       :code trace entry.
      :if      pred  — runtime predicate called with the per-form result;

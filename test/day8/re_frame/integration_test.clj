@@ -5,8 +5,8 @@
    handler produces a `:code` payload reachable from a registered
    trace callback.
 
-   Per docs/improvement-plan.md §2 / §6 item 9 (rfd-8g9), this fixture
-   is the load-bearing test gap — pre-rfd-880 the macroexpansion
+   Per docs/improvement-plan.md §2 / §6 item 9, this fixture
+   is the load-bearing test gap — historically the macroexpansion
    tests were thorough but no test exercised the full dispatch
    pipeline. Three closed macro-walker bugs (#22, #23, #29) shipped
    to master without warning because of this gap; #40 was the latest.
@@ -97,7 +97,7 @@
   (mapv #(pr-str (:form %)) (code-entries captured)))
 
 ;; ---------------------------------------------------------------------------
-;; Acceptance tests for rfd-8g9 item 7 — wrap-handler! / unwrap-handler!
+;; Acceptance tests for wrap-handler! / unwrap-handler!
 ;; (the wrap-and-emit-:code-on-dispatch contract).
 ;; ---------------------------------------------------------------------------
 
@@ -133,7 +133,7 @@
         "after unwrap, no :code entries land — fn-traced is gone")))
 
 ;; ---------------------------------------------------------------------------
-;; rfd-t0t #40 regression at the integration level — complement the
+;; #40 regression at the integration level — complement the
 ;; unit-level loop+recur deftests in regression_test.clj.
 ;; ---------------------------------------------------------------------------
 
@@ -148,11 +148,11 @@
                                  (assoc db :sum acc)))))
     (re-frame.core/dispatch-sync [::looped])
     (is (seq (code-entries (captured-traces)))
-        "fn-traced + loop+recur produces trace entries (was diverging at macroexpansion before rfd-d00 48de2e8)")
+        "fn-traced + loop+recur produces trace entries (was diverging at macroexpansion before commit 48de2e8)")
     (runtime/unwrap-handler! :event ::looped)))
 
 ;; ---------------------------------------------------------------------------
-;; rfd-8g9 item 7 — wrap-fx! traces effect-payload sub-forms (the
+;; wrap-fx! traces effect-payload sub-forms (the
 ;; dbgn.clj:341 'trace inside maps, especially for fx' TODO).
 ;; ---------------------------------------------------------------------------
 
@@ -173,7 +173,7 @@
       (runtime/unwrap-fx! ::log))))
 
 ;; ---------------------------------------------------------------------------
-;; rfd-880 item 6 — :locals and :if options for fn-traced
+;; :locals and :if options for fn-traced
 ;; ---------------------------------------------------------------------------
 
 (deftest fn-traced-locals-option-captures-args

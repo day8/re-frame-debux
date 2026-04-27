@@ -262,11 +262,11 @@
            (recur (-> loc z/down z/next z/down) indent syntax-order seen)
 
           ;; <ex> (o-skip (skip (recur ...)))
-          ;; Post-rfd-d00, recur is wrapped in (skip ...) by
+          ;; recur is wrapped in (skip ...) by
           ;; insert-skip-form-itself. The whole (o-skip (skip ...))
           ;; nest is opaque to insert-trace — wrapping recur in trace
           ;; would put it out of tail position, breaking compilation
-          ;; (rfd-880 / integration test fn-traced-survives-loop-recur).
+          ;; (integration test fn-traced-survives-loop-recur).
            (and (seq? (second node))
                 (= `ms/skip (first (second node))))
            (recur (ut/right-or-next loc) indent syntax-order seen)
@@ -377,7 +377,7 @@
                (contains? ::indent)))     :trace->
       :else :trace->>)))
 
-;; rfd-880 item 6 — every trace* arity reads `+debux-dbg-opts+` and
+;; Every trace* arity reads `+debux-dbg-opts+` and
 ;; `+debux-dbg-locals+` at runtime. Both are bound by the surrounding
 ;; (dbgn / dbgn-forms / mini-dbgn) expansion, so they're always in
 ;; scope by the time the emitted code runs. `:locals` adds the
@@ -453,8 +453,7 @@
         ;; ((skip-outer ...), (o-skip ...), or another (skip ...)). The
         ;; previous advance with right-or-next walked past the new loc
         ;; without giving it a chance to match again, leaving the inner
-        ;; wrapper in the output (rfd-543, mirroring the o-skip fix in
-        ;; rfd-880).
+        ;; wrapper in the output (mirrors the o-skip fix below).
         (and (seq? node)
              (= `ms/skip (first node)))
         (recur (z/replace loc (second node)))
@@ -466,7 +465,7 @@
         ;; next iteration must match the (skip ...) handler against
         ;; the new node. Advancing with z/next here would descend
         ;; into the skip's children and leave the (skip ...) wrapper
-        ;; intact in the output (rfd-880).
+        ;; intact in the output.
         (and (seq? node)
              (= `ms/o-skip (first node)))
         (recur (z/replace loc (second node)))
@@ -519,7 +518,7 @@
                       first)
         func      (first send-form)
         send-form (conj (rest send-form) (symbol (name func)))
-        ;; rfd-880 item 6 — :locals capture: emit [[sym val] ...]
+        ;; :locals capture: emit [[sym val] ...]
         ;; pairs at expansion time. Symbols come from the function
         ;; arity's args (already plumbed through `args`); the values
         ;; resolve at runtime to whatever the function received.

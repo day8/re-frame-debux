@@ -16,7 +16,7 @@
 ;; Works in Cursive, fails with lein test
 ;; See https://github.com/technomancy/leiningen/issues/912
 (deftest skip-outer-skip-inner-test
-  ;; rfd-880 item 6 — mini-dbgn now binds +debux-dbg-opts+ /
+  ;; mini-dbgn now binds +debux-dbg-opts+ /
   ;; +debux-dbg-locals+ so trace*'s emit references resolve.
   (is (= (macroexpand-1 `(mini-dbgn
                            (-> '())))
@@ -115,7 +115,7 @@
 
 (deftest thread-first-test
     (is
-      ;; rfd-880 item 6 — mini-dbgn now binds +debux-dbg-opts+ /
+      ;; mini-dbgn now binds +debux-dbg-opts+ /
       ;; +debux-dbg-locals+ so trace*'s emit references resolve.
       (= '(clojure.core/let
             [+debux-dbg-opts+ nil
@@ -161,7 +161,7 @@
 
 
     (is
-      ;; rfd-880 item 6 — mini-dbgn now binds +debux-dbg-opts+ /
+      ;; mini-dbgn now binds +debux-dbg-opts+ /
       ;; +debux-dbg-locals+ so trace*'s emit references resolve.
       (= '(clojure.core/let
             [+debux-dbg-opts+ nil

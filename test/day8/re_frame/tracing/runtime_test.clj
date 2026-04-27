@@ -1,7 +1,7 @@
 (ns day8.re-frame.tracing.runtime-test
   "Tests for day8.re-frame.tracing.runtime — wrap/unwrap macros + the
    side-table they maintain. See the namespace docstring there for the
-   design rationale (rfd-8g9 item 7 of docs/improvement-plan.md §6)."
+   design rationale (docs/improvement-plan.md §6 item 7)."
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [day8.re-frame.debux.common.util :as ut]
             [day8.re-frame.tracing :as tracing]
@@ -34,7 +34,7 @@
       (runtime/unwrap-all!))))
 
 ;; ---------------------------------------------------------------------------
-;; Feature-detection hook — rf-yvu / ci-hpg
+;; Feature-detection hook
 ;; ---------------------------------------------------------------------------
 
 (deftest runtime-api?-returns-true
