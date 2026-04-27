@@ -265,41 +265,58 @@
   (reset! tap-output? (boolean enabled?)))
 
 (defn send-form! [form]
-  (maybe-warn-production-mode!)
-  (trace/merge-trace! {:tags {:form form}}))
+  (when trace/trace-enabled?
+    (maybe-warn-production-mode!)
+    (trace/merge-trace! {:tags {:form form}})))
 
 (defn send-trace! [code-trace]
-  (maybe-warn-production-mode!)
-  (let [code  (get-in trace/*current-trace* [:tags :code] [])
-        ;; :locals is an optional extension key
-        ;; emitted by trace* when fn-traced was called with
-        ;; {:locals true}. It carries [[sym val] ...] pairs captured
-        ;; from the function args. Whitelisted explicitly so the
-        ;; payload contract stays small (10x's Code panel reads
-        ;; specific keys; merging arbitrary extras would be brittle).
-        ;; :name (label from a `dbg` call) follows the same
-        ;; whitelist convention; consumers can branch on its presence.
-        ;; :msg (developer-supplied label, set by the :msg / :m opt on
-        ;; the surrounding dbg / dbgn / fn-traced / defn-traced) joins
-        ;; the same whitelist — propagated by the macro layer onto each
-        ;; emitted code-trace, surfaced as a top-level :msg key.
-        entry (cond-> {:form         (tidy-macroexpanded-form (:form code-trace) {})
-                       :result       (:result code-trace)
-                       :indent-level (:indent-level code-trace)
-                       :syntax-order (:syntax-order code-trace)
-                       :num-seen     (:num-seen code-trace)}
-                (contains? code-trace :locals)
-                (assoc :locals (:locals code-trace))
-                (contains? code-trace :name)
-                (assoc :name (:name code-trace))
-                (contains? code-trace :msg)
-                (assoc :msg (:msg code-trace)))]
-    ;; TODO: also capture macroexpanded form? Might be useful in some cases?
-    (trace/merge-trace! {:tags {:code (conj code entry)}})
-    ;; Optional tap> sink — see set-tap-output! above. Independent of
-    ;; the re-frame trace channel so add-tap consumers (10x, ad-hoc REPL
-    ;; probes) see entries even when no trace is in flight.
-    (when @tap-output? (tap> entry))))
+  ;; Gate on tap-output? OR trace-enabled? before any payload work
+  ;; (form tidying, entry assembly, get-in over *current-trace*). When
+  ;; both are off, the live tracing.cljc ns is still loaded but no
+  ;; consumer wants the entry — bail before constructing one. The OR
+  ;; preserves set-tap-output!'s documented "independent of re-frame's
+  ;; trace machinery" contract: tap> still fires when tap-output? is
+  ;; true even with trace-enabled? off.
+  ;;
+  ;; `@#'trace/trace-enabled?` deref rather than the bare
+  ;; `trace/trace-enabled?` symbol so the var's `:tag` metadata (a
+  ;; fn-instance — an inheritance from re-frame's CLJS-flavoured
+  ;; `^boolean` def that mangles under JVM-CLJ macroexpand) doesn't
+  ;; propagate through `or`'s internal let-binding and trigger a
+  ;; tagToClass compile-time error.
+  (when (or @tap-output? @#'trace/trace-enabled?)
+    (maybe-warn-production-mode!)
+    (let [;; :locals is an optional extension key
+          ;; emitted by trace* when fn-traced was called with
+          ;; {:locals true}. It carries [[sym val] ...] pairs captured
+          ;; from the function args. Whitelisted explicitly so the
+          ;; payload contract stays small (10x's Code panel reads
+          ;; specific keys; merging arbitrary extras would be brittle).
+          ;; :name (label from a `dbg` call) follows the same
+          ;; whitelist convention; consumers can branch on its presence.
+          ;; :msg (developer-supplied label, set by the :msg / :m opt on
+          ;; the surrounding dbg / dbgn / fn-traced / defn-traced) joins
+          ;; the same whitelist — propagated by the macro layer onto each
+          ;; emitted code-trace, surfaced as a top-level :msg key.
+          entry (cond-> {:form         (tidy-macroexpanded-form (:form code-trace) {})
+                         :result       (:result code-trace)
+                         :indent-level (:indent-level code-trace)
+                         :syntax-order (:syntax-order code-trace)
+                         :num-seen     (:num-seen code-trace)}
+                  (contains? code-trace :locals)
+                  (assoc :locals (:locals code-trace))
+                  (contains? code-trace :name)
+                  (assoc :name (:name code-trace))
+                  (contains? code-trace :msg)
+                  (assoc :msg (:msg code-trace)))]
+      ;; TODO: also capture macroexpanded form? Might be useful in some cases?
+      (when trace/trace-enabled?
+        (let [code (get-in trace/*current-trace* [:tags :code] [])]
+          (trace/merge-trace! {:tags {:code (conj code entry)}})))
+      ;; Optional tap> sink — see set-tap-output! above. Independent of
+      ;; the re-frame trace channel so add-tap consumers (10x, ad-hoc REPL
+      ;; probes) see entries even when trace-enabled? is off.
+      (when @tap-output? (tap> entry)))))
 
 ;; Sink dispatch for the dbg macro. Inside a re-frame trace
 ;; event (`*current-trace*` bound non-nil during with-trace) accumulate
@@ -360,10 +377,10 @@
 
 (defn -send-frame-enter!
   "Emit a `:enter` marker on the active trace's :trace-frames vector.
-   No-op when no trace is in flight. Internal — called by the
-   fn-traced / defn-traced expansion at body-entry."
+   No-op when trace-enabled? is off or no trace is in flight. Internal
+   — called by the fn-traced / defn-traced expansion at body-entry."
   [frame-id]
-  (when (some? trace/*current-trace*)
+  (when (and (some? trace/*current-trace*) @#'trace/trace-enabled?)
     (let [frames (get-in trace/*current-trace* [:tags :trace-frames] [])]
       (trace/merge-trace!
         {:tags {:trace-frames (conj frames
@@ -377,7 +394,7 @@
    no-op-off-trace policy as -send-frame-enter!. Internal — called by
    the fn-traced / defn-traced expansion right before returning."
   [frame-id result]
-  (when (some? trace/*current-trace*)
+  (when (and (some? trace/*current-trace*) @#'trace/trace-enabled?)
     (let [frames (get-in trace/*current-trace* [:tags :trace-frames] [])]
       (trace/merge-trace!
         {:tags {:trace-frames (conj frames
@@ -391,15 +408,16 @@
   "When a `fx-traced` body returns an effect-map (the standard reg-event-fx
    contract: `{:db ... :http {...} :dispatch [...]}`), emit one entry
    per key onto the active trace's :tags :fx-effects vector. Each entry
-   is `{:fx-key <k> :value <v> :t <ms>}`. No-op when no trace is in
-   flight, or when the return isn't a map (a malformed handler — the
-   misuse is reported via re-frame's normal error path, not here).
+   is `{:fx-key <k> :value <v> :t <ms>}`. No-op when trace-enabled? is
+   off, no trace is in flight, or the return isn't a map (a malformed
+   handler — the misuse is reported via re-frame's normal error path,
+   not here).
 
    :fx-effects is a separate :tags key from :code so consumers reading
    the :code panel don't see fx entries inflating the form-by-form
    trace."
   [effect-map]
-  (when (and (some? trace/*current-trace*) (map? effect-map))
+  (when (and (some? trace/*current-trace*) @#'trace/trace-enabled? (map? effect-map))
     (let [existing (get-in trace/*current-trace* [:tags :fx-effects] [])
           ;; Stable iteration order so consumers see effects in
           ;; key-order; the underlying re-frame fx executor doesn't
