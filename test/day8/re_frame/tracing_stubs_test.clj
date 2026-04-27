@@ -27,7 +27,8 @@
    `day8.re-frame.tracing` ns at src/. The textual sync between the
    two files is the safety net there."
   (:require [clojure.test :refer [deftest is testing]]
-            [day8.re-frame.tracing-stubs]))
+            [day8.re-frame.tracing-stubs]
+            [day8.re-frame.tracing-stubs.runtime]))
 
 (deftest fn-traced-stub-strips-opts-map
   (testing "fn-traced stub with leading opts map drops it and emits bare fn"
@@ -158,3 +159,63 @@
                  "dbg" "dbgn" "dbg-last"]]
         (is (= (extract in-src m) (extract subproj m))
             (str m " stub diverges between the two stub files — they must be byte-identical"))))))
+
+;; ---------------------------------------------------------------------------
+;; Runtime API stubs — wrap-handler! / wrap-event-fx! / wrap-event-ctx! /
+;; wrap-sub! / wrap-fx! macros must compile down to bare reg-event-db /
+;; reg-sub / reg-fx / reg-event-fx / reg-event-ctx with NO fn-traced wrap.
+;;
+;; The dev-side runtime ns lives at src/day8/re_frame/tracing/runtime.cljc
+;; and is unreachable from this test classpath under the same name as the
+;; subproject stub (tracing-stubs/src/day8/re_frame/tracing/runtime.cljc)
+;; — exactly the same shadow situation as the tracing.cljc stub. The
+;; macroexpand checks below run against the in-src counterpart
+;; (day8.re-frame.tracing-stubs.runtime), and the bodies-byte-identical
+;; test pins it to the subproject ns by text comparison.
+;; ---------------------------------------------------------------------------
+
+(deftest runtime-stubs-expand-without-fn-traced
+  (testing "every wrap-* stub expands to bare re-frame.core/reg-* — no fn-traced
+            anywhere in the expansion. This is the zero-cost contract: a release
+            build that picks up these stubs incurs no per-handler trace overhead
+            and no zipper walking."
+    (doseq [[label form expected-reg]
+            [["wrap-handler! :event"
+              '(day8.re-frame.tracing-stubs.runtime/wrap-handler! :event :foo (fn [db ev] db))
+              "reg-event-db"]
+             ["wrap-event-fx!"
+              '(day8.re-frame.tracing-stubs.runtime/wrap-event-fx! :foo (fn [_ _] {}))
+              "reg-event-fx"]
+             ["wrap-event-ctx!"
+              '(day8.re-frame.tracing-stubs.runtime/wrap-event-ctx! :foo (fn [ctx] ctx))
+              "reg-event-ctx"]
+             ["wrap-sub!"
+              '(day8.re-frame.tracing-stubs.runtime/wrap-sub! :foo (fn [_ q] q))
+              "reg-sub"]
+             ["wrap-fx!"
+              '(day8.re-frame.tracing-stubs.runtime/wrap-fx! :foo (fn [v] v))
+              "reg-fx"]]]
+      (testing label
+        (let [r-str (pr-str (macroexpand form))]
+          (is (re-find (re-pattern (str "re-frame\\.core/" expected-reg)) r-str)
+              (str label " stub expansion includes " expected-reg))
+          (is (nil? (re-find #"fn-traced" r-str))
+              (str label " stub expansion has NO fn-traced — the zero-cost contract")))))))
+
+(deftest runtime-stub-files-have-identical-bodies
+  (testing "the in-src and subproject runtime stub files keep all shared
+            forms (defonce + macros + defns) byte-identical. The two files
+            diverge only in the ns form (docstring + ns name); everything
+            from the (:require [re-frame.core]) onwards is the same source
+            text so a future edit to one without the other gets caught here."
+    (let [in-src         (slurp "src/day8/re_frame/tracing_stubs/runtime.cljc")
+          subproj        (slurp "tracing-stubs/src/day8/re_frame/tracing/runtime.cljc")
+          require-marker "(:require [re-frame.core]))"
+          after-require  (fn [src]
+                           (let [i (.indexOf ^String src require-marker)]
+                             (when (neg? i)
+                               (throw (ex-info "missing require marker"
+                                               {:src-len (count src)})))
+                             (subs src (+ i (count require-marker)))))]
+      (is (= (after-require in-src) (after-require subproj))
+          "runtime stub bodies must be byte-identical between the two files"))))

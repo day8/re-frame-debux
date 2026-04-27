@@ -1,6 +1,12 @@
 # Change Log
 All notable changes to this project will be documented in this file. This change log follows the conventions of [keepachangelog.com](http://keepachangelog.com/).
 
+## [Unreleased]
+
+#### Fixed
+
+* Production stub for the runtime API. Two new files — `tracing-stubs/src/day8/re_frame/tracing/runtime.cljc` and the in-src counterpart `src/day8/re_frame/tracing_stubs/runtime.cljc` — close the gap that broke release builds (two-jar setup) for any caller requiring `day8.re-frame.tracing.runtime`. Stub `wrap-handler!` / `wrap-event-fx!` / `wrap-event-ctx!` / `wrap-sub!` / `wrap-fx!` macros compile to bare `re-frame.core/reg-event-db` (or sibling) with no `fn-traced` wrap; `unwrap-*` / `wrapped?` / `wrapped-list` / `unwrap-all!` become no-op runtime fns. Mirrors the `fn-traced` / `fx-traced` / `dbg` / `dbgn` stub pattern (commits e0bd687, bae1b0d, b3248af).
+
 ## [0.7.0] - 2026-04-27
 
 The v0.7 line closes the remaining feature gaps relative to philoskim/debux's option surface and adds two re-frame-shaped extensions on top — function entry/exit markers and per-effect tracing for `reg-event-fx` handlers. Nine additive items, no breaking changes.
