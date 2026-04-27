@@ -16,7 +16,17 @@
    re-frame ships with a `re-frame.interop/clj` shim that supports
    `dispatch-sync` end-to-end, so no Chrome / browser-test runner is
    needed for these tests — they live alongside the macroexpansion
-   suite, not in the (separately-gated) browser-test build."
+   suite, not in the (separately-gated) browser-test build.
+
+   CLJ-only by design — this fixture stubs `rft/schedule-debounce`
+   to no-op, sidestepping a CLJ-specific quirk where the trace cb
+   runs synchronously on the outermost finish-trace and resets
+   `traces` BEFORE the test reads it. CLJS uses
+   `goog.functions/debounce`, so the cb is deferred and the same
+   stub isn't needed there — but the tap-output Thread/sleep waits
+   for the CLJ tap-loop agent are also JVM-only. A CLJS analogue
+   should live in a separate browser-test fixture rather than
+   ride this file via reader conditionals; tracked separately."
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [day8.re-frame.tracing :as tracing]
             [day8.re-frame.tracing.runtime :as runtime]

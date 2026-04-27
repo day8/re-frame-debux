@@ -29,9 +29,11 @@
    re-frame trace stream, which would silence the integration tests.
    Each test sets up its own capture explicitly via the helpers
    below."
+  ;; `day8.re-frame.debux.dbgn` is `.clj`-only — see if_option_test.cljc.
+  #?(:clj  (:require [day8.re-frame.debux.dbgn :refer [dbgn]])
+     :cljs (:require-macros [day8.re-frame.debux.dbgn :refer [dbgn]]))
   (:require [clojure.test :refer [deftest is testing]]
             [day8.re-frame.debux.common.util :as util]
-            [day8.re-frame.debux.dbgn :as dbgn :refer [dbgn]]
             [day8.re-frame.tracing :as tracing]
             [day8.re-frame.tracing.runtime :as runtime]
             [re-frame.core]
@@ -66,7 +68,7 @@
     (let [r       (atom nil)
           traces  (with-unit-capture
                     (fn []
-                      (reset! r (eval `(dbgn (-> 1 inc inc) {:final true})))))]
+                      (reset! r (dbgn (-> 1 inc inc) {:final true}))))]
       (is (= 3 @r) "value transparency — :final does not change the result")
       (is (= 1 (count traces))
           "exactly one :code entry — every intermediate trace was suppressed")
@@ -80,7 +82,7 @@
   (testing "without :final, the same form emits multiple :code entries (sanity baseline)"
     (let [traces (with-unit-capture
                    (fn []
-                     (eval `(dbgn (-> 1 inc inc)))))]
+                     (dbgn (-> 1 inc inc))))]
       (is (< 1 (count traces))
           "the default mode emits more than one entry — :final is what suppresses them")
       (is (some zero? (map :indent-level traces))
@@ -93,11 +95,11 @@
     (let [r      (atom nil)
           traces (with-unit-capture
                    (fn []
-                     (reset! r (eval `(dbgn (->> [1 2 3 4 5]
-                                                 (filter odd?)
-                                                 (map inc)
-                                                 (reduce +))
-                                            {:final true})))))]
+                     (reset! r (dbgn (->> [1 2 3 4 5]
+                                          (filter odd?)
+                                          (map inc)
+                                          (reduce +))
+                                     {:final true}))))]
       ;; (filter odd? [1 2 3 4 5]) → (1 3 5)
       ;; (map inc (1 3 5))         → (2 4 6)
       ;; (reduce + (2 4 6))        → 12
@@ -116,9 +118,9 @@
     ;; entry is a candidate. With :if even?, that entry's result (2)
     ;; is even, so it emits. With :if odd?, it'd be filtered.
     (let [traces-even (with-unit-capture
-                        (fn [] (eval `(dbgn (inc (inc 0)) {:final true :if even?}))))
+                        (fn [] (dbgn (inc (inc 0)) {:final true :if even?})))
           traces-odd  (with-unit-capture
-                        (fn [] (eval `(dbgn (inc (inc 0)) {:final true :if odd?}))))]
+                        (fn [] (dbgn (inc (inc 0)) {:final true :if odd?})))]
       (is (= 1 (count traces-even))
           ":final + :if even? — the outermost result (2) is even, so it emits")
       (is (zero? (count traces-odd))
@@ -132,7 +134,7 @@
   (testing "keyword-style `(tracing/dbgn form :final)` parses through parse-opts to {:final true}"
     (let [r      (atom nil)
           traces (with-unit-capture
-                   (fn [] (reset! r (eval `(tracing/dbgn (-> 1 inc inc) :final)))))]
+                   (fn [] (reset! r (tracing/dbgn (-> 1 inc inc) :final))))]
       (is (= 3 @r))
       (is (= 1 (count traces))
           "parse-opts mapped :final → :final true; emit-trace-body gated intermediates"))))
@@ -141,7 +143,7 @@
   (testing ":f is the shorthand alias for :final through parse-opts"
     (let [r      (atom nil)
           traces (with-unit-capture
-                   (fn [] (reset! r (eval `(tracing/dbgn (-> 1 inc inc) :f)))))]
+                   (fn [] (reset! r (tracing/dbgn (-> 1 inc inc) :f))))]
       (is (= 3 @r))
       (is (= 1 (count traces))
           ":f gates emission identically to :final"))))

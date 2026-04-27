@@ -20,7 +20,9 @@
    tap>, so we can drive it directly with a synthetic
    `(binding [trace/*current-trace* ...] ...)` per test."
   (:require [clojure.test :refer [deftest is testing]]
-            [day8.re-frame.tracing :refer [dbg dbg-last]]
+            [day8.re-frame.tracing :as tracing
+             #?@(:clj  [:refer [dbg dbg-last]]
+                 :cljs [:refer-macros [dbg dbg-last]])]
             [day8.re-frame.debux.common.util :as util]
             ;; Required for the dbg-stub-is-no-op test: macroexpand-1
             ;; only recognises a fully-qualified macro reference when
@@ -28,6 +30,14 @@
             ;; loaded.
             [day8.re-frame.tracing-stubs]
             [re-frame.trace :as rft]))
+
+(defn- wait-for-tap
+  "tap> is async on CLJ (agent-pool-backed); sync on CLJS. Sleep on CLJ
+   to give the tap loop a chance to drain; no-op on CLJS where the
+   probe sees the value before the next form runs."
+  []
+  #?(:clj  (Thread/sleep 50)
+     :cljs nil))
 
 ;; ---------------------------------------------------------------------------
 ;; Helpers — capture the in-trace and out-of-trace sinks
@@ -151,9 +161,7 @@
               entries  (code-entries captured)]
           (is (= 1 (count entries))
               "the in-trace send-trace! fired")
-          ;; tap> is async (handled on the tap-loop agent). Give it
-          ;; a moment to drain.
-          (Thread/sleep 50)
+          (wait-for-tap)
           (is (= 1 (count @taps))
               ":tap? true also fires tap>")
           (is (= true (:debux/dbg (first @taps)))
@@ -169,7 +177,7 @@
       (try
         (with-fresh-current-trace
           (fn [] (dbg :hi)))
-        (Thread/sleep 50)
+        (wait-for-tap)
         (is (empty? @taps)
             "no :tap? → no tap> in the in-trace path")
         (finally
@@ -189,7 +197,7 @@
         (let [r (dbg (str "result-" 42))]
           (is (= "result-42" r)
               "still value-transparent out of trace"))
-        (Thread/sleep 50)
+        (wait-for-tap)
         (is (= 1 (count @taps)))
         (let [t (first @taps)]
           (is (= "result-42" (:result t)))
@@ -206,7 +214,7 @@
       (try
         (dbg 4 {:if odd?})  ; suppressed
         (dbg 5 {:if odd?})  ; emits
-        (Thread/sleep 50)
+        (wait-for-tap)
         (is (= [5] (mapv :result @taps)))
         (finally
           (remove-tap tapper))))))
@@ -269,28 +277,34 @@
                        (dbg (+ 1 2))))]
       (is (= 2 (count (code-entries captured)))))))
 
-(deftest dbg-stub-is-no-op
-  (testing "the production stub returns the form's value with no tap> / send-trace!"
-    (let [taps   (atom [])
-          tapper #(swap! taps conj %)]
-      (add-tap tapper)
-      (try
-        ;; Reach for the stub explicitly so this test still exercises
-        ;; it even when the test ns required the live `dbg` macro.
-        (let [r (macroexpand-1 '(day8.re-frame.tracing-stubs/dbg (+ 2 3)))]
-          (is (= '(+ 2 3) r)
-              "stub macroexpands to bare form — no wrap, no opts"))
-        (let [r (macroexpand-1 '(day8.re-frame.tracing-stubs/dbg (+ 2 3) {:name "x"}))]
-          (is (= '(+ 2 3) r)
-              "stub with opts also macroexpands to the bare form"))
-        (let [r (macroexpand-1 '(day8.re-frame.tracing-stubs/dbgn (-> 1 inc inc)))]
-          (is (= '(-> 1 inc inc) r)
-              "dbgn stub also bare-forms"))
-        (Thread/sleep 50)
-        (is (empty? @taps)
-            "no taps — stubs don't fire any sink")
-        (finally
-          (remove-tap tapper))))))
+;; The stub macroexpansion-shape test runs CLJ-only — `macroexpand-1`
+;; is a JVM runtime fn (cljs.analyzer.api/macroexpand-1 only fires at
+;; compile time). The behavioural side (the stub must compile to the
+;; bare form, no tap>) is exercised on the CLJS side simply by
+;; *requiring* day8.re-frame.tracing-stubs above: if the stub macros
+;; ever started doing something at expansion time, the test ns
+;; wouldn't compile.
+#?(:clj
+   (deftest dbg-stub-is-no-op
+     (testing "the production stub returns the form's value with no tap> / send-trace!"
+       (let [taps   (atom [])
+             tapper #(swap! taps conj %)]
+         (add-tap tapper)
+         (try
+           (let [r (macroexpand-1 '(day8.re-frame.tracing-stubs/dbg (+ 2 3)))]
+             (is (= '(+ 2 3) r)
+                 "stub macroexpands to bare form — no wrap, no opts"))
+           (let [r (macroexpand-1 '(day8.re-frame.tracing-stubs/dbg (+ 2 3) {:name "x"}))]
+             (is (= '(+ 2 3) r)
+                 "stub with opts also macroexpands to the bare form"))
+           (let [r (macroexpand-1 '(day8.re-frame.tracing-stubs/dbgn (-> 1 inc inc)))]
+             (is (= '(-> 1 inc inc) r)
+                 "dbgn stub also bare-forms"))
+           (Thread/sleep 50)
+           (is (empty? @taps)
+               "no taps — stubs don't fire any sink")
+           (finally
+             (remove-tap tapper)))))))
 
 ;; ---------------------------------------------------------------------------
 ;; dbg-last — thread-last-friendly variant
@@ -377,7 +391,7 @@
                      (reduce +))]
           (is (= 9 r)
               "value-transparent out of trace; pipeline yields (+ 2 3 4) = 9"))
-        (Thread/sleep 50)
+        (wait-for-tap)
         (is (= 1 (count @taps)))
         (let [t (first @taps)]
           (is (= [2 3 4] (:result t)))
@@ -386,20 +400,22 @@
         (finally
           (remove-tap tapper))))))
 
-(deftest dbg-last-stub-is-no-op
-  (testing "the production stub returns the threaded value with no trace side effect"
-    (let [taps   (atom [])
-          tapper #(swap! taps conj %)]
-      (add-tap tapper)
-      (try
-        (let [r (macroexpand-1 '(day8.re-frame.tracing-stubs/dbg-last (+ 2 3)))]
-          (is (= '(+ 2 3) r)
-              "1-arity stub macroexpands to bare value"))
-        (let [r (macroexpand-1 '(day8.re-frame.tracing-stubs/dbg-last {:name "x"} (+ 2 3)))]
-          (is (= '(+ 2 3) r)
-              "2-arity stub also macroexpands to the bare value, opts dropped"))
-        (Thread/sleep 50)
-        (is (empty? @taps)
-            "no taps — stubs don't fire any sink")
-        (finally
-          (remove-tap tapper))))))
+;; CLJ-only for the same reason as dbg-stub-is-no-op above.
+#?(:clj
+   (deftest dbg-last-stub-is-no-op
+     (testing "the production stub returns the threaded value with no trace side effect"
+       (let [taps   (atom [])
+             tapper #(swap! taps conj %)]
+         (add-tap tapper)
+         (try
+           (let [r (macroexpand-1 '(day8.re-frame.tracing-stubs/dbg-last (+ 2 3)))]
+             (is (= '(+ 2 3) r)
+                 "1-arity stub macroexpands to bare value"))
+           (let [r (macroexpand-1 '(day8.re-frame.tracing-stubs/dbg-last {:name "x"} (+ 2 3)))]
+             (is (= '(+ 2 3) r)
+                 "2-arity stub also macroexpands to the bare value, opts dropped"))
+           (Thread/sleep 50)
+           (is (empty? @taps)
+               "no taps — stubs don't fire any sink")
+           (finally
+             (remove-tap tapper)))))))

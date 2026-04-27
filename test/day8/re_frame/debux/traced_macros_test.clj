@@ -1,4 +1,13 @@
 (ns day8.re-frame.debux.traced-macros-test
+  "CLJ-only — every test below runs `(macroexpand (eval ...))` on a
+   quoted defn-traced/fn-traced source form to verify the expansion
+   compiles and yields the expected var-or-fn shape. CLJS lacks
+   runtime `macroexpand`/`eval` (cljs.analyzer.api/macroexpand-1 is
+   compile-time only), so the test pattern can't be ported as-is. The
+   CLJS-side macroexpansion path is exercised indirectly via
+   if_option_test.cljc and final_option_test.cljc — those embed live
+   `dbgn` / `tracing/dbgn` calls in deftests, which the CLJS compiler
+   expands at build time."
   (:require [clojure.test :refer [deftest is]]
             [day8.re-frame.debux.core :refer [defn-traced fn-traced]]
             [day8.re-frame.tracing]))

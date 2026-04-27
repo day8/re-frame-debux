@@ -15,6 +15,16 @@
    shipped to master without warning. Each case pins a previously-
    broken or previously-fixed scenario so it stays fixed.
 
+   CLJ-only — uses `future` + `deref` with a timeout to surface non-
+   terminating macroexpansions as clean test failures rather than
+   suite stalls (see `macroexpand-with-timeout` below). CLJS lacks
+   `future` / blocking deref. Several cases also drive `(eval `(dbgn
+   ...))` to test macroexpansion behaviour directly, which CLJS can't
+   run at runtime. The CLJS-side macroexpansion path is exercised
+   instead by direct `dbgn` calls in if_option_test.cljc and
+   final_option_test.cljc, which the CLJS compiler expands at build
+   time.
+
    Tests use a `future` + timeout pattern for the cases that are
    suspected to hang at macroexpansion time (rather than just
    miscompile) — so a regression triggers a clean test failure

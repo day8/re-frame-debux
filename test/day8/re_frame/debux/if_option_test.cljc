@@ -18,9 +18,13 @@
    `:condition`, so the kw-style surface silently dropped the
    predicate (every form emitted regardless). The kw-style tests
    here pin the parse-opts → emit-trace-body wiring."
+  ;; `day8.re-frame.debux.dbgn` is a `.clj`-only macro file (the
+   ;; cljs.analyzer-driven walker lives there). CLJS reaches its
+   ;; macros via `:require-macros`; CLJ via plain `:require`.
+  #?(:clj  (:require [day8.re-frame.debux.dbgn :refer [dbgn]])
+     :cljs (:require-macros [day8.re-frame.debux.dbgn :refer [dbgn]]))
   (:require [clojure.test :refer [deftest is testing]]
             [day8.re-frame.debux.common.util :as util]
-            [day8.re-frame.debux.dbgn :as dbgn :refer [dbgn]]
             [day8.re-frame.tracing :as tracing]))
 
 (defn- with-unit-capture
@@ -45,7 +49,7 @@
     (let [r      (atom nil)
           traces (with-unit-capture
                    (fn []
-                     (reset! r (eval `(dbgn (inc 1) {:if even?})))))]
+                     (reset! r (dbgn (inc 1) {:if even?}))))]
       (is (= 2 @r))
       (is (some #(= 2 (:result %)) traces)
           "the outer form's even? result is among the emissions"))))
@@ -55,7 +59,7 @@
     (let [r      (atom nil)
           traces (with-unit-capture
                    (fn []
-                     (reset! r (eval `(dbgn (inc 0) {:if even?})))))]
+                     (reset! r (dbgn (inc 0) {:if even?}))))]
       (is (= 1 @r) "value transparency — :if doesn't change the result")
       (is (zero? (count traces))
           ":if even? on a result of 1 suppresses every emission"))))
@@ -69,7 +73,7 @@
     (let [r      (atom nil)
           traces (with-unit-capture
                    (fn []
-                     (reset! r (eval `(tracing/dbgn (inc 1) :if even?)))))]
+                     (reset! r (tracing/dbgn (inc 1) :if even?))))]
       (is (= 2 @r))
       (is (some #(= 2 (:result %)) traces)
           "parse-opts mapped :if → :if pred; emit-trace-body fired the gate"))))
@@ -79,7 +83,7 @@
     (let [r      (atom nil)
           traces (with-unit-capture
                    (fn []
-                     (reset! r (eval `(tracing/dbgn (inc 0) :if even?)))))]
+                     (reset! r (tracing/dbgn (inc 0) :if even?))))]
       (is (= 1 @r))
       (is (zero? (count traces))
           "parse-opts must produce {:if even?} (not {:condition even?}) for the gate to see it"))))
