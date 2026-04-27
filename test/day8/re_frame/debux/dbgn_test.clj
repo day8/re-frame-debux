@@ -13,6 +13,32 @@
                         (reset! traces [])
                         (reset! form nil))))
 
+(defn- dbgn-forms-locals-binding
+  [opts-form]
+  (let [[_ bindings] (macroexpand-1
+                       (list 'day8.re-frame.debux.dbgn/dbgn-forms
+                             '((inc x))
+                             '((day8.re-frame.tracing/fn-traced [x] (inc x)))
+                             '[x]
+                             opts-form))]
+    (->> (partition 2 bindings)
+         (some (fn [[binding value]]
+                 (when (= "+debux-dbg-locals+" (name binding))
+                   value))))))
+
+(deftest dbgn-forms-skips-locals-vector-when-not-requested
+  (is (nil? (dbgn-forms-locals-binding nil))
+      "literal nil opts do not build the locals vector")
+  (is (nil? (dbgn-forms-locals-binding '{:locals false}))
+      "literal false :locals does not build the locals vector")
+  (let [locals-form (dbgn-forms-locals-binding '{:locals true})]
+    (is (= 1 (count locals-form))
+        "truthy literal :locals keeps the per-arg locals vector")
+    (is (= '(quote x) (-> locals-form first first)))
+    (is (= 'x (-> locals-form first second))))
+  (is (some? (dbgn-forms-locals-binding 'runtime-opts))
+      "unknown opts fall back to the previous locals-building shape"))
+
 ;; Works in Cursive, fails with lein test
 ;; See https://github.com/technomancy/leiningen/issues/912
 (deftest skip-outer-skip-inner-test

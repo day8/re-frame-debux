@@ -596,8 +596,12 @@
                       first)
         func      (first send-form)
         send-form (conj (rest send-form) (symbol (name func)))
-        ;; :locals capture: emit [[sym val] ...]
-        ;; pairs at expansion time. Symbols come from the function
+        literal-opts?   (or (nil? opts) (map? opts))
+        capture-locals? (if literal-opts?
+                          (boolean (:locals opts))
+                          true)
+        ;; :locals capture: emit [[sym val] ...] pairs only when the
+        ;; expansion might need them. Symbols come from the function
         ;; arity's args (already plumbed through `args`); the values
         ;; resolve at runtime to whatever the function received.
         ;; Inner let bindings introduced inside the body are NOT
@@ -605,11 +609,12 @@
         ;; the function args, per the design note in
         ;; docs/improvement-plan.md §4 ("&env only, accept that CLJS
         ;; captures less").
-        locals-pairs (mapv (fn [s] `[(quote ~s) ~s]) args)]
+        locals-form   (when capture-locals?
+                        (mapv (fn [s] `[(quote ~s) ~s]) args))]
     `(let [~'+debux-dbg-opts+   ~(if (ut/cljs-env? &env)
                                    (dissoc opts :style :js)
                                    opts)
-           ~'+debux-dbg-locals+ ~locals-pairs
+           ~'+debux-dbg-locals+ ~locals-form
            ~'+debux-trace-id+   ~(str (gensym "dbgn-forms_"))]
        (try
        ;; Send whole form to trace point
@@ -690,4 +695,3 @@
                   (reduce +)))))
 
 ;(reduce + (take a (filter even? (map (fn [x] (* x x)) (range a b)))))
-
