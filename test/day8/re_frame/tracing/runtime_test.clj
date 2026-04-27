@@ -157,3 +157,97 @@
 (deftest unwrap-all-on-empty-is-no-op
   (testing "unwrap-all on a clean side-table returns []"
     (is (= [] (runtime/unwrap-all!)))))
+
+;; ---------------------------------------------------------------------------
+;; Refusal semantics — double-wrap and missing-handler edge cases
+;; ---------------------------------------------------------------------------
+
+(deftest double-wrap-is-refused
+  (testing "second wrap-fx! on the same id returns a failure map and does NOT
+            clobber the side-table's record of the true original"
+    (let [orig-fn (fn [_] :original)]
+      (registrar/register-handler :fx :test/double orig-fn)
+      ;; first wrap succeeds
+      (is (= [:fx :test/double]
+             (wrap-fx! :test/double (fn [v] (let [a (* 2 v)] a)))))
+      (is (identical? orig-fn (get @runtime/wrapped-originals [:fx :test/double]))
+          "first wrap captured the user's original")
+      ;; second wrap is refused
+      (let [result (wrap-fx! :test/double (fn [v] (let [b (* 3 v)] b)))]
+        (is (= {:ok? false :reason :already-wrapped :kind :fx :id :test/double}
+               result)
+            "second wrap returns the documented refusal map"))
+      (is (identical? orig-fn (get @runtime/wrapped-originals [:fx :test/double]))
+          "side-table still holds the user's true original — second wrap did
+           not capture the already-wrapped fn"))))
+
+(deftest unwrap-after-refused-double-wrap-restores-true-original
+  (testing "after a refused double-wrap, unwrap restores the user's original
+            (the bug this bead fixes: pre-fix unwrap restored the first wrapper)"
+    (let [orig-fn (fn [_v] :truly-original)]
+      (registrar/register-handler :fx :test/round-trip orig-fn)
+      (wrap-fx! :test/round-trip (fn [v] v))
+      (wrap-fx! :test/round-trip (fn [v] v))   ; refused, no-op
+      (is (true? (unwrap-fx! :test/round-trip)))
+      (is (identical? orig-fn (registrar/get-handler :fx :test/round-trip))
+          "registrar holds the user's original, not the first wrapper"))))
+
+(deftest wrap-without-registered-handler-is-refused
+  (testing "wrap-fx! against an unregistered id returns :no-handler and leaves
+            the side-table empty (the bug fix: pre-fix it stored nil, and
+            unwrap would later corrupt the registrar by re-registering nil)"
+    (let [result (wrap-fx! :test/never-registered (fn [v] v))]
+      (is (= {:ok? false :reason :no-handler :kind :fx :id :test/never-registered}
+             result)))
+    (is (empty? @runtime/wrapped-originals)
+        "no nil entry was recorded in the side-table")
+    (is (false? (runtime/wrapped? :fx :test/never-registered))
+        "wrapped? agrees the id is not wrapped")))
+
+(deftest wrap-handler-event-kind-refusal-shapes
+  (testing "wrap-handler! :event refusal maps carry :kind :event"
+    ;; double-wrap path
+    (re-frame.core/reg-event-db :test/evt-double (fn [db _] db))
+    (wrap-handler! :event :test/evt-double (fn [db _] db))
+    (is (= {:ok? false :reason :already-wrapped :kind :event :id :test/evt-double}
+           (wrap-handler! :event :test/evt-double (fn [db _] db))))
+    ;; no-handler path
+    (is (= {:ok? false :reason :no-handler :kind :event :id :test/evt-missing}
+           (wrap-handler! :event :test/evt-missing (fn [db _] db))))))
+
+(deftest wrap-event-fx-refusals
+  (testing "wrap-event-fx! refuses double-wrap and missing-handler the same way"
+    ;; double-wrap
+    (re-frame.core/reg-event-fx :test/efx-double (fn [_ _] {}))
+    (is (= [:event :test/efx-double]
+           (runtime/wrap-event-fx! :test/efx-double
+                                   (fn [_ _] (let [a 1] {})))))
+    (is (= {:ok? false :reason :already-wrapped :kind :event :id :test/efx-double}
+           (runtime/wrap-event-fx! :test/efx-double (fn [_ _] {}))))
+    ;; no-handler
+    (is (= {:ok? false :reason :no-handler :kind :event :id :test/efx-missing}
+           (runtime/wrap-event-fx! :test/efx-missing (fn [_ _] {}))))))
+
+(deftest wrap-event-ctx-refusals
+  (testing "wrap-event-ctx! refuses double-wrap and missing-handler the same way"
+    ;; double-wrap
+    (re-frame.core/reg-event-ctx :test/ectx-double (fn [ctx] ctx))
+    (is (= [:event :test/ectx-double]
+           (runtime/wrap-event-ctx! :test/ectx-double
+                                    (fn [ctx] (let [a 1] ctx)))))
+    (is (= {:ok? false :reason :already-wrapped :kind :event :id :test/ectx-double}
+           (runtime/wrap-event-ctx! :test/ectx-double (fn [ctx] ctx))))
+    ;; no-handler
+    (is (= {:ok? false :reason :no-handler :kind :event :id :test/ectx-missing}
+           (runtime/wrap-event-ctx! :test/ectx-missing (fn [ctx] ctx))))))
+
+(deftest re-wrap-after-unwrap-succeeds
+  (testing "after unwrap, the same id can be wrapped again with a new replacement"
+    (let [orig (fn [_v] :orig)]
+      (registrar/register-handler :fx :test/cycle orig)
+      (is (= [:fx :test/cycle] (wrap-fx! :test/cycle (fn [v] v))))
+      (is (true? (unwrap-fx! :test/cycle)))
+      (is (= [:fx :test/cycle] (wrap-fx! :test/cycle (fn [v] (* 2 v))))
+          "post-unwrap, the side-table is empty so a fresh wrap is allowed")
+      (is (identical? orig (get @runtime/wrapped-originals [:fx :test/cycle]))
+          "the second wrap re-captured the user's original"))))

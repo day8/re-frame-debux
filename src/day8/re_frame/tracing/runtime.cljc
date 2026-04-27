@@ -102,7 +102,23 @@
       `replacement` MUST be a literal `(fn [args] body...)` form so
       fn-traced can walk its AST at expansion time.
 
-      Returns [kind id] for thread-friendly use in let-bindings.
+      Returns `[kind id]` on success — thread-friendly for let-bindings.
+      Refuses to wrap and returns a failure map in two cases:
+
+        * `{:ok? false :reason :already-wrapped :kind k :id id}` — there
+          is already a wrap recorded at `[kind id]`. Without this guard,
+          the second wrap's `get-handler` would capture the previously-
+          wrapped fn as 'original', and unwrap would later restore the
+          intermediate wrapper instead of the user's true original.
+
+        * `{:ok? false :reason :no-handler :kind k :id id}` — no handler
+          is registered at `[kind id]` (registrar returns nil). Without
+          this guard, unwrap would re-register `nil` and corrupt the
+          registrar.
+
+      Both refusals are no-ops: the side-table and registrar are left
+      untouched. Caller is expected to `unwrap-handler!` first (or
+      `register-handler` first) before re-issuing the wrap.
 
       Dispatch by kind:
         :event → re-frame.core/reg-event-db (default; interceptor
@@ -114,43 +130,81 @@
       the matching reg-event-fx / reg-event-ctx interceptor chain."
      [kind id replacement]
      (let [args+body (rest replacement)]
-       `(do
-          (swap! wrapped-originals assoc [~kind ~id]
-                 (re-frame.registrar/get-handler ~kind ~id))
-          (case ~kind
-            :event (re-frame.core/reg-event-db ~id
-                                               (day8.re-frame.tracing/fn-traced ~@args+body))
-            :sub   (re-frame.core/reg-sub ~id
-                                          (day8.re-frame.tracing/fn-traced ~@args+body))
-            :fx    (re-frame.core/reg-fx ~id
-                                         (day8.re-frame.tracing/fn-traced ~@args+body)))
-          [~kind ~id]))))
+       `(let [k#    ~kind
+              id#   ~id
+              orig# (re-frame.registrar/get-handler k# id#)]
+          (cond
+            (contains? @wrapped-originals [k# id#])
+            {:ok? false :reason :already-wrapped :kind k# :id id#}
+
+            (nil? orig#)
+            {:ok? false :reason :no-handler :kind k# :id id#}
+
+            :else
+            (do
+              (swap! wrapped-originals assoc [k# id#] orig#)
+              (case k#
+                :event (re-frame.core/reg-event-db id#
+                                                   (day8.re-frame.tracing/fn-traced ~@args+body))
+                :sub   (re-frame.core/reg-sub id#
+                                              (day8.re-frame.tracing/fn-traced ~@args+body))
+                :fx    (re-frame.core/reg-fx id#
+                                             (day8.re-frame.tracing/fn-traced ~@args+body)))
+              [k# id#]))))))
 
 #?(:clj
    (defmacro wrap-event-fx!
      "Like wrap-handler! but uses re-frame.core/reg-event-fx so the
-      traced body returns an effects map (not an updated db)."
+      traced body returns an effects map (not an updated db).
+
+      Returns `[:event id]` on success; refuses with the same
+      `{:ok? false :reason :already-wrapped|:no-handler …}` shape
+      as wrap-handler! when [:event id] is already wrapped or has
+      no registered handler."
      [id replacement]
      (let [args+body (rest replacement)]
-       `(do
-          (swap! wrapped-originals assoc [:event ~id]
-                 (re-frame.registrar/get-handler :event ~id))
-          (re-frame.core/reg-event-fx ~id
-                                      (day8.re-frame.tracing/fn-traced ~@args+body))
-          [:event ~id]))))
+       `(let [id#   ~id
+              orig# (re-frame.registrar/get-handler :event id#)]
+          (cond
+            (contains? @wrapped-originals [:event id#])
+            {:ok? false :reason :already-wrapped :kind :event :id id#}
+
+            (nil? orig#)
+            {:ok? false :reason :no-handler :kind :event :id id#}
+
+            :else
+            (do
+              (swap! wrapped-originals assoc [:event id#] orig#)
+              (re-frame.core/reg-event-fx id#
+                                          (day8.re-frame.tracing/fn-traced ~@args+body))
+              [:event id#]))))))
 
 #?(:clj
    (defmacro wrap-event-ctx!
      "Like wrap-handler! but uses re-frame.core/reg-event-ctx so the
-      traced body receives and returns a context map."
+      traced body receives and returns a context map.
+
+      Returns `[:event id]` on success; refuses with the same
+      `{:ok? false :reason :already-wrapped|:no-handler …}` shape
+      as wrap-handler! when [:event id] is already wrapped or has
+      no registered handler."
      [id replacement]
      (let [args+body (rest replacement)]
-       `(do
-          (swap! wrapped-originals assoc [:event ~id]
-                 (re-frame.registrar/get-handler :event ~id))
-          (re-frame.core/reg-event-ctx ~id
-                                       (day8.re-frame.tracing/fn-traced ~@args+body))
-          [:event ~id]))))
+       `(let [id#   ~id
+              orig# (re-frame.registrar/get-handler :event id#)]
+          (cond
+            (contains? @wrapped-originals [:event id#])
+            {:ok? false :reason :already-wrapped :kind :event :id id#}
+
+            (nil? orig#)
+            {:ok? false :reason :no-handler :kind :event :id id#}
+
+            :else
+            (do
+              (swap! wrapped-originals assoc [:event id#] orig#)
+              (re-frame.core/reg-event-ctx id#
+                                           (day8.re-frame.tracing/fn-traced ~@args+body))
+              [:event id#]))))))
 
 #?(:clj
    (defmacro wrap-sub!
