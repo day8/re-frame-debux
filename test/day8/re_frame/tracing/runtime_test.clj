@@ -7,10 +7,6 @@
             [day8.re-frame.tracing :as tracing]
             [day8.re-frame.tracing.runtime :as runtime
              :refer [wrap-handler! unwrap-handler! wrap-fx! unwrap-fx!]]
-            ;; The wrap-* macros expand to (re-frame.core/reg-event-db ...)
-            ;; etc., so re-frame.core has to be on the test classpath for
-            ;; macroexpansion to resolve.
-            [re-frame.core]
             [re-frame.registrar :as registrar]))
 
 (def captured-traces (atom []))

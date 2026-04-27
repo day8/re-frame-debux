@@ -45,7 +45,8 @@
      cljs hot-reload of this ns) drops it; that's the same as
      re-frame's own registrar and is generally what callers want."
   #?(:cljs (:require-macros [day8.re-frame.tracing.runtime]))
-  (:require [re-frame.registrar]
+  (:require [re-frame.core]
+            [re-frame.registrar]
             #?(:clj [day8.re-frame.tracing])))
 
 ;; ---------------------------------------------------------------------------
