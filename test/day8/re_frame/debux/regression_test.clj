@@ -54,12 +54,23 @@
 
 (defn- macroexpand-with-timeout
   "Macroexpand `form-expr` in a future; if it doesn't return within
-   `macroexpand-timeout-ms`, return ::timeout. The future is left
-   running (we can't safely interrupt a CLJ compiler call). Use this
-   only in tests where the expected good case completes in milliseconds."
+   `macroexpand-timeout-ms`, return ::timeout. If the macroexpansion
+   throws, return [::threw <ex>] rather than rethrowing — callers can
+   then `is` against the sentinel for a clean failure message instead
+   of a stack-trace ERROR. The future is left running (we can't safely
+   interrupt a CLJ compiler call). Use this only in tests where the
+   expected good case completes in milliseconds."
   [form-expr]
-  (let [fut (future (macroexpand-1 form-expr))]
+  (let [fut (future (try (macroexpand-1 form-expr)
+                         (catch Throwable t [::threw t])))]
     (deref fut macroexpand-timeout-ms ::timeout)))
+
+(defn- threw? [result]
+  (and (vector? result) (= ::threw (first result))))
+
+(defn- threw-message [result]
+  (when (threw? result)
+    (str "macroexpand threw: " (.getMessage ^Throwable (second result)))))
 
 ;; ----------------------------------------------------------------------
 ;; Issue #40 — loop + recur non-termination
@@ -96,6 +107,45 @@
       ;; Once the fix lands, also assert the eval result is 3 (0+1+2).
       ;; Leaving as a TODO until the fix unblocks the macroexpand.
       )))
+
+;; The walker in `insert-o-skip-for-recur` (skip.cljc) climbs the
+;; zipper from each `recur` looking for the enclosing loop's first
+;; child. Two threading chains — `(z/up z/up z/down)` for the
+;; "upwards start" branch and `(z/up z/down)` for "upwards ongoing" —
+;; were unguarded against the chain hitting the zipper root. For a
+;; `recur` placed without a tail-positioned loop ancestor (only valid
+;; if the form is invalid Clojure, but the macro must still expand
+;; cleanly so the compiler can surface its own error rather than an
+;; NPE), z/down on a nil loc throws.
+;;
+;; Loop-bound shallow shapes like `(loop [] (recur))` and
+;; `(loop [] body (recur))` do NOT trip the bug today — the recur
+;; sits inside `(recur)` inside the loop, and `z/up z/up z/down`
+;; lands on the loop's `loop` symbol (root's first child). They're
+;; pinned here as defensive coverage in case a future walker
+;; refactor regresses the path.
+
+(deftest loop-recur-shallow-shapes-dont-npe
+  (testing "(loop [] (recur)) macroexpands cleanly (does not NPE today)"
+    (let [result (macroexpand-with-timeout `(dbgn (loop [] (recur))))]
+      (is (not= ::timeout result))
+      (is (not (threw? result)) (threw-message result))))
+  (testing "(loop [] body (recur)) macroexpands cleanly (does not NPE today)"
+    (let [result (macroexpand-with-timeout
+                   `(dbgn (loop [] (println "tick") (recur))))]
+      (is (not= ::timeout result))
+      (is (not (threw? result)) (threw-message result))))
+  (testing "bare top-level (recur) — was the actual NPE; locks the nil-guard fix"
+    ;; The form is invalid Clojure (recur outside tail position), so
+    ;; compiling the result will fail later — but macroexpansion
+    ;; itself must not NPE.
+    (let [result (macroexpand-with-timeout `(dbgn (recur)))]
+      (is (not= ::timeout result))
+      (is (not (threw? result)) (threw-message result))))
+  (testing "(when test (recur)) — recur with non-loop parent; locks the second nil-guard"
+    (let [result (macroexpand-with-timeout `(dbgn (when true (recur))))]
+      (is (not= ::timeout result))
+      (is (not (threw? result)) (threw-message result)))))
 
 ;; ----------------------------------------------------------------------
 ;; Closed #31 — `cond` NPE

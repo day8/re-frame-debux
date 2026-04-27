@@ -244,22 +244,29 @@
         (z/end? loc) (z/root loc)
 
         ;; upwards start
+        ;; `some->` guards the z/up chain — for a `recur` at the very
+        ;; top of a form (no enclosing loop/wrapper), the upward walk
+        ;; runs past the root and z/down on nil would throw NPE. When
+        ;; the chain short-circuits to nil, treat the slot as "nothing
+        ;; to skip" and fall through to the :else branch.
         (and (symbol? node)
              (= 'recur (ut/ns-symbol node env))
              (not upwards)
-             (not (ut/o-skip? (-> loc z/up z/up z/down z/node))))
+             (when-let [g (some-> loc z/up z/up z/down z/node)]
+               (not (ut/o-skip? g))))
         (recur (-> (z/replace (z/up loc)
                               (insert-o-skip (-> loc z/up z/node)))
                    z/up)
                true)
 
-        ;; upwards ongoing
+        ;; upwards ongoing — same nil-guard rationale as upwards start
         (and upwards
              (symbol? (first node))
              (not (ut/final-target? (ut/ns-symbol (first node) env)
                                     (:loop-type (macro-types env))
                                     env))
-             (not (ut/o-skip? (-> loc z/up z/down z/node))))
+             (when-let [g (some-> loc z/up z/down z/node)]
+               (not (ut/o-skip? g))))
         (recur (-> (z/replace loc (insert-o-skip (-> loc z/node)))
                    z/up)
                true)
