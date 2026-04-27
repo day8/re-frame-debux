@@ -6,7 +6,9 @@
             [day8.re-frame.debux.common.util :as ut]
             [day8.re-frame.tracing :as tracing]
             [day8.re-frame.tracing.runtime :as runtime
-             :refer [wrap-handler! unwrap-handler! wrap-fx! unwrap-fx!]]
+             :refer [wrap-handler! unwrap-handler! wrap-fx! unwrap-fx! wrap-sub!]]
+            [re-frame.core]
+            [re-frame.db]
             [re-frame.registrar :as registrar]))
 
 (def captured-traces (atom []))
@@ -251,3 +253,55 @@
           "post-unwrap, the side-table is empty so a fresh wrap is allowed")
       (is (identical? orig (get @runtime/wrapped-originals [:fx :test/cycle]))
           "the second wrap re-captured the user's original"))))
+
+;; ---------------------------------------------------------------------------
+;; Chain-builder choice — :event flavour routes through reg-event-db
+;; ---------------------------------------------------------------------------
+
+(deftest wrap-handler-event-flavour-uses-reg-event-db
+  (testing "wrap-handler! :event chooses the reg-event-db chain-builder
+            (the db-handler-flavoured one), not reg-event-fx or
+            reg-event-ctx. Without this contract, a wrapped :event
+            handler that returns plain new-db would be misinterpreted
+            as an effects map (under reg-event-fx) or as a context
+            (under reg-event-ctx) on every dispatch."
+    (re-frame.core/reg-event-db :test/evt-chain (fn [db _] db))
+    (let [calls (atom [])]
+      (with-redefs [re-frame.core/reg-event-db
+                    (fn [id handler]
+                      (swap! calls conj :reg-event-db)
+                      (re-frame.registrar/register-handler :event id handler))
+                    re-frame.core/reg-event-fx
+                    (fn [_id _handler]
+                      (swap! calls conj :reg-event-fx))
+                    re-frame.core/reg-event-ctx
+                    (fn [_id _handler]
+                      (swap! calls conj :reg-event-ctx))]
+        (wrap-handler! :event :test/evt-chain (fn [db _] db)))
+      (is (= [:reg-event-db] @calls)
+          "reg-event-db was the only re-frame.core/reg-event-* fn invoked"))))
+
+;; ---------------------------------------------------------------------------
+;; wrap-sub! — fn-traced through the :sub kind, deref of the registered
+;; reaction triggers send-trace! emission
+;; ---------------------------------------------------------------------------
+
+(deftest wrap-sub-emits-code-on-deref
+  (testing "wrap-sub! routes through reg-sub; deref'ing the reaction it
+            returns invokes the user's fn-traced'd body, which fires
+            send-trace! for sub-forms.
+
+            Why direct-invoke instead of re-frame.core/subscribe + deref?
+            Either path eventually derefs the reaction; calling the
+            registered handler ourselves keeps the test independent of
+            the subscription cache and reagent-id machinery — same
+            pattern as wrap-fx-emits-code-traces-when-called above."
+    (re-frame.core/reg-sub :test/calc (fn [db _] (:n db)))
+    (wrap-sub! :test/calc (fn [_db _v] (let [n (inc 41)] {:n n})))
+    (let [subs-handler-fn (registrar/get-handler :sub :test/calc)
+          reaction        (subs-handler-fn re-frame.db/app-db [:test/calc])]
+      @reaction
+      (is (seq @captured-traces)
+          "deref of the wrapped sub's reaction fired send-trace! at least once")
+      (is (some #(re-find #"inc" (pr-str (:form %))) @captured-traces)
+          "captured trace forms include the (inc 41) sub-form"))))

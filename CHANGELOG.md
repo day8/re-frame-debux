@@ -21,6 +21,7 @@ The v0.7 line closes the remaining feature gaps relative to philoskim/debux's op
 
 * `+debux-trace-id+` runtime binding alongside the existing `+debux-dbg-opts+` / `+debux-dbg-locals+` (commit 33225e8). Each `dbgn` / `dbgn-forms` / `mini-dbgn` expansion bakes in a unique gensym'd string used as the per-call-site identity for `:once` dedup.
 * `mini-dbgn` (test-only) uses a fixed `"mini-dbgn"` trace-id instead of a gensym so the macroexpansion-shape assertions in `dbgn_test.clj` stay byte-stable.
+* Runtime API coverage — `wrap-event-fx!` / `wrap-event-ctx!` / `wrap-sub!` and `wrap-handler! :event` each get a dedicated deftest. Two unit-level tests pin the chain-builder choice (`reg-event-db`) and the `:sub`-kind reaction-deref → `:code` emission path; two integration tests dispatch through `reg-event-fx` and `reg-event-ctx` chains end-to-end. Closes the gap that previously left three of the four runtime-API macros without automated guard.
 
 ## [0.6.3] - 2026-04-27
 

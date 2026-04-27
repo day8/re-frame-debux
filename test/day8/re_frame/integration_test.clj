@@ -25,6 +25,7 @@
             ;; so the test ns has to require re-frame.core (and re-frame.trace
             ;; for our trace-capture fixture).
             [re-frame.core]
+            [re-frame.db]
             [re-frame.registrar :as registrar]
             [re-frame.trace :as rft]))
 
@@ -191,6 +192,63 @@
       (is (some #(= :positive (:result %)) code)
           "the :positive branch result was captured"))
     (runtime/unwrap-handler! :event ::branched)))
+
+;; ---------------------------------------------------------------------------
+;; wrap-event-fx! / wrap-event-ctx! — the reg-event-fx and reg-event-ctx
+;; chain-builder paths through the runtime API. wrap-handler! :event is
+;; covered by the wrap-handler-emits-code-tag-on-dispatch test above;
+;; these two pin the other event-flavour shorthands end-to-end via
+;; dispatch-sync.
+;; ---------------------------------------------------------------------------
+
+(deftest wrap-event-fx-traces-the-effects-map
+  (testing "wrap-event-fx! installs a fn-traced reg-event-fx; dispatch
+            flows through the effects-map chain (handler returns
+            {:db ...}, do-fx applies it) and :code entries surface from
+            the wrapped body."
+    (reset! re-frame.db/app-db {})
+    (re-frame.core/reg-event-fx ::checkout-fx-baseline (fn [_ _] {}))
+    (runtime/wrap-event-fx! ::checkout-fx-baseline
+                            (fn [_ [_ amount]]
+                              (let [doubled (* 2 amount)]
+                                {:db {:total doubled}})))
+    (re-frame.core/dispatch-sync [::checkout-fx-baseline 100])
+    (let [code (code-entries (captured-traces))
+          fs   (forms (captured-traces))]
+      (is (seq code)
+          "wrap-event-fx! body produced :code entries via fn-traced")
+      (is (some #(re-find #"\* 2 amount" %) fs)
+          "captured forms include the (* 2 amount) sub-form"))
+    (is (= 200 (:total @re-frame.db/app-db))
+        ":db effect from the wrapped body landed on app-db — proves the
+         reg-event-fx chain (not reg-event-db) processed the return value")
+    (is (true? (runtime/unwrap-handler! :event ::checkout-fx-baseline))
+        "unwrap restores the baseline reg-event-fx handler")))
+
+(deftest wrap-event-ctx-traces-context
+  (testing "wrap-event-ctx! installs a fn-traced reg-event-ctx; dispatch
+            flows through the context-style chain (handler takes ctx,
+            returns ctx) and :code entries surface from the wrapped body."
+    (reset! re-frame.db/app-db {})
+    (re-frame.core/reg-event-ctx ::ctx-baseline (fn [ctx] ctx))
+    (runtime/wrap-event-ctx! ::ctx-baseline
+                             (fn [{:keys [coeffects] :as ctx}]
+                               (let [n (inc 41)]
+                                 (assoc-in ctx [:effects :db]
+                                           (assoc (:db coeffects) :n n)))))
+    (re-frame.core/dispatch-sync [::ctx-baseline])
+    (let [code (code-entries (captured-traces))
+          fs   (forms (captured-traces))]
+      (is (seq code)
+          "wrap-event-ctx! body produced :code entries via fn-traced")
+      (is (some #(re-find #"inc 41" %) fs)
+          "captured forms include the (inc 41) sub-form"))
+    (is (= 42 (:n @re-frame.db/app-db))
+        ":db effect set inside the ctx flowed through to app-db — proves
+         the reg-event-ctx chain (not reg-event-db / reg-event-fx)
+         processed the return ctx")
+    (is (true? (runtime/unwrap-handler! :event ::ctx-baseline))
+        "unwrap restores the baseline reg-event-ctx handler")))
 
 ;; ---------------------------------------------------------------------------
 ;; wrap-fx! traces effect-payload sub-forms (the
