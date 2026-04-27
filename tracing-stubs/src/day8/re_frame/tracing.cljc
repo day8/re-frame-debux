@@ -33,3 +33,21 @@
   (let [def' (if (map? (first definition)) (rest definition) definition)]
     `(defn ~@def')))
 
+;; Production stubs for dbg / dbgn. Compile out to the
+;; bare expression so release builds incur zero runtime cost.
+(defmacro dbg
+  "Single-form tracer; production stub. Returns the form's value
+   without emitting a trace."
+  ([form] form)
+  ([form _opts] form))
+
+(defmacro dbgn
+  "Nested-form tracer; production stub. Returns the form's value
+   without emitting traces."
+  [form & _opts] form)
+
+(defmacro dbg-last
+  "Thread-last-friendly single-form tracer; production stub. Returns
+   the threaded value with no trace side effect."
+  ([value] value)
+  ([_opts value] value))

@@ -106,22 +106,47 @@
       (is (= '(clojure.core/defn checkout [_ [_ amount]] {:db {:total amount}}) r)
           "defn-fx-traced stub already strips — verify it stays that way"))))
 
-(deftest stub-files-have-identical-fn-defn-traced-bodies
-  (testing "the in-src and subproject stub files keep fn-traced/defn-traced in sync"
+(deftest dbg-stub-returns-form-unchanged
+  (testing "dbg stub with no opts returns the form"
+    (let [r (macroexpand-1 '(day8.re-frame.tracing-stubs/dbg (+ 1 2)))]
+      (is (= '(+ 1 2) r)
+          "single-form dbg — passthrough, no trace")))
+
+  (testing "dbg stub with opts ignores them and returns the form"
+    (let [r (macroexpand-1 '(day8.re-frame.tracing-stubs/dbg (+ 1 2) {:msg "hi"}))]
+      (is (= '(+ 1 2) r)
+          "opts arg is discarded"))))
+
+(deftest dbgn-stub-returns-form-unchanged
+  (testing "dbgn stub returns the top-level form, opts ignored"
+    (let [r (macroexpand-1 '(day8.re-frame.tracing-stubs/dbgn (let [x 1] (inc x))))]
+      (is (= '(let [x 1] (inc x)) r)
+          "dbgn passthrough — nested form returned as-is")))
+
+  (testing "dbgn stub with trailing opts ignores them"
+    (let [r (macroexpand-1 '(day8.re-frame.tracing-stubs/dbgn (+ 1 2) :msg "label"))]
+      (is (= '(+ 1 2) r)
+          "opts discarded"))))
+
+(deftest dbg-last-stub-returns-value-unchanged
+  (testing "dbg-last stub with value only returns it"
+    (let [r (macroexpand-1 '(day8.re-frame.tracing-stubs/dbg-last [1 2 3]))]
+      (is (= '[1 2 3] r)
+          "thread-last passthrough — value returned as-is")))
+
+  (testing "dbg-last stub with leading opts returns the value and drops opts"
+    (let [r (macroexpand-1 '(day8.re-frame.tracing-stubs/dbg-last {:msg "x"} [1 2 3]))]
+      (is (= '[1 2 3] r)
+          "opts arg discarded, value returned"))))
+
+(deftest stub-files-have-identical-macro-bodies
+  (testing "the in-src and subproject stub files keep all shared macros in sync"
     (let [in-src    (slurp "src/day8/re_frame/tracing_stubs.cljc")
           subproj   (slurp "tracing-stubs/src/day8/re_frame/tracing.cljc")
-          ;; Pull just the fn-traced and defn-traced defmacro forms
-          ;; out of each file and compare. The two files have
-          ;; different namespace declarations and the in-src one
-          ;; carries extra dbg / dbgn / dbg-last stubs, so we can't
-          ;; do a whole-file diff — but the four shared macros must
-          ;; match byte-for-byte.
           extract   (fn [src macro-name]
                       (let [start (.indexOf ^String src (str "(defmacro " macro-name))]
                         (when (neg? start)
                           (throw (ex-info (str "macro not found: " macro-name) {:src-len (count src)})))
-                        ;; Walk forward, balancing parens, to find the
-                        ;; closing `)` of the defmacro form.
                         (loop [i     (inc start)
                                depth 1]
                           (cond
@@ -129,6 +154,7 @@
                             (= \( (.charAt ^String src i)) (recur (inc i) (inc depth))
                             (= \) (.charAt ^String src i)) (recur (inc i) (dec depth))
                             :else (recur (inc i) depth)))))]
-      (doseq [m ["defn-traced" "fn-traced" "fx-traced" "defn-fx-traced"]]
+      (doseq [m ["defn-traced" "fn-traced" "fx-traced" "defn-fx-traced"
+                 "dbg" "dbgn" "dbg-last"]]
         (is (= (extract in-src m) (extract subproj m))
             (str m " stub diverges between the two stub files — they must be byte-identical"))))))
