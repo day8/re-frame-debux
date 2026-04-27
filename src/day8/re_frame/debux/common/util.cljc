@@ -628,7 +628,7 @@
         (recur (next opts) (assoc acc :msg f))
 
         (= f :if)
-        (recur (nnext opts) (assoc acc :condition s))
+        (recur (nnext opts) (assoc acc :if s))
 
         ;;; for clojurescript
         (= f :js)
