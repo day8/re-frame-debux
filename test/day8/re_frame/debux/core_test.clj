@@ -90,27 +90,19 @@
                 (assoc res 1 -1))]
     (is (= [1 -1 33 4 55]
            (eval `(dbgn ~f))))
+    ;; condp is :skip-all-args-type, so each (condp ...) call emits a
+    ;; single trace and its inner clauses are NOT traced individually
+    ;; (cf. doc-condp-test). The map-fn body invokes condp once per
+    ;; element of [1 2 3 4 5], so the trace stream gets 5 condp
+    ;; entries (no preceding `=` / `val` traces from inside the form).
     (is (= '[(fn [val] (condp = val 3 33 100 100 5 55 val))
              [1 2 3 4 5]
              (map (fn [val] (condp = val 3 33 100 100 5 55 val)))
              (->> (map (fn [val] (condp = val 3 33 100 100 5 55 val))))
-             =
-             val
-             val
              (condp = val 3 33 100 100 5 55 val)
-             =
-             val
-             val
              (condp = val 3 33 100 100 5 55 val)
-             =
-             val
              (condp = val 3 33 100 100 5 55 val)
-             =
-             val
-             val
              (condp = val 3 33 100 100 5 55 val)
-             =
-             val
              (condp = val 3 33 100 100 5 55 val)
              vec
              (->
@@ -352,6 +344,11 @@
                6))))
 
 (deftest doc-condp-test
+    ;; condp is :skip-all-args-type — its clause structure (test-expr /
+    ;; result-expr pairs, optional :>> ternary form) carries
+    ;; condp-specific semantics, so the instrumenter wraps the form in
+    ;; (a-skip ...), emits ONE trace at the top level, and does not
+    ;; descend into the args.
     (let [f  '(condp = 4
                 (inc 2) 5
                 4       (inc 5)
@@ -363,81 +360,30 @@
           f2 (dbgn/insert-trace f1 `trace {})
           f3 (dbgn/remove-skip f2)
           f4 `(dbgn ~f)]
-        (is (= f1 f))
+        (is (= f1 '(day8.re-frame.debux.common.macro-specs/a-skip
+                     (condp = 4 (inc 2) 5 4 (inc 5) 10))))
         (is (= '(day8.re-frame.debux.core-test/trace
-                 {:day8.re-frame.debux.dbgn/indent 0
-                  :day8.re-frame.debux.dbgn/num-seen 1
-                  :day8.re-frame.debux.dbgn/syntax-order 1}
-                 (condp
-                  (day8.re-frame.debux.core-test/trace
-                   {:day8.re-frame.debux.dbgn/indent 2
-                    :day8.re-frame.debux.dbgn/num-seen 1
-                    :day8.re-frame.debux.dbgn/syntax-order 2}
-                   =)
-                  4
-                   (day8.re-frame.debux.core-test/trace
-                    {:day8.re-frame.debux.dbgn/indent 2
-                     :day8.re-frame.debux.dbgn/num-seen 1
-                     :day8.re-frame.debux.dbgn/syntax-order 4}
-                    (inc 2))
-                   5
-                   4
-                   (day8.re-frame.debux.core-test/trace
-                    {:day8.re-frame.debux.dbgn/indent 2
-                     :day8.re-frame.debux.dbgn/num-seen 1
-                     :day8.re-frame.debux.dbgn/syntax-order 8}
-                    (inc 5))
-                   10))
+                  {:day8.re-frame.debux.dbgn/indent 0
+                   :day8.re-frame.debux.dbgn/num-seen 1
+                   :day8.re-frame.debux.dbgn/syntax-order 1}
+                  (day8.re-frame.debux.common.macro-specs/a-skip
+                    (condp = 4 (inc 2) 5 4 (inc 5) 10)))
                f2))
         (is (= '(day8.re-frame.debux.core-test/trace
-                 {:day8.re-frame.debux.dbgn/indent 0
-                  :day8.re-frame.debux.dbgn/num-seen 1
-                  :day8.re-frame.debux.dbgn/syntax-order 1}
-                 (condp
-                  (day8.re-frame.debux.core-test/trace
-                   {:day8.re-frame.debux.dbgn/indent 2
-                    :day8.re-frame.debux.dbgn/num-seen 1
-                    :day8.re-frame.debux.dbgn/syntax-order 2}
-                   =)
-                  4
-                   (day8.re-frame.debux.core-test/trace
-                    {:day8.re-frame.debux.dbgn/indent 2
-                     :day8.re-frame.debux.dbgn/num-seen 1
-                     :day8.re-frame.debux.dbgn/syntax-order 4}
-                    (inc 2))
-                   5
-                   4
-                   (day8.re-frame.debux.core-test/trace
-                    {:day8.re-frame.debux.dbgn/indent 2
-                     :day8.re-frame.debux.dbgn/num-seen 1
-                     :day8.re-frame.debux.dbgn/syntax-order 8}
-                    (inc 5))
-                   10))
+                  {:day8.re-frame.debux.dbgn/indent 0
+                   :day8.re-frame.debux.dbgn/num-seen 1
+                   :day8.re-frame.debux.dbgn/syntax-order 1}
+                  (condp = 4 (inc 2) 5 4 (inc 5) 10))
                f3))
         (is (= (eval f3)
                (eval f)))
         (is (= (eval f4)
                (eval f)))
-        (is (= [{:form '=,
-                  :indent-level 1,
-                  :num-seen 1,
-                  :result =,
-                  :syntax-order 2}
-                 {:form '(inc 2),
-                  :indent-level 1,
-                  :num-seen 1,
-                  :result 3,
-                  :syntax-order 4}
-                 {:form '(inc 5),
-                  :indent-level 1,
-                  :num-seen 1,
-                  :result 6,
-                  :syntax-order 8}
-                 {:form '(condp = 4 (inc 2) 5 4 (inc 5) 10),
-                  :indent-level 0,
-                  :num-seen 1,
-                  :result 6,
-                  :syntax-order 1}]
+        (is (= [{:form '(condp = 4 (inc 2) 5 4 (inc 5) 10)
+                 :indent-level 0
+                 :num-seen 1
+                 :result 6
+                 :syntax-order 1}]
                @traces))
         (is (= @form f))))
              

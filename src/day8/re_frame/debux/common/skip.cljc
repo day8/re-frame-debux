@@ -129,6 +129,15 @@
   (list* name arg1 `(ms/skip ~arg2) `(ms/skip ~arg3) body))
 
 
+;;; :skip-all-args-type
+;; Wraps the form so insert-trace emits ONE trace for the whole form
+;; and does not descend into its args. The (a-skip ...) wrapper is
+;; stripped in remove-skip, leaving the form un-modified at runtime.
+(defn insert-skip-all-args
+  [form]
+  `(ms/a-skip ~form))
+
+
 ;;; :skip-form-itself-type
 (defn insert-skip-form-itself
   [form]

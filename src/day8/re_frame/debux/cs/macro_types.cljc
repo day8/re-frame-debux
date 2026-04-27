@@ -27,17 +27,33 @@
               :skip-arg-1-2-type '#{}
               :skip-arg-2-3-type '#{cljs.core/amap cljs.core/areduce}
               :skip-arg-1-3-type '#{cljs.core/defmethod}
+              ;; Forms whose internals carry compile-time semantics that
+              ;; can't be evaluated as plain expressions (protocol impls,
+              ;; reify method bodies, var / quote, etc.). Emit one trace
+              ;; for the whole form; do NOT instrument the args. Mirrors
+              ;; upstream debux's :skip-all-args-type — strictly more
+              ;; informative than :skip-form-itself-type (which produces
+              ;; no trace at all).
+              :skip-all-args-type
+              '#{cljs.core/comment cljs.core/condp cljs.core/declare
+                 cljs.core/defmacro cljs.core/defmulti
+                 cljs.core/extend-protocol cljs.core/extend-type
+                 cljs.core/goog-define cljs.core/import
+                 cljs.core/import-macros cljs.core/memfn new quote
+                 cljs.core/refer-clojure cljs.core/reify
+                 cljs.core/require cljs.core/require-macros
+                 cljs.core/simple-benchmark cljs.core/specify
+                 cljs.core/specify! cljs.core/use cljs.core/use-macros
+                 var}
               :skip-form-itself-type
-              '#{catch cljs.core/comment cljs.core/declare cljs.core/defmacro
-                 cljs.core/defmulti cljs.core/defprotocol cljs.core/defrecord
-                 cljs.core/deftype cljs.core/extend-protocol cljs.core/extend-type
-                 finally cljs.core/import cljs.core/memfn new quote
+              '#{catch cljs.core/defprotocol cljs.core/defrecord
+                 cljs.core/deftype finally
                  ;; recur is a special form whose arguments must be in tail
                  ;; position of the enclosing loop; instrumenting it as a
                  ;; normal call corrupts that contract and triggers a
                  ;; macroexpansion non-termination (issue #40).
                  recur
-                 cljs.core/refer-clojure cljs.core/reify var throw
+                 throw
                  day8.re-frame.debux.cs.core/dbg debux.cs.core/dbgn
                  day8.re-frame.debux.cs.core/clog debux.cs.core/clogn}
 
@@ -67,18 +83,19 @@
              :skip-arg-1-2-type `#{}
              :skip-arg-1-3-type `#{defmethod}
              :skip-arg-2-3-type `#{amap areduce}
+             :skip-all-args-type
+             `#{condp declare defmacro defmulti defstruct extend
+                extend-protocol extend-type import memfn new ns
+                proxy proxy-super quote refer-clojure reify sync var}
              :skip-form-itself-type
-             `#{catch comment declare definline definterface defmacro defmulti
-                defprotocol defrecord defstruct deftype extend-protocol
-                extend-type finally gen-class gen-interface import memfn
-                new ns proxy proxy-super quote
+             `#{catch comment definline definterface defprotocol
+                defrecord deftype finally gen-class gen-interface
                 ;; recur is a special form whose arguments must be in tail
                 ;; position of the enclosing loop / fn; instrumenting it
                 ;; as a normal call corrupts that contract and triggers
                 ;; a macroexpansion non-termination (issue #40).
                 recur
-                refer-clojure reify sync
-                var throw day8.re-frame.debux.core/dbg day8.re-frame.debux.core/dbgn}
+                throw day8.re-frame.debux.core/dbg day8.re-frame.debux.core/dbgn}
 
              :dot-type `#{.}
              :dot-dot-type `#{clojure.core/..}}

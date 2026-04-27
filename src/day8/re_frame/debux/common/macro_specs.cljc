@@ -5,8 +5,16 @@
     #?(:clj
                     [clojure.future :refer :all])))
 
-(declare skip o-skip skip-outer indent)
+(declare skip a-skip o-skip skip-outer indent)
 ; skip => full skip  -- skip this form and all children
+; a-skip => "all-args skip" -- emit one trace for the whole form, do
+;           NOT instrument any of the args. Used for forms whose
+;           internals carry compile-time semantics that can't be
+;           evaluated as plain expressions (reify method bodies,
+;           extend-type protocol impls, quote/var/import/...).
+;           Strictly more informative than skip: the form itself is
+;           traced (with its result), but the arg sub-trees are
+;           opaque to the instrumenter.
 ; o-skip => outermost skip --> skip this form but process children
 ; skip-outer => ????
 ; indent => increase indentation and dont trace ?????

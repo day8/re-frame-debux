@@ -20,6 +20,10 @@
   ;; emit references resolve, plus +debux-trace-id+ for the :once
   ;; dedup gate (mini-dbgn uses the fixed string "mini-dbgn" instead
   ;; of a gensym so this shape assertion stays byte-stable).
+  ;;
+  ;; The inner (quote ()) gets its own trace because `quote` is now
+  ;; :skip-all-args-type — emit one trace for the whole form with no
+  ;; descent into the args.
   (is (= (macroexpand-1 `(mini-dbgn
                            (-> '())))
          '(clojure.core/let [+debux-dbg-opts+ nil
@@ -28,14 +32,28 @@
             (day8.re-frame.debux.dbgn/trace {:day8.re-frame.debux.dbgn/indent 0
                                              :day8.re-frame.debux.dbgn/num-seen 1
                                              :day8.re-frame.debux.dbgn/syntax-order 1}
-                                            (clojure.core/-> (quote ())))))))
+                                            (clojure.core/-> (day8.re-frame.debux.dbgn/trace
+                                                              {:day8.re-frame.debux.dbgn/indent 1
+                                                               :day8.re-frame.debux.dbgn/num-seen 1
+                                                               :day8.re-frame.debux.dbgn/syntax-order 2}
+                                                              (quote ()))))))))
 
 
 ;; Commented out as we no longer print the traces, we need to get the traced data instead.
 (deftest ->-test
   (let [f `(dbgn (-> '()))]
     (is (= (eval f) '()))
-    (is (= [{:form '(-> (quote ()))
+    ;; (quote ()) is :skip-all-args-type — gets one trace for the
+    ;; whole form with no descent. So the trace stream is
+    ;; [(quote ()) (-> ...)] rather than just [(-> ...)] as it was
+    ;; when `quote` lived in :skip-form-itself-type and produced no
+    ;; trace at all.
+    (is (= [{:form '(quote ())
+             :indent-level 1
+             :num-seen 1
+             :result ()
+             :syntax-order 2}
+            {:form '(-> (quote ()))
              :indent-level 0
              :num-seen 1
              :result ()
