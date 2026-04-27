@@ -178,7 +178,7 @@
                                                          (quote [1 2 3 4 5]))) 'dbgn/d)])
          #{})))
 
-(deftest ^:failing remove-skip-test
+(deftest remove-skip-test
     (println (dbgn/remove-skip
                 '(day8.re-frame.debux.common.util/spy-first
                   (day8.re-frame.debux.common.macro-specs/skip

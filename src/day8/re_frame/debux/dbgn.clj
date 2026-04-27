@@ -448,11 +448,16 @@
         (recur (-> (z/remove loc)
                   ut/right-or-next))
 
-        ;; in case of (skip ...)
+        ;; in case of (skip ...) — replace and re-evaluate the same loc,
+        ;; in case the inner form is itself a wrapped form
+        ;; ((skip-outer ...), (o-skip ...), or another (skip ...)). The
+        ;; previous advance with right-or-next walked past the new loc
+        ;; without giving it a chance to match again, leaving the inner
+        ;; wrapper in the output (rfd-543, mirroring the o-skip fix in
+        ;; rfd-880).
         (and (seq? node)
              (= `ms/skip (first node)))
-        (recur (-> (z/replace loc (second node))
-                   ut/right-or-next))
+        (recur (z/replace loc (second node)))
 
         ;; in case of (o-skip ...)
         ;; Replace and re-evaluate the same loc — if the inner form
