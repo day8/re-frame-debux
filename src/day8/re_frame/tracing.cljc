@@ -148,14 +148,25 @@
   (let [args            (or (-> args+body :args :args) [])
         body-or-prepost (-> args+body :body (nth 0))
         body            (nth (:body args+body) 1)
-        args-symbols    (find-symbols args)]
+        args-symbols    (find-symbols args)
+        ;; Per-call-site frame id, baked in at expansion. Both
+        ;; -send-frame-enter! and -send-frame-exit! receive the same
+        ;; id so consumers can pair the markers.
+        frame-id        (str (gensym "frame_"))
+        r               (gensym "fn-traced-result_")]
     (if (= :body body-or-prepost)   ;; no pre and post conditions
       `(~args
-        (dbgn/dbgn-forms ~body ~send-form ~args-symbols ~opts))
+        (day8.re-frame.debux.common.util/-send-frame-enter! ~frame-id)
+        (let [~r (dbgn/dbgn-forms ~body ~send-form ~args-symbols ~opts)]
+          (day8.re-frame.debux.common.util/-send-frame-exit! ~frame-id ~r)
+          ~r))
     ;; prepost+body
       `(~args
         ~(:prepost body)
-        (dbgn/dbgn-forms ~(:body body) ~send-form ~args-symbols ~opts)))))
+        (day8.re-frame.debux.common.util/-send-frame-enter! ~frame-id)
+        (let [~r (dbgn/dbgn-forms ~(:body body) ~send-form ~args-symbols ~opts)]
+          (day8.re-frame.debux.common.util/-send-frame-exit! ~frame-id ~r)
+          ~r)))))
 
 ;; Components of a defn
 ;; name

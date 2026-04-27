@@ -100,6 +100,16 @@
   [captured]
   (mapv #(pr-str (:form %)) (code-entries captured)))
 
+(defn- frame-entries
+  "Flatten the per-test capture stream into a vec of :trace-frames
+   entries (entry/exit markers) regardless of which trace carried
+   them. Each marker is {:phase :enter|:exit :frame-id ... :t ...}
+   plus `:result` on :exit."
+  [captured]
+  (->> captured
+       (mapcat (comp :trace-frames :tags))
+       vec))
+
 ;; ---------------------------------------------------------------------------
 ;; Acceptance tests for wrap-handler! / unwrap-handler!
 ;; (the wrap-and-emit-:code-on-dispatch contract).
@@ -388,3 +398,61 @@
     (let [forms (set (map :form (code-entries (captured-traces))))]
       (is (contains? forms 99)
           ":show-all wraps the 99 literal just like :verbose would"))))
+
+;; ---------------------------------------------------------------------------
+;; :trace-frames — function entry/exit markers around fn-traced bodies
+;; ---------------------------------------------------------------------------
+
+(deftest fn-traced-emits-enter-and-exit-frame-markers
+  (testing "every fn-traced'd dispatch emits paired :enter and :exit markers"
+    (re-frame.core/reg-event-db ::framed (fn [_ _] {}))
+    (re-frame.core/reg-event-db ::framed
+                                (tracing/fn-traced
+                                  [_ _]
+                                  (let [n (inc 41)]
+                                    {:n n})))
+    (re-frame.core/dispatch-sync [::framed])
+    (let [frames (frame-entries (captured-traces))]
+      (is (= 2 (count frames))
+          "exactly one :enter and one :exit per dispatch")
+      (is (= [:enter :exit] (mapv :phase frames))
+          ":enter precedes :exit chronologically")
+      (let [[enter exit] frames]
+        (is (= (:frame-id enter) (:frame-id exit))
+            "both markers carry the same frame-id (paired by gensym at expansion)")
+        (is (string? (:frame-id enter))
+            "frame-id is a string")
+        (is (number? (:t enter))
+            ":enter carries a millisecond timestamp")
+        (is (number? (:t exit))
+            ":exit carries a millisecond timestamp")
+        (is (>= (:t exit) (:t enter))
+            ":exit timestamp is at or after :enter")))))
+
+(deftest fn-traced-frame-exit-carries-result
+  (testing ":exit marker's :result key holds the handler's return value"
+    (re-frame.core/reg-event-db ::framed-result (fn [_ _] {}))
+    (re-frame.core/reg-event-db ::framed-result
+                                (tracing/fn-traced
+                                  [_ _]
+                                  {:answer 42}))
+    (re-frame.core/dispatch-sync [::framed-result])
+    (let [exit (first (filter #(= :exit (:phase %))
+                              (frame-entries (captured-traces))))]
+      (is (some? exit)
+          ":exit marker is present")
+      (is (= {:answer 42} (:result exit))
+          ":exit :result equals the body's last expression value"))))
+
+(deftest wrap-handler-frames-too
+  (testing "wrap-handler! → fn-traced inherits frame markers"
+    (re-frame.core/reg-event-db ::wrapped-framed (fn [db _] db))
+    (runtime/wrap-handler! :event ::wrapped-framed
+                           (fn [db _] (assoc db :touched? true)))
+    (re-frame.core/dispatch-sync [::wrapped-framed])
+    (let [frames (frame-entries (captured-traces))]
+      (is (seq frames)
+          "wrap-handler! produces frame markers via its fn-traced expansion")
+      (is (= [:enter :exit] (mapv :phase frames))
+          ":enter then :exit"))
+    (runtime/unwrap-handler! :event ::wrapped-framed)))

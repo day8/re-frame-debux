@@ -286,6 +286,66 @@
   nil)
 
 ;;; ----------------------------------------------------------------------
+;;; Frame markers — entry/exit bracketing for fn-traced / defn-traced
+;;; ----------------------------------------------------------------------
+;;;
+;;; Each fn-traced'd / defn-traced'd handler invocation emits a pair of
+;;; markers onto the active trace's :tags :trace-frames vector:
+;;;
+;;;   {:phase :enter :frame-id "frame_42" :t <ms>}
+;;;   {:phase :exit  :frame-id "frame_42" :t <ms> :result <value>}
+;;;
+;;; The frame-id is a gensym'd string baked into the macroexpansion at
+;;; the call site; both markers carry the same id so a consumer (10x
+;;; Code panel, custom inspector) can pair them and bracket the
+;;; intermediate :code entries that landed between them.
+;;;
+;;; Off-trace (no `*current-trace*`) — markers are silently dropped.
+;;; Frame markers are framework-level boundary info, not user-visible
+;;; data, so unlike `send-trace-or-tap!` there's no tap> fallback.
+;;;
+;;; Exception path: only :enter is guaranteed. If the wrapped body
+;;; throws, no :exit marker fires — consumers can detect a missing
+;;; :exit (a :enter with no matching :exit by frame-id) as a thrown
+;;; invocation. Wrapping in try/finally to always emit :exit was
+;;; considered and rejected: an exception with no result is a
+;;; meaningfully different signal than a successful return, and the
+;;; missing-exit pattern preserves that signal.
+
+(defn- now-ms []
+  #?(:cljs (.now js/Date)
+     :clj  (System/currentTimeMillis)))
+
+(defn -send-frame-enter!
+  "Emit a `:enter` marker on the active trace's :trace-frames vector.
+   No-op when no trace is in flight. Internal — called by the
+   fn-traced / defn-traced expansion at body-entry."
+  [frame-id]
+  (when (some? trace/*current-trace*)
+    (let [frames (get-in trace/*current-trace* [:tags :trace-frames] [])]
+      (trace/merge-trace!
+        {:tags {:trace-frames (conj frames
+                                    {:phase    :enter
+                                     :frame-id frame-id
+                                     :t        (now-ms)})}})))
+  nil)
+
+(defn -send-frame-exit!
+  "Emit an `:exit` marker carrying the body's return value. Same
+   no-op-off-trace policy as -send-frame-enter!. Internal — called by
+   the fn-traced / defn-traced expansion right before returning."
+  [frame-id result]
+  (when (some? trace/*current-trace*)
+    (let [frames (get-in trace/*current-trace* [:tags :trace-frames] [])]
+      (trace/merge-trace!
+        {:tags {:trace-frames (conj frames
+                                    {:phase    :exit
+                                     :frame-id frame-id
+                                     :t        (now-ms)
+                                     :result   result})}})))
+  nil)
+
+;;; ----------------------------------------------------------------------
 ;;; :once / duplicate-suppression state
 ;;; ----------------------------------------------------------------------
 ;;;
