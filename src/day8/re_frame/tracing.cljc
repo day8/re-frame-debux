@@ -176,7 +176,11 @@
     (let [node (z/node loc)]
       (cond
         (z/end? loc) seen
-        (symbol? node) (recur (z/next loc) (conj seen node))
+        ;; Skip the '& arglist separator. It's a fn-arglist sentinel,
+        ;; not a real local — emitting it into +debux-dbg-locals+
+        ;; would expand to the unbound symbol `&` and raise
+        ;; CompilerException at handler-load time.
+        (and (symbol? node) (not= '& node)) (recur (z/next loc) (conj seen node))
         :else (recur (z/next loc) seen)
         ))))
 

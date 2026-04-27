@@ -216,6 +216,34 @@
         (is (some #(= 7 (second %)) a-locals)
             ":locals binds x to its runtime value (7)")))))
 
+(deftest fn-traced-locals-with-varargs-arglist
+  (testing ":locals true + a varargs arglist [a & rest] compiles and binds named locals only"
+    ;; The '& separator is an arglist sentinel, not a binding —
+    ;; emitting `['& &]` into +debux-dbg-locals+ would raise
+    ;; CompilerException at handler-load time. find-symbols must drop it.
+    (re-frame.core/reg-event-db ::var-args (fn [db _] db))
+    (re-frame.core/reg-event-db ::var-args
+                                (tracing/fn-traced
+                                  {:locals true}
+                                  [db & rest]
+                                  (assoc db :rest rest)))
+    (re-frame.core/dispatch-sync [::var-args :a :b :c])
+    (let [code     (code-entries (captured-traces))
+          a-locals (-> code first :locals)]
+      (is (seq code)
+          "varargs handler with :locals true expanded and dispatched without throwing")
+      (is (every? :locals code)
+          ":locals attaches to each :code entry")
+      (is (not-any? #(= '& (first %)) a-locals)
+          "the '& arglist separator never appears as a local binding")
+      (is (some #(= 'rest (first %)) a-locals)
+          "the variadic-tail symbol IS a real local — included")
+      (is (some #(= 'db (first %)) a-locals)
+          "fixed args are still captured")
+      (is (= '([:day8.re-frame.integration-test/var-args :a :b :c])
+             (some (fn [[s v]] (when (= 'rest s) v)) a-locals))
+          "rest binds to the variadic tail at runtime (re-frame passes the event vec as the single 2nd arg)"))))
+
 (deftest fn-traced-locals-omitted-when-not-requested
   (testing "no :locals key on entries when opts is absent / false"
     (re-frame.core/reg-event-db ::no-locals (fn [db _] db))
