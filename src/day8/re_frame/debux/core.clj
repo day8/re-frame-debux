@@ -50,7 +50,12 @@
         args+body (nth bs 1)]
     (if arity-1?
       `(defn ~name ~@(fn-body args+body))
-      `(defn ~name ~@(map fn-body (:bodies args+body))))))
+      ;; arity-n may carry a trailing attr-map (see ::ms/defn-args:
+      ;; :attr (s/? map?)); forward it so meta lands on the var.
+      (let [trailing-attr (:attr args+body)]
+        `(defn ~name
+           ~@(map fn-body (:bodies args+body))
+           ~@(when trailing-attr [trailing-attr]))))))
 
 (defmacro defn-traced
   "Traced defn"

@@ -72,10 +72,8 @@
                                    (f x)))
                  inc -1))))
 
-;; TODO: we don't currently support trailing attr maps
-;; I think the spec needs to be tweaked to conform it correctly?
-(deftest ^:failing defn-traced-trailing-attr
-    (is (= (-> '(day8.re-frame.debux.core/defn-traced 
+(deftest defn-traced-trailing-attr
+    (is (= (-> '(day8.re-frame.debux.core/defn-traced
                   trailing-attr
                     ([] 0)
                     {:doc "test"})
