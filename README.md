@@ -71,6 +71,134 @@ or:
    my-handler)
 ```
 
+## Tracing options
+
+Both `fn-traced` and `defn-traced` accept an optional opts map immediately after the macro name. The opts modulate what gets emitted on every per-form `:code` trace record.
+
+```clojure
+(fn-traced {:locals true :once true} [db [_ x]]
+  ;; ...body...
+  )
+
+(defn-traced {:msg "checkout-handler" :final true}
+  checkout
+  [db [_ amount]]
+  ;; ...body...
+  )
+```
+
+| Opt                     | Effect                                                                                                                                                              |
+|-------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `:locals true`          | Attach the captured handler args as `[[sym val] ...]` to each `:code` entry. Lets you see the binding values that fed the trace.                                    |
+| `:if pred`              | Runtime predicate called with the per-form result; `send-trace!` fires only when `(pred result)` returns truthy.                                                    |
+| `:once true` (`:o`)     | Suppress consecutive emissions whose `(form, result)` pair matches the previous one. Per call site; state survives across handler invocations until the result actually changes. Useful for high-frequency dispatches. |
+| `:verbose true` (`:show-all`) | Wrap leaf literals (numbers, strings, booleans, keywords, chars, nil) that the default mode skips for noise reduction. Special-form skips (`recur`, `throw`, `var`, `quote`, …) stay honoured.                          |
+| `:final true` (`:f`)    | Emit only the outermost (indent-level 0) `:code` entry per top-level wrapping form. Suppresses every nested per-form entry — useful when only the final value matters.                                                  |
+| `:msg "label"` (`:m`)   | Attach a developer-supplied label to each emitted `:code` entry. Per-call dynamic — evaluated at trace time, not macroexpansion. Lets consumers distinguish output from many parallel call sites.                       |
+
+The same opt set applies to `dbg`, `dbgn`, `dbg-last`, `fx-traced`, `defn-fx-traced` (with minor per-macro variations called out in their docstrings).
+
+## Single-form tracing: `dbg` / `dbg-last` / `dbgn`
+
+For one-off probes inside a handler body — without rewriting the whole `fn` as `fn-traced`:
+
+```clojure
+(re-frame.core/reg-event-db
+  :user/login
+  (fn [db [_ creds]]
+    (assoc db :user (dbg (lookup-user creds) {:name "login"}))))
+```
+
+`dbg` is value-transparent: the wrapped expression evaluates exactly as if the macro weren't there, and one trace record per evaluation lands on the active event's `:code` stream. Outside any trace context, output falls back to `tap>` so REPL callers still see the value.
+
+`dbg-last` is the thread-last counterpart — drops into a `->>` step slot:
+
+```clojure
+(->> coll
+     (filter pred?)
+     dbg-last                          ; bare
+     (map xf)
+     (reduce +))
+
+(->> coll
+     (filter pred?)
+     (dbg-last {:name "after-filter"}) ; with opts
+     (map xf))
+```
+
+`dbgn` traces every nested sub-form of an expression (the `dbgn` zipper walker), as opposed to `dbg`'s single record per evaluation:
+
+```clojure
+(dbgn (->> users
+           (filter active?)
+           (map :email)
+           sort))
+;; => emits one :code record per intermediate step
+```
+
+All three macros take the same opts map as `fn-traced` (`:name`, `:locals`, `:if`, `:once`, `:msg`, plus `:tap?` for `dbg`/`dbg-last`).
+
+## Tracing `reg-event-fx` handlers: `fx-traced` / `defn-fx-traced`
+
+`reg-event-fx` handlers return an effects map — `fn-traced` traces the inner expressions but doesn't surface the per-key entries of the returned map. `fx-traced` does both: it inherits all of `fn-traced`'s per-form `:code` emission plus emits one `:fx-effects` entry per key in the returned effect-map.
+
+```clojure
+(re-frame.core/reg-event-fx
+  :checkout
+  (fx-traced [_ [_ amount]]
+    (let [taxed (* 1.1 amount)]
+      {:db       {:total taxed}
+       :http     {:method :post :body taxed}
+       :dispatch [:notify :checkout-done]})))
+```
+
+`defn-fx-traced` is the `defn` variant — same surface as `defn-traced` plus the per-effect-key tracing. Same opts as `fn-traced` (`:locals`, `:if`, `:once`, `:verbose`, `:final`, `:msg`).
+
+## Runtime API: on-demand wrap / unwrap
+
+The compile-time macros above require a source edit. For tools that drive re-frame from the REPL — re-frame-pair in particular — `day8.re-frame.tracing.runtime` exposes a wrap/unwrap cycle that swaps a `fn-traced`-wrapped version of a handler in and out of re-frame's registrar without source edits:
+
+```clojure
+(require '[day8.re-frame.tracing.runtime :as rt])
+
+(rt/wrap-handler! :event :some/event
+  (fn [db [_ x]]
+    (let [n (* 2 x)]
+      (assoc db :n n))))
+
+;; ... dispatch / observe the :code stream ...
+
+(rt/unwrap-handler! :event :some/event)   ; restore the original
+```
+
+`wrap-handler!` captures the original handler as currently registered (with whatever interceptor chain) into a side-table; `unwrap-handler!` restores verbatim — bypassing `reg-event-db`'s chain builder so nested interceptors come back intact.
+
+The replacement form must be a literal `(fn [...] ...)` — `fn-traced` operates on the AST at compile time, so a precompiled fn value can't be re-traced.
+
+Convenience wrappers:
+
+| Macro / fn                               | Notes                                                                                                                  |
+|------------------------------------------|------------------------------------------------------------------------------------------------------------------------|
+| `wrap-event-fx!` / `wrap-event-ctx!`     | Use these instead of `wrap-handler! :event` when the traced body returns an effects map / context map.                 |
+| `wrap-sub!` / `wrap-fx!`                 | Convenience for `wrap-handler! :sub` / `wrap-handler! :fx`.                                                            |
+| `unwrap-sub!` / `unwrap-fx!` / `unwrap-all!` | Restore one or all wrapped handlers.                                                                              |
+| `wrapped?` / `wrapped-list`              | Inspect the side-table — useful for tools badging the wrapped state in their UI.                                       |
+| `runtime-api?`                           | Feature-detection predicate: `true` when this namespace is loaded. Stable hook for downstream tools.                   |
+
+## Configuration
+
+Three runtime knobs live alongside the tracing macros and apply globally:
+
+```clojure
+(require '[day8.re-frame.tracing :as t])
+
+(t/set-tap-output! true)        ; mirror every send-trace! payload through tap> as well
+(t/set-print-seq-length! 50)    ; bound the number of items shown for sequences in trace records
+(t/reset-indent-level!)         ; reset the trace-indenting counter (recovery if a body threw mid-emit)
+```
+
+`set-tap-output!` is the toggle for the `tap>` output channel added in v0.7 — see CHANGELOG for the per-call `:tap?` opt that does the same thing on a single `dbg` site without flipping the global.
+
 ## Option 1: Two libraries
 
 **In development,** you want to include the `day8.re-frame/tracing` library. When you use a `day8.re-frame.tracing/fn-traced` or `day8.re-frame.tracing/traced-defn` from this library, it will emit traces to re-frame's tracing system, which can then be consumed by [re-frame-10x](https://github.com/Day8/re-frame-10x).

@@ -3,14 +3,19 @@ All notable changes to this project will be documented in this file. This change
 
 ## [0.7.0] - 2026-04-27
 
-The v0.7 line closes the remaining feature gaps relative to philoskim/debux's option surface and adds two re-frame-shaped extensions on top — function entry/exit markers and per-effect tracing for `reg-event-fx` handlers. Four additive items, no breaking changes.
+The v0.7 line closes the remaining feature gaps relative to philoskim/debux's option surface and adds two re-frame-shaped extensions on top — function entry/exit markers and per-effect tracing for `reg-event-fx` handlers. Nine additive items, no breaking changes.
 
 #### Added
 
 * `:once` / `:o` option on `fn-traced` / `defn-traced` / `dbg` / `dbgn` (commit 33225e8). Suppresses consecutive emissions whose `(form, result)` pair matches the previous one. Per call-site identity (gensym'd at expansion); state survives across handler invocations until the result actually changes. Useful for high-frequency dispatches where you only want to see what's NEW. Composes with `:if` cleanly. Public reset via `day8.re-frame.debux.common.util/-reset-once-state!`.
 * `:verbose` / `:show-all` option on `fn-traced` / `defn-traced` / `dbgn` (commit 0177254). Wraps leaf literals (numbers, strings, booleans, keywords, chars, nil) that the default zipper walker skips for noise reduction. Special-form skips (`recur`, `throw`, `var`, `quote`, `catch`, `finally` — the `:skip-form-itself-type` set) STAY honoured because instrumenting them corrupts evaluation semantics. Resolves the `:skip-classification` open question from `docs/v0.6-roadmap.md` Pair A.
+* `:final` / `:f` option on `fn-traced` / `defn-traced` / `dbg` / `dbgn` / `fx-traced` / `defn-fx-traced` (commit 8eeadf6). When set, only the outermost (indent-level 0) `:code` entry is emitted per top-level wrapping form — every nested per-form entry is suppressed. Useful when you only care about the final value of each handler-body expression and the per-step zipper trace is noise. Composes with `:if` / `:once` / `:msg`.
+* `:msg` / `:m` option on `dbg` / `dbgn` / `fn-traced` / `defn-traced` / `fx-traced` / `defn-fx-traced` (commit b0a68b9). Attaches a developer-supplied label to each emitted `:code` entry so consumers can distinguish output from many parallel call sites. Per-call dynamic — the value is evaluated at trace time, not macroexpansion.
+* `dbg-last` macro — thread-last-friendly counterpart to `dbg` (commit 304ef11). Sits in the natural `->>` step slot: `(->> coll (filter pred?) dbg-last (map xf))`. Value-transparent; same payload schema and opts (`:name` / `:locals` / `:if` / `:once` / `:msg` / `:tap?`) as `dbg`.
+* `tap>` output channel for trace records (commit 18b06dc). New `day8.re-frame.tracing/set-tap-output!` toggle plumbs every `send-trace!` payload through `tap>` in addition to its normal in-trace sink, so any `add-tap` consumer (custom 10x panels, REPL probes, eval-cljs scripts) sees the same processed `:code` records. Default off — preserves the existing trace-only behaviour. Companion to the `:tap?` per-call opt on `dbg` / `dbg-last`.
 * Function entry/exit markers — `:trace-frames` tag emitted by `fn-traced` / `defn-traced` (commit 8ba53a8). Each invocation produces a paired `{:phase :enter :frame-id …}` / `{:phase :exit :frame-id … :result …}` marker bracketing the existing `:code` payload, so consumers (10x Code panel, custom inspectors) can pair the markers and bound the intermediate `:code` entries. Off-trace: markers are silently dropped (no `tap>` fallback — frames are framework-level boundary info, not user-visible data). Exception path: only `:enter` is guaranteed; a missing `:exit` is the signal that the body threw.
 * `fx-traced` / `defn-fx-traced` macros for `reg-event-fx` handlers (commit bae1b0d). Inherits all of `fn-traced`'s per-form `:code` emission, frame markers, and `:locals` / `:if` / `:once` / `:verbose` opts; ALSO emits one `:fx-effects` entry per key in the returned effect-map (`{:fx-key k :value v :t ms}`). Resolves the `dbgn.clj:353` "trace inside maps, especially for fx" TODO without modifying the zipper walker. Production stubs in both `tracing_stubs` namespaces strip opts and compile to bare `fn` / `defn`.
+* Classifier parity with upstream debux — closes the four confirmed gaps (commit b471026). New `:skip-all-args-type` category: forms whose args carry compile-time semantics (protocol impls, `reify` method bodies, `var` / `quote` / `import`, etc.) get one trace at the top level with no descent into the args — strictly more informative than `:skip-form-itself-type`. `condp`'s test/expr pairs are now correctly walked, `extend` / `extend-protocol` / `extend-type` are recognised, and the previously-missing forms in `:skip-fn-ret-type` / `:skip-fn-args-type` got added.
 
 #### Internal
 
@@ -25,6 +30,7 @@ The v0.7 line closes the remaining feature gaps relative to philoskim/debux's op
 * `remove-skip`'s `o-skip?` handler now re-evaluates the new loc instead of descending into the replaced form (commit 8d4e331).
 * Documentation images restored: `doc/img/cursive-{1,2,3}.png` re [#38](https://github.com/day8/re-frame-debux/issues/38) (commit ff5122a).
 * Test-selector parity between `lein test` and `cognitect.test-runner` — `^:failing` and `^:integration` tests are excluded by default in both runners (commit 4eee8a3).
+* `defn-traced*` now propagates `:docstring` and `:meta` to the resulting var (commit a527e6a). `::ms/defn-args` had been conforming both fields all along, but `defn-traced*` only spliced `:name` and `:bs`, silently dropping any leading docstring or attr-map. Result was a traced handler whose var had no `:doc` / `:added` / `:tag` meta even though the source looked correct.
 
 #### Added
 
