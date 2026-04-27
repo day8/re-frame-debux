@@ -161,9 +161,11 @@
 ;;;   `tidy-macroexpanded-form` (above, line 100ish) replaces fully-
 ;;;   qualified names from `clojure.core` with their short forms and
 ;;;   strips gensym-suffixed names from `let`/`loop`/`for`-introduced
-;;;   bindings. The result is human-readable, but NOT necessarily
-;;;   round-trippable through the reader if the source contained
-;;;   reader-conditional or shadow-cljs-specific forms.
+;;;   bindings. Macro-generated traces precompute that form; direct
+;;;   `send-trace!` callers still get tidied here. The result is
+;;;   human-readable, but NOT necessarily round-trippable through the
+;;;   reader if the source contained reader-conditional or
+;;;   shadow-cljs-specific forms.
 ;;;
 ;;; - **`:result`** is the value the form evaluated to. Stored as the
 ;;;   live value (no pr-str coercion here — that's the consumer's call,
@@ -298,7 +300,9 @@
           ;; the surrounding dbg / dbgn / fn-traced / defn-traced) joins
           ;; the same whitelist — propagated by the macro layer onto each
           ;; emitted code-trace, surfaced as a top-level :msg key.
-          entry (cond-> {:form         (tidy-macroexpanded-form (:form code-trace) {})
+          entry (cond-> {:form         (if (::form-tidied? (meta code-trace))
+                                         (:form code-trace)
+                                         (tidy-macroexpanded-form (:form code-trace) {}))
                          :result       (:result code-trace)
                          :indent-level (:indent-level code-trace)
                          :syntax-order (:syntax-order code-trace)

@@ -39,6 +39,18 @@
   (is (some? (dbgn-forms-locals-binding 'runtime-opts))
       "unknown opts fall back to the previous locals-building shape"))
 
+(deftest dbgn-emits-pre-tidied-trace-forms
+  (let [captured (atom [])]
+    (with-redefs [ut/send-trace! (fn [code-trace]
+                                   (swap! captured conj code-trace))
+                  ut/send-form!  (fn [_])]
+      (is (= 2 (eval '(day8.re-frame.debux.dbgn/dbgn
+                        (clojure.core/inc 1))))))
+    (is (= ['(inc 1)] (mapv :form @captured))
+        "macro-generated :form values are tidied before runtime")
+    (is (every? #(-> % meta ::ut/form-tidied?) @captured)
+        "macro-generated trace maps tell send-trace! to skip retidying")))
+
 ;; Works in Cursive, fails with lein test
 ;; See https://github.com/technomancy/leiningen/issues/912
 (deftest skip-outer-skip-inner-test

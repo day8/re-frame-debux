@@ -441,6 +441,7 @@
   [bind-form org-form indent syntax-order num-seen]
   (let [r          (gensym "trace-result_")
         m          (gensym "trace-msg_")
+        trace-form (ut/tidy-macroexpanded-form org-form {})
         ;; `:final` suppresses every per-form emission except the
         ;; outermost (indent 0) — useful for long thread-* pipelines
         ;; where intermediate steps are noise. The depth check is
@@ -462,15 +463,17 @@
                   (or (not (:once ~'+debux-dbg-opts+))
                       (ut/-once-emit? ~'+debux-trace-id+ ~syntax-order ~r)))
          (ut/send-trace!
-           (cond-> {:form         '~org-form
-                    :result       ~r
-                    :indent-level ~indent
-                    :syntax-order ~syntax-order
-                    :num-seen     ~num-seen}
-             (:locals ~'+debux-dbg-opts+)
-             (assoc :locals ~'+debux-dbg-locals+)
-             ~m
-             (assoc :msg ~m))))
+           (with-meta
+             (cond-> {:form         '~trace-form
+                      :result       ~r
+                      :indent-level ~indent
+                      :syntax-order ~syntax-order
+                      :num-seen     ~num-seen}
+               (:locals ~'+debux-dbg-opts+)
+               (assoc :locals ~'+debux-dbg-locals+)
+               ~m
+               (assoc :msg ~m))
+             {::ut/form-tidied? true})))
        ~r)))
 
 (defmethod trace* :trace

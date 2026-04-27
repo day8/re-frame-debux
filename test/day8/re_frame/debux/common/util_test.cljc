@@ -1,6 +1,7 @@
 (ns day8.re-frame.debux.common.util-test
   (:require [clojure.test :refer [deftest testing is]]
-            [day8.re-frame.debux.common.util :as ut]))
+            [day8.re-frame.debux.common.util :as ut]
+            [re-frame.trace :as rft]))
 
 (deftest with-gensyms-names-test
   (testing "auto gensym patterns"
@@ -50,6 +51,34 @@
   (is (= (ut/tidy-macroexpanded-form '#(inc %1)
                                      {})
          '(fn* [%1] (inc %1)))))
+
+#?(:clj
+   (deftest send-trace-form-tidying-test
+     (testing "unmarked direct send-trace! callers still get runtime form tidying"
+       (with-redefs [rft/trace-enabled? true]
+         (binding [rft/*current-trace* {:tags {}}]
+           (ut/send-trace! {:form         '(clojure.core/inc 1)
+                            :result       2
+                            :indent-level 0
+                            :syntax-order 1
+                            :num-seen     1})
+           (is (= '(inc 1)
+                  (get-in rft/*current-trace* [:tags :code 0 :form]))))))
+     (testing "macro-generated pre-tidied forms skip runtime tidying"
+       (with-redefs [rft/trace-enabled? true
+                     ut/tidy-macroexpanded-form
+                     (fn [& _]
+                       (throw (ex-info "tidy should not run" {})))]
+         (binding [rft/*current-trace* {:tags {}}]
+           (ut/send-trace! (with-meta
+                             {:form         '(inc 1)
+                              :result       2
+                              :indent-level 0
+                              :syntax-order 1
+                              :num-seen     1}
+                             {::ut/form-tidied? true}))
+           (is (= '(inc 1)
+                  (get-in rft/*current-trace* [:tags :code 0 :form]))))))))
 
 ;; ---------------------------------------------------------------------------
 ;; parse-opts — keyword-style opts sequence → opts map.
