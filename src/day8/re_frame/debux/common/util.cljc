@@ -235,6 +235,35 @@
            (reset! prod-mode-warned? true))))
      :clj nil))
 
+;;; ----------------------------------------------------------------------
+;;; tap> output channel — set-tap-output!
+;;; ----------------------------------------------------------------------
+;;;
+;;; When enabled, send-trace! ALSO routes its processed :code entry to
+;;; tap>, so any add-tap consumer (re-frame-10x, an ad-hoc REPL probe,
+;;; scripts/eval-cljs.sh) sees the trace alongside the existing
+;;; trace/merge-trace! sink. Default off — preserves the trace-only
+;;; behaviour. Independent of trace state: even out-of-trace, a
+;;; send-trace! call (e.g. via spy-first/last/comp at the REPL) will
+;;; emit to tap> when this flag is true.
+;;;
+;;; The tap> payload is the same processed entry that lands on :tags
+;;; :code (form tidied via tidy-macroexpanded-form, whitelisted keys).
+;;; Distinct from `send-trace-or-tap!`'s out-of-trace fallback, which
+;;; tags its payload with :debux/dbg true — this channel is the full
+;;; in-trace stream, not just dbg call-sites.
+
+(defonce ^:private tap-output? (atom false))
+
+(defn set-tap-output!
+  "When `enabled?` is truthy, debux's `send-trace!` also calls `(tap>
+   entry)` for every emission so any `add-tap` consumer sees the
+   trace. False by default — preserves the existing trace-only
+   behaviour. Independent of whether re-frame's trace machinery is
+   enabled."
+  [enabled?]
+  (reset! tap-output? (boolean enabled?)))
+
 (defn send-form! [form]
   (maybe-warn-production-mode!)
   (trace/merge-trace! {:tags {:form form}}))
@@ -266,7 +295,11 @@
                 (contains? code-trace :msg)
                 (assoc :msg (:msg code-trace)))]
     ;; TODO: also capture macroexpanded form? Might be useful in some cases?
-    (trace/merge-trace! {:tags {:code (conj code entry)}})))
+    (trace/merge-trace! {:tags {:code (conj code entry)}})
+    ;; Optional tap> sink — see set-tap-output! above. Independent of
+    ;; the re-frame trace channel so add-tap consumers (10x, ad-hoc REPL
+    ;; probes) see entries even when no trace is in flight.
+    (when @tap-output? (tap> entry))))
 
 ;; Sink dispatch for the dbg macro. Inside a re-frame trace
 ;; event (`*current-trace*` bound non-nil during with-trace) accumulate

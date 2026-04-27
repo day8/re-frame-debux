@@ -27,6 +27,7 @@
 
 (def reset-indent-level! ut/reset-indent-level!)
 (def set-print-seq-length! ut/set-print-seq-length!)
+(def set-tap-output! ut/set-tap-output!)
 
 
 ;;; debugging APIs

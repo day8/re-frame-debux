@@ -532,3 +532,154 @@
     (re-frame.core/dispatch-sync [::malformed])
     (is (some? (fx-effects-entries (captured-traces)))
         "well-formed fx-traced doesn't crash; emits per-key entries normally")))
+
+;; ---------------------------------------------------------------------------
+;; tap> output channel — set-tap-output!
+;; ---------------------------------------------------------------------------
+;;
+;; CLJ tap> dispatch is async (agent-pool-backed queue). Tests use a
+;; small wait helper that polls the probe atom up to a generous
+;; timeout — robust to scheduler jitter without burning real time on
+;; the happy path.
+
+(defn- wait-for
+  "Poll `pred-fn` until it returns truthy or `timeout-ms` elapses.
+   Returns the truthy value or nil on timeout."
+  [pred-fn timeout-ms]
+  (let [deadline (+ (System/currentTimeMillis) timeout-ms)]
+    (loop []
+      (or (pred-fn)
+          (when (< (System/currentTimeMillis) deadline)
+            (Thread/sleep 5)
+            (recur))))))
+
+(deftest set-tap-output-routes-trace-records-to-add-tap
+  (testing "set-tap-output! true → add-tap probe receives processed :code entries"
+    (let [received (atom [])
+          probe    (fn [x] (swap! received conj x))]
+      (try
+        (add-tap probe)
+        (util/set-tap-output! true)
+        (re-frame.core/reg-event-db ::tapped (fn [db _] db))
+        (runtime/wrap-handler! :event ::tapped
+                               (fn [db _] (let [n (inc 41)] (assoc db :n n))))
+        (re-frame.core/dispatch-sync [::tapped])
+        (wait-for #(seq @received) 1000)
+        (is (seq @received)
+            "tap probe received at least one trace record")
+        (let [results (set (map :result @received))
+              forms   (set (map (comp pr-str :form) @received))]
+          (is (contains? results 42)
+              "tap probe got the (inc 41) → 42 entry")
+          (is (some #(re-find #"inc" %) forms)
+              "tap probe entries include the inc form (tidied)")
+          (is (every? #(contains? % :indent-level) @received)
+              "every tapped entry carries the :code payload contract"))
+        (runtime/unwrap-handler! :event ::tapped)
+        (finally
+          (remove-tap probe)
+          (util/set-tap-output! false))))))
+
+(deftest set-tap-output-default-is-quiet
+  (testing "without set-tap-output! true, add-tap probe sees no send-trace! emissions"
+    (let [received (atom [])
+          probe    (fn [x] (swap! received conj x))]
+      (try
+        (add-tap probe)
+        ;; Don't enable tap output — dispatch should land on :code only.
+        (re-frame.core/reg-event-db ::quiet-tap (fn [db _] db))
+        (runtime/wrap-handler! :event ::quiet-tap
+                               (fn [db _] (let [n (inc 41)] (assoc db :n n))))
+        (re-frame.core/dispatch-sync [::quiet-tap])
+        ;; Give the agent a window to (mis)deliver; we expect nothing.
+        (Thread/sleep 50)
+        (is (seq (code-entries (captured-traces)))
+            "the trace channel still received entries (sanity)")
+        (is (empty? @received)
+            "tap channel is silent by default — no entries reached the probe")
+        (runtime/unwrap-handler! :event ::quiet-tap)
+        (finally
+          (remove-tap probe))))))
+
+(deftest set-tap-output-toggle-stops-emission
+  (testing "set-tap-output! false stops further emissions to add-tap consumers"
+    (let [received (atom [])
+          probe    (fn [x] (swap! received conj x))]
+      (try
+        (add-tap probe)
+        (util/set-tap-output! true)
+        (re-frame.core/reg-event-db ::toggled (fn [db _] db))
+        (runtime/wrap-handler! :event ::toggled
+                               (fn [db _] (let [n (inc 41)] (assoc db :n n))))
+        (re-frame.core/dispatch-sync [::toggled])
+        (wait-for #(seq @received) 1000)
+        (let [first-count (count @received)]
+          (is (pos? first-count)
+              "first dispatch with tap-output on emitted to the probe"))
+        (util/set-tap-output! false)
+        (reset! received [])
+        (re-frame.core/dispatch-sync [::toggled])
+        (Thread/sleep 50)
+        (is (empty? @received)
+            "after toggling off, second dispatch produces no tap emissions")
+        (runtime/unwrap-handler! :event ::toggled)
+        (finally
+          (remove-tap probe)
+          (util/set-tap-output! false))))))
+
+(deftest set-tap-output-fires-out-of-trace
+  (testing "set-tap-output! true emits even when no trace event is in flight"
+    ;; Independent of re-frame.trace machinery: a send-trace! call
+    ;; with trace-enabled? false should still tap. The fixture turns
+    ;; trace-enabled? on for the dispatch tests; flip it off here so
+    ;; merge-trace! is a no-op (and doesn't try to set! an unbound
+    ;; *current-trace*) and we exercise only the tap arm.
+    (with-redefs [rft/trace-enabled?     false
+                  tracing/trace-enabled? false]
+      (let [received (atom [])
+            probe    (fn [x] (swap! received conj x))]
+        (try
+          (add-tap probe)
+          (util/set-tap-output! true)
+          (util/send-trace! {:form         '(inc 41)
+                             :result       42
+                             :indent-level 0
+                             :syntax-order 0
+                             :num-seen     0})
+          (wait-for #(seq @received) 1000)
+          (is (= 1 (count @received))
+              "tap probe got exactly one emission from the bare send-trace! call")
+          (let [entry (first @received)]
+            (is (= 42 (:result entry)))
+            (is (= '(inc 41) (:form entry))
+                ":form is tidied (clojure.core/inc → inc) in the tapped entry"))
+          (finally
+            (remove-tap probe)
+            (util/set-tap-output! false)))))))
+
+(deftest set-tap-output-coerces-truthiness
+  (testing "set-tap-output! treats arg as boolean; nil → off, non-nil → on"
+    ;; Mirrors the boolean coercion in the setter — a nil/falsy arg
+    ;; must turn the channel off, not crash on @atom deref.
+    (with-redefs [rft/trace-enabled?     false
+                  tracing/trace-enabled? false]
+      (let [received (atom [])
+            probe    (fn [x] (swap! received conj x))]
+        (try
+          (add-tap probe)
+          (util/set-tap-output! "non-nil-truthy-thing")
+          (util/send-trace! {:form '(identity 1) :result 1 :indent-level 0
+                             :syntax-order 0 :num-seen 0})
+          (wait-for #(seq @received) 1000)
+          (is (seq @received)
+              "truthy non-boolean turned the channel on")
+          (reset! received [])
+          (util/set-tap-output! nil)
+          (util/send-trace! {:form '(identity 2) :result 2 :indent-level 0
+                             :syntax-order 0 :num-seen 0})
+          (Thread/sleep 50)
+          (is (empty? @received)
+              "nil arg turned the channel off")
+          (finally
+            (remove-tap probe)
+            (util/set-tap-output! false)))))))
