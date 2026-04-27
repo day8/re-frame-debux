@@ -50,3 +50,77 @@
   (is (= (ut/tidy-macroexpanded-form '#(inc %1)
                                      {})
          '(fn* [%1] (inc %1)))))
+
+;; ---------------------------------------------------------------------------
+;; parse-opts — keyword-style opts sequence → opts map.
+;;
+;; `parse-opts` is the entry point for the kw-style public surface
+;; `(tracing/dbgn form :once :verbose)`, `(tracing/dbgn form :msg "x")`,
+;; etc. — every keyword and shorthand listed in the dbgn / fn-traced
+;; docstrings flows through here. A silent rename or reorder of any
+;; cond branch (the regression that motivated the :if / :condition
+;; mishap) drops the option without surfacing as a test failure unless
+;; the parse itself is pinned.
+;;
+;; Each deftest below pins exactly one cond branch; the trailing
+;; mixed-input test pins that the branches don't shadow each other.
+;; ---------------------------------------------------------------------------
+
+(deftest parse-opts-empty-test
+  (is (= {} (ut/parse-opts []))
+      "empty opts → empty map (the :empty? branch terminates the loop)"))
+
+(deftest parse-opts-once-keyword-test
+  (testing ":once and its :o alias map to {:once true}"
+    (is (= {:once true} (ut/parse-opts [:once])))
+    (is (= {:once true} (ut/parse-opts [:o]))
+        ":o is the documented shorthand; aliasing must survive any future cond reorder")))
+
+(deftest parse-opts-msg-with-value-test
+  (testing ":msg / :m consume the next item as the label value"
+    (is (= {:msg "hello"} (ut/parse-opts [:msg "hello"])))
+    (is (= {:msg "label"} (ut/parse-opts [:m "label"]))
+        ":m is the shorthand alias; both must use nnext (consume value-arg)")))
+
+(deftest parse-opts-verbose-keyword-test
+  (testing ":verbose and its :show-all alias map to {:verbose true}"
+    (is (= {:verbose true} (ut/parse-opts [:verbose])))
+    (is (= {:verbose true} (ut/parse-opts [:show-all]))
+        ":show-all is the documented long-form alias for :verbose")))
+
+(deftest parse-opts-number-literal-test
+  (testing "a number literal becomes :n (max-trace-count)"
+    (is (= {:n 42} (ut/parse-opts [42])))
+    (is (= {:n 0}  (ut/parse-opts [0])))
+    (is (= {:n -1} (ut/parse-opts [-1]))
+        "negative numbers route through the same branch — no special-casing")))
+
+(deftest parse-opts-string-literal-test
+  (testing "a bare string literal becomes :msg (label shorthand)"
+    (is (= {:msg "label"} (ut/parse-opts ["label"]))
+        "the kw-style sugar — `(tracing/dbgn form \"label\")` ≡ `(... :msg \"label\")`")))
+
+(deftest parse-opts-js-keyword-test
+  (testing ":js maps to {:js true}"
+    (is (= {:js true} (ut/parse-opts [:js]))
+        "the cljs-only flag — flag-shape, no value-arg, single :next advance")))
+
+(deftest parse-opts-style-with-value-test
+  (testing ":style / :s consume the next item as the style value"
+    (is (= {:style "color: red"} (ut/parse-opts [:style "color: red"])))
+    (is (= {:style {:color "blue"}} (ut/parse-opts [:s {:color "blue"}]))
+        ":s is the shorthand alias; both must use nnext to read the style payload")))
+
+(deftest parse-opts-clog-keyword-test
+  (testing ":clog maps to {:clog true}"
+    (is (= {:clog true} (ut/parse-opts [:clog]))
+        "the console.log routing flag — flag-shape, no value-arg")))
+
+(deftest parse-opts-mixed-test
+  (testing "the cond branches don't shadow each other when several opts compose"
+    (is (= {:once true :n 5 :msg "label" :verbose true}
+           (ut/parse-opts [:once 5 "label" :verbose]))
+        "all four branches advance the loop correctly and produce a merged map")
+    (is (= {:if even? :final true :msg "x" :n 7}
+           (ut/parse-opts [:if even? :final :msg "x" 7]))
+        ":if (value-arg) followed by :final (flag) followed by :msg (value-arg) followed by a number (flag) — every advance shape exercised in one parse")))
