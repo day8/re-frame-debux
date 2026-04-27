@@ -1,6 +1,22 @@
 # Change Log
 All notable changes to this project will be documented in this file. This change log follows the conventions of [keepachangelog.com](http://keepachangelog.com/).
 
+## [0.7.0] - 2026-04-27
+
+The v0.7 line closes the remaining feature gaps relative to philoskim/debux's option surface and adds two re-frame-shaped extensions on top — function entry/exit markers and per-effect tracing for `reg-event-fx` handlers. Four additive items, no breaking changes.
+
+#### Added
+
+* `:once` / `:o` option on `fn-traced` / `defn-traced` / `dbg` / `dbgn` (commit 33225e8). Suppresses consecutive emissions whose `(form, result)` pair matches the previous one. Per call-site identity (gensym'd at expansion); state survives across handler invocations until the result actually changes. Useful for high-frequency dispatches where you only want to see what's NEW. Composes with `:if` cleanly. Public reset via `day8.re-frame.debux.common.util/-reset-once-state!`.
+* `:verbose` / `:show-all` option on `fn-traced` / `defn-traced` / `dbgn` (commit 0177254). Wraps leaf literals (numbers, strings, booleans, keywords, chars, nil) that the default zipper walker skips for noise reduction. Special-form skips (`recur`, `throw`, `var`, `quote`, `catch`, `finally` — the `:skip-form-itself-type` set) STAY honoured because instrumenting them corrupts evaluation semantics. Resolves the `:skip-classification` open question from `docs/v0.6-roadmap.md` Pair A.
+* Function entry/exit markers — `:trace-frames` tag emitted by `fn-traced` / `defn-traced` (commit 8ba53a8). Each invocation produces a paired `{:phase :enter :frame-id …}` / `{:phase :exit :frame-id … :result …}` marker bracketing the existing `:code` payload, so consumers (10x Code panel, custom inspectors) can pair the markers and bound the intermediate `:code` entries. Off-trace: markers are silently dropped (no `tap>` fallback — frames are framework-level boundary info, not user-visible data). Exception path: only `:enter` is guaranteed; a missing `:exit` is the signal that the body threw.
+* `fx-traced` / `defn-fx-traced` macros for `reg-event-fx` handlers (commit bae1b0d). Inherits all of `fn-traced`'s per-form `:code` emission, frame markers, and `:locals` / `:if` / `:once` / `:verbose` opts; ALSO emits one `:fx-effects` entry per key in the returned effect-map (`{:fx-key k :value v :t ms}`). Resolves the `dbgn.clj:353` "trace inside maps, especially for fx" TODO without modifying the zipper walker. Production stubs in both `tracing_stubs` namespaces strip opts and compile to bare `fn` / `defn`.
+
+#### Internal
+
+* `+debux-trace-id+` runtime binding alongside the existing `+debux-dbg-opts+` / `+debux-dbg-locals+` (commit 33225e8). Each `dbgn` / `dbgn-forms` / `mini-dbgn` expansion bakes in a unique gensym'd string used as the per-call-site identity for `:once` dedup.
+* `mini-dbgn` (test-only) uses a fixed `"mini-dbgn"` trace-id instead of a gensym so the macroexpansion-shape assertions in `dbgn_test.clj` stay byte-stable.
+
 ## [0.6.3] - 2026-04-27
 
 #### Fixed
