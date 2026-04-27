@@ -683,3 +683,83 @@
           (finally
             (remove-tap probe)
             (util/set-tap-output! false)))))))
+
+;; ---------------------------------------------------------------------------
+;; :msg / :m option — developer-supplied label on each :code entry
+;; ---------------------------------------------------------------------------
+
+(deftest fn-traced-msg-option-labels-every-code-entry
+  (testing ":msg \"label\" attaches the label as :msg on every :code entry"
+    (re-frame.core/reg-event-db ::with-msg (fn [db _] db))
+    (re-frame.core/reg-event-db ::with-msg
+                                (tracing/fn-traced
+                                  {:msg "login-handler"}
+                                  [db _]
+                                  (let [n (inc 41)]
+                                    (assoc db :n n))))
+    (re-frame.core/dispatch-sync [::with-msg])
+    (let [code (code-entries (captured-traces))]
+      (is (seq code)
+          "at least one :code entry was emitted")
+      (is (every? #(= "login-handler" (:msg %)) code)
+          "every :code entry carries :msg = \"login-handler\""))))
+
+(deftest fn-traced-m-alias-equivalent-to-msg
+  (testing ":m is accepted as a shorthand alias for :msg"
+    (re-frame.core/reg-event-db ::with-m (fn [db _] db))
+    (re-frame.core/reg-event-db ::with-m
+                                (tracing/fn-traced
+                                  {:m "short-alias"}
+                                  [db _]
+                                  (let [n (inc 41)]
+                                    (assoc db :n n))))
+    (re-frame.core/dispatch-sync [::with-m])
+    (let [code (code-entries (captured-traces))]
+      (is (seq code)
+          "at least one :code entry was emitted")
+      (is (every? #(= "short-alias" (:msg %)) code)
+          ":m flowed through to the :msg field on every entry"))))
+
+(deftest fn-traced-msg-omitted-when-not-requested
+  (testing "no :msg key on entries when opts is absent"
+    (re-frame.core/reg-event-db ::no-msg (fn [db _] db))
+    (re-frame.core/reg-event-db ::no-msg
+                                (tracing/fn-traced
+                                  [db _]
+                                  (let [n (inc 41)]
+                                    (assoc db :n n))))
+    (re-frame.core/dispatch-sync [::no-msg])
+    (let [code (code-entries (captured-traces))]
+      (is (seq code)
+          "default emission still works without opts")
+      (is (every? #(not (contains? % :msg)) code)
+          "no :msg key on any entry — opt-in only"))))
+
+(deftest fn-traced-msg-wins-over-m-when-both-set
+  (testing "when both :msg and :m are set, :msg wins (documented precedence)"
+    (re-frame.core/reg-event-db ::both-msg-m (fn [db _] db))
+    (re-frame.core/reg-event-db ::both-msg-m
+                                (tracing/fn-traced
+                                  {:msg "primary" :m "secondary"}
+                                  [db _]
+                                  (assoc db :n 1)))
+    (re-frame.core/dispatch-sync [::both-msg-m])
+    (let [code (code-entries (captured-traces))]
+      (is (every? #(= "primary" (:msg %)) code)
+          ":msg takes precedence over :m"))))
+
+(deftest fn-traced-msg-composes-with-locals
+  (testing ":msg sits alongside :locals on the same payload"
+    (re-frame.core/reg-event-db ::msg-and-locals (fn [db _] db))
+    (re-frame.core/reg-event-db ::msg-and-locals
+                                (tracing/fn-traced
+                                  {:msg "labelled" :locals true}
+                                  [db [_ x]]
+                                  (let [n (* 2 x)]
+                                    (assoc db :n n))))
+    (re-frame.core/dispatch-sync [::msg-and-locals 5])
+    (let [code (code-entries (captured-traces))]
+      (is (every? #(= "labelled" (:msg %)) code)
+          ":msg propagates")
+      (is (every? :locals code)
+          ":locals also propagates — the two compose"))))

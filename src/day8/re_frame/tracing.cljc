@@ -94,13 +94,17 @@
    (let [r        (gensym "dbg-result_")
          o        (gensym "dbg-opts_")
          p        (gensym "dbg-pred_")
+         m        (gensym "dbg-msg_")
          ;; Macro-expansion-site identity for :once dedup. Stable
          ;; across runtime invocations of this compiled call site,
          ;; distinct between separate dbg call sites in the same file.
          trace-id (str (gensym "dbg_"))]
      `(let [~r ~form
             ~o ~opts
-            ~p (:if ~o)]
+            ~p (:if ~o)
+            ;; :msg / :m alias resolution — same convention as
+            ;; emit-trace-body in dbgn.clj. `:msg` wins if both are set.
+            ~m (or (:msg ~o) (:m ~o))]
         (when (and (or (nil? ~p) (~p ~r))
                    (or (not (:once ~o))
                        (day8.re-frame.debux.common.util/-once-emit? ~trace-id 0 ~r)))
@@ -111,7 +115,8 @@
                     :syntax-order 0
                     :num-seen     0}
              (:name ~o)   (assoc :name (:name ~o))
-             (:locals ~o) (assoc :locals (:locals ~o)))
+             (:locals ~o) (assoc :locals (:locals ~o))
+             ~m           (assoc :msg ~m))
            (boolean (:tap? ~o))))
         ~r))))
 

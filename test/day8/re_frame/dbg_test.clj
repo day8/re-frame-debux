@@ -90,6 +90,37 @@
       (is (= "next-id" (:name e)))
       (is (= 10 (:result e))))))
 
+(deftest dbg-msg-flows-into-payload
+  (testing "the :msg opt surfaces as the :msg field on the :code entry"
+    (let [captured (with-fresh-current-trace
+                     (fn [] (dbg (inc 9) {:msg "labelled"})))
+          [e]      (code-entries captured)]
+      (is (= "labelled" (:msg e)))
+      (is (= 10 (:result e))))))
+
+(deftest dbg-m-alias-equivalent-to-msg
+  (testing ":m is an accepted shorthand for :msg"
+    (let [captured (with-fresh-current-trace
+                     (fn [] (dbg (inc 9) {:m "short"})))
+          [e]      (code-entries captured)]
+      (is (= "short" (:msg e))
+          ":m flowed through to the :msg field"))))
+
+(deftest dbg-msg-wins-over-m-when-both-set
+  (testing ":msg takes precedence over :m when both are present"
+    (let [captured (with-fresh-current-trace
+                     (fn [] (dbg (inc 9) {:msg "primary" :m "secondary"})))
+          [e]      (code-entries captured)]
+      (is (= "primary" (:msg e))))))
+
+(deftest dbg-msg-omitted-when-not-requested
+  (testing "no :msg key when the opts don't ask for it"
+    (let [captured (with-fresh-current-trace
+                     (fn [] (dbg (+ 1 2))))
+          [e]      (code-entries captured)]
+      (is (not (contains? e :msg))
+          "default emission has no :msg key"))))
+
 (deftest dbg-locals-flow-into-payload
   (testing ":locals is forwarded as the [[sym val] ...] vec the caller supplied"
     (let [n        7

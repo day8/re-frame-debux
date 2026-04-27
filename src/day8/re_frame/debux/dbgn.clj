@@ -440,6 +440,7 @@
    user form for the trace payload."
   [bind-form org-form indent syntax-order num-seen]
   (let [r          (gensym "trace-result_")
+        m          (gensym "trace-msg_")
         ;; `:final` suppresses every per-form emission except the
         ;; outermost (indent 0) — useful for long thread-* pipelines
         ;; where intermediate steps are noise. The depth check is
@@ -448,7 +449,12 @@
         ;; runtime gate collapses to `(not (:final opts))` —
         ;; suppress when set, emit otherwise.
         outermost? (zero? indent)]
-    `(let [~r ~bind-form]
+    `(let [~r ~bind-form
+           ;; :msg is the developer-supplied label; :m is the alias.
+           ;; Resolved here once so the cond-> branch reads a fixed
+           ;; local instead of evaluating `or` against the opts map
+           ;; twice (the value lookup AND the truthy test).
+           ~m (or (:msg ~'+debux-dbg-opts+) (:m ~'+debux-dbg-opts+))]
        (when (and (or (not (:final ~'+debux-dbg-opts+))
                       ~outermost?)
                   (or (not (:if ~'+debux-dbg-opts+))
@@ -462,7 +468,9 @@
                     :syntax-order ~syntax-order
                     :num-seen     ~num-seen}
              (:locals ~'+debux-dbg-opts+)
-             (assoc :locals ~'+debux-dbg-locals+))))
+             (assoc :locals ~'+debux-dbg-locals+)
+             ~m
+             (assoc :msg ~m))))
        ~r)))
 
 (defmethod trace* :trace
