@@ -123,8 +123,8 @@ Concrete sequencing. Each item has a rough effort estimate and a testable accept
 
 10. **`:once` / duplicate-suppression option** (~80 LOC, ~1 week). Lower priority; complicated by gensym scoping and lifecycle. Worth doing once `:locals` is in.
 11. **fx-map tracing (#341 TODO)** (~1 week). Walk effect maps inside `:effects` and emit per-effect traces. Could be implemented as a new macro `fx-traced` that wraps `reg-fx` instead of generalising `dbgn`'s walker.
-12. **Function entry/exit markers (#37)** (~1 week). Easier once `wrap-handler!` exists — entry/exit can be emitted by the wrapper rather than the macro.
-13. **"Show all" verbosity mode (#36)** (~1 week). Likely a flag on `send-trace!` that disables the noise filter.
+12. **Function entry/exit markers (#37)** — ✓ **Shipped in v0.7.0** as the `:trace-frames` tag emitted by `fn-traced` / `defn-traced` (commit `8ba53a8`). Original plan: ~1 week. Easier once `wrap-handler!` exists — entry/exit can be emitted by the wrapper rather than the macro.
+13. **"Show all" verbosity mode (#36)** — ✓ **Shipped in v0.7.0** as the `:verbose` / `:show-all` option on `fn-traced` / `defn-traced` / `dbgn` (commit `0177254`). Original plan: ~1 week. Likely a flag on `send-trace!` that disables the noise filter.
 
 ### Deliberately out of scope
 
