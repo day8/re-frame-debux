@@ -140,6 +140,11 @@
                 z/next
                 recur)
 
+            ((macro-types :skip-all-args-type) sym)
+            (-> (z/replace loc (sk/insert-skip-all-args node))
+                ut/right-or-next
+                recur)
+
             ((macro-types :skip-form-itself-type) sym)
             (-> (z/replace loc (sk/insert-skip-form-itself node))
                 ut/right-or-next
@@ -263,6 +268,19 @@
          (recur (ut/right-or-next loc) indent syntax-order (concat seen  (-> node
                                                                              next
                                                                              flatten)))
+
+        ;; in case of (a-skip ...) — emit ONE trace for the whole form
+        ;; with no descent into the args. Used by :skip-all-args-type
+        ;; for forms whose internals carry compile-time semantics
+        ;; (reify method bodies, extend-type protocol impls, condp
+        ;; clause pairs, etc.). The (a-skip ~form) wrapper is stripped
+        ;; in remove-skip, leaving (~d-sym {meta} ~form) at runtime.
+         (and (seq? node) (= `ms/a-skip (first node)))
+         (recur (-> (z/replace loc `(~d-sym {::indent ~(real-depth loc)
+                                             ::syntax-order ~syntax-order
+                                             ::num-seen ~num-seen} ~node))
+                    ut/right-or-next)
+                indent syntax-order seen)
 
         ;; in case of (o-skip ...)
          (and (seq? node)
@@ -421,9 +439,19 @@
    `(->> f form)` for :trace->>). `org-form` is the cleaned-up
    user form for the trace payload."
   [bind-form org-form indent syntax-order num-seen]
-  (let [r (gensym "trace-result_")]
+  (let [r          (gensym "trace-result_")
+        ;; `:final` suppresses every per-form emission except the
+        ;; outermost (indent 0) — useful for long thread-* pipelines
+        ;; where intermediate steps are noise. The depth check is
+        ;; baked at expansion time: for indent=0 the literal is
+        ;; `true` (always pass), for indent>0 it's `false` so the
+        ;; runtime gate collapses to `(not (:final opts))` —
+        ;; suppress when set, emit otherwise.
+        outermost? (zero? indent)]
     `(let [~r ~bind-form]
-       (when (and (or (not (:if ~'+debux-dbg-opts+))
+       (when (and (or (not (:final ~'+debux-dbg-opts+))
+                      ~outermost?)
+                  (or (not (:if ~'+debux-dbg-opts+))
                       ((:if ~'+debux-dbg-opts+) ~r))
                   (or (not (:once ~'+debux-dbg-opts+))
                       (ut/-once-emit? ~'+debux-trace-id+ ~syntax-order ~r)))
@@ -487,6 +515,15 @@
         ;; wrapper in the output (mirrors the o-skip fix below).
         (and (seq? node)
              (= `ms/skip (first node)))
+        (recur (z/replace loc (second node)))
+
+        ;; in case of (a-skip ...) — strip the wrapper. insert-trace
+        ;; has already wrapped the surrounding (a-skip ~form) in a
+        ;; (~d-sym {meta} (a-skip ~form)) trace; here we unwrap to
+        ;; (~d-sym {meta} ~form) so the form runs un-modified at
+        ;; runtime while still being traced once at the top level.
+        (and (seq? node)
+             (= `ms/a-skip (first node)))
         (recur (z/replace loc (second node)))
 
         ;; in case of (o-skip ...)

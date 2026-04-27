@@ -150,7 +150,10 @@
 ;;;    :result        <evaluated value of that form>
 ;;;    :indent-level  <int, nesting depth in the original source>
 ;;;    :syntax-order  <int, position in evaluation order>
-;;;    :num-seen      <int, count of duplicate emissions for :once dedup>}
+;;;    :num-seen      <int, count of duplicate emissions for :once dedup>
+;;;    :msg           <opt: developer-supplied label, from :msg / :m on
+;;;                    the surrounding dbg / dbgn / fn-traced /
+;;;                    defn-traced — see send-trace! whitelist>}
 ;;;
 ;;; Field semantics:
 ;;;
@@ -247,6 +250,10 @@
         ;; specific keys; merging arbitrary extras would be brittle).
         ;; :name (label from a `dbg` call) follows the same
         ;; whitelist convention; consumers can branch on its presence.
+        ;; :msg (developer-supplied label, set by the :msg / :m opt on
+        ;; the surrounding dbg / dbgn / fn-traced / defn-traced) joins
+        ;; the same whitelist — propagated by the macro layer onto each
+        ;; emitted code-trace, surfaced as a top-level :msg key.
         entry (cond-> {:form         (tidy-macroexpanded-form (:form code-trace) {})
                        :result       (:result code-trace)
                        :indent-level (:indent-level code-trace)
@@ -255,7 +262,9 @@
                 (contains? code-trace :locals)
                 (assoc :locals (:locals code-trace))
                 (contains? code-trace :name)
-                (assoc :name (:name code-trace)))]
+                (assoc :name (:name code-trace))
+                (contains? code-trace :msg)
+                (assoc :msg (:msg code-trace)))]
     ;; TODO: also capture macroexpanded form? Might be useful in some cases?
     (trace/merge-trace! {:tags {:code (conj code entry)}})))
 
@@ -594,6 +603,12 @@
 
         (#{:once :o} f)
         (recur (next opts) (assoc acc :once true))
+
+        (#{:final :f} f)
+        (recur (next opts) (assoc acc :final true))
+
+        (#{:msg :m} f)
+        (recur (nnext opts) (assoc acc :msg s))
 
         (#{:verbose :show-all} f)
         (recur (next opts) (assoc acc :verbose true))
