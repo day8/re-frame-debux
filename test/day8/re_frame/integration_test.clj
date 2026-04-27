@@ -622,6 +622,24 @@
       (is (= "stringy-effect" (get by-key :http))
           ":http entry carries the value the handler put there"))))
 
+(deftest fx-traced-effect-entries-share-one-timestamp
+  (testing "all per-key entries from one effect-map share the same logical timestamp"
+    (with-redefs [util/now-ms (let [ticks (atom 0)]
+                                (fn [] (swap! ticks inc)))]
+      (re-frame.core/reg-event-fx ::checkout-timestamps (fn [_ _] {}))
+      (re-frame.core/reg-event-fx ::checkout-timestamps
+                                  (tracing/fx-traced
+                                    [_ _]
+                                    {:db {:answer 42}
+                                     :http {:method :post}
+                                     :dispatch [:notify]}))
+      (re-frame.core/dispatch-sync [::checkout-timestamps])
+      (let [timestamps (mapv :t (fx-effects-entries (captured-traces)))]
+        (is (= 3 (count timestamps))
+            "one :fx-effects entry is emitted per effect-map key")
+        (is (apply = timestamps)
+            "one -emit-fx-traces! invocation captures now-ms once")))))
+
 (deftest fx-traced-also-emits-code-and-frames
   (testing "fx-traced inherits fn-traced's :code and :trace-frames behaviour"
     (re-frame.core/reg-event-fx ::checkout-mixed (fn [_ _] {}))

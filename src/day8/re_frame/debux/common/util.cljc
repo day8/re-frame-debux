@@ -419,11 +419,12 @@
   [effect-map]
   (when (and (some? trace/*current-trace*) @#'trace/trace-enabled? (map? effect-map))
     (let [existing (get-in trace/*current-trace* [:tags :fx-effects] [])
+          t        (now-ms)
           ;; Stable iteration order so consumers see effects in
           ;; key-order; the underlying re-frame fx executor doesn't
           ;; rely on this, but the trace stream is more readable.
           new      (mapv (fn [[k v]]
-                           {:fx-key k :value v :t (now-ms)})
+                           {:fx-key k :value v :t t})
                          effect-map)]
       (trace/merge-trace! {:tags {:fx-effects (into existing new)}})))
   nil)
