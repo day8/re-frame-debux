@@ -16,12 +16,15 @@
 ;; Works in Cursive, fails with lein test
 ;; See https://github.com/technomancy/leiningen/issues/912
 (deftest skip-outer-skip-inner-test
-  ;; mini-dbgn now binds +debux-dbg-opts+ /
-  ;; +debux-dbg-locals+ so trace*'s emit references resolve.
+  ;; mini-dbgn binds +debux-dbg-opts+ / +debux-dbg-locals+ so trace*'s
+  ;; emit references resolve, plus +debux-trace-id+ for the :once
+  ;; dedup gate (mini-dbgn uses the fixed string "mini-dbgn" instead
+  ;; of a gensym so this shape assertion stays byte-stable).
   (is (= (macroexpand-1 `(mini-dbgn
                            (-> '())))
          '(clojure.core/let [+debux-dbg-opts+ nil
-                             +debux-dbg-locals+ []]
+                             +debux-dbg-locals+ []
+                             +debux-trace-id+ "mini-dbgn"]
             (day8.re-frame.debux.dbgn/trace {:day8.re-frame.debux.dbgn/indent 0
                                              :day8.re-frame.debux.dbgn/num-seen 1
                                              :day8.re-frame.debux.dbgn/syntax-order 1}
@@ -115,11 +118,13 @@
 
 (deftest thread-first-test
     (is
-      ;; mini-dbgn now binds +debux-dbg-opts+ /
-      ;; +debux-dbg-locals+ so trace*'s emit references resolve.
+      ;; mini-dbgn binds +debux-dbg-opts+ / +debux-dbg-locals+ /
+      ;; +debux-trace-id+ so trace*'s emit references and the :once
+      ;; gate resolve.
       (= '(clojure.core/let
             [+debux-dbg-opts+ nil
-             +debux-dbg-locals+ []]
+             +debux-dbg-locals+ []
+             +debux-trace-id+ "mini-dbgn"]
             (day8.re-frame.debux.dbgn/trace
              {:day8.re-frame.debux.dbgn/indent 0
               :day8.re-frame.debux.dbgn/num-seen 1
@@ -161,11 +166,13 @@
 
 
     (is
-      ;; mini-dbgn now binds +debux-dbg-opts+ /
-      ;; +debux-dbg-locals+ so trace*'s emit references resolve.
+      ;; mini-dbgn binds +debux-dbg-opts+ / +debux-dbg-locals+ /
+      ;; +debux-trace-id+ so trace*'s emit references and the :once
+      ;; gate resolve.
       (= '(clojure.core/let
             [+debux-dbg-opts+ nil
-             +debux-dbg-locals+ []]
+             +debux-dbg-locals+ []
+             +debux-trace-id+ "mini-dbgn"]
             (day8.re-frame.debux.dbgn/trace
              {:day8.re-frame.debux.dbgn/indent 0
               :day8.re-frame.debux.dbgn/num-seen 1

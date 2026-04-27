@@ -20,6 +20,7 @@
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [day8.re-frame.tracing :as tracing]
             [day8.re-frame.tracing.runtime :as runtime]
+            [day8.re-frame.debux.common.util :as util]
             ;; The wrap-* macros expand to (re-frame.core/reg-* ...) forms,
             ;; so the test ns has to require re-frame.core (and re-frame.trace
             ;; for our trace-capture fixture).
@@ -68,6 +69,9 @@
     (reset! rft/traces [])
     (reset! rft/next-delivery 0)
     (reset! runtime/wrapped-originals {})
+    ;; :once dedup state is process-local; reset between deftests so
+    ;; one test's last emission doesn't silence the next test.
+    (util/-reset-once-state!)
     (try
       (f)
       (finally
@@ -247,3 +251,85 @@
           "every kept :code entry has a number result; non-numeric results were filtered")
       (is (some #(= 42 (:result %)) code)
           "the (inc 41) → 42 entry made it through the :if filter"))))
+
+;; ---------------------------------------------------------------------------
+;; :once option — duplicate suppression across handler invocations
+;; ---------------------------------------------------------------------------
+
+(deftest fn-traced-once-dedupes-across-dispatches
+  (testing ":once true suppresses :code emission when (form, result) is unchanged"
+    ;; Handler ignores db (no app-db carryover from sibling tests can
+    ;; perturb the per-form results) and returns a fresh constant
+    ;; map both times. Every traced form's result is identical
+    ;; across the two dispatches, so :once should suppress them all.
+    (re-frame.core/reg-event-db ::stable-once (fn [_ _] {}))
+    (re-frame.core/reg-event-db ::stable-once
+                                (tracing/fn-traced
+                                  {:once true}
+                                  [_ _]
+                                  (let [n (inc 41)]
+                                    {:n n})))
+    (re-frame.core/dispatch-sync [::stable-once])
+    (let [first-code (code-entries (captured-traces))]
+      (is (seq first-code)
+          "first dispatch emits :code entries (forms haven't been seen)"))
+    (reset! rft/traces [])
+    (re-frame.core/dispatch-sync [::stable-once])
+    (let [second-code (code-entries (captured-traces))]
+      (is (empty? second-code)
+          "second dispatch with identical results emits nothing — :once dedupes"))))
+
+(deftest fn-traced-once-emits-on-changed-result
+  (testing ":once still emits when the result actually differs from last time"
+    (re-frame.core/reg-event-db ::changing-once (fn [_ _] {}))
+    (re-frame.core/reg-event-db ::changing-once
+                                (tracing/fn-traced
+                                  {:once true}
+                                  [_ [_ x]]
+                                  (let [n (* 2 x)]
+                                    {:n n})))
+    (re-frame.core/dispatch-sync [::changing-once 5])
+    (let [first-code (code-entries (captured-traces))]
+      (is (some #(= 10 (:result %)) first-code)
+          "first dispatch records the (* 2 5) → 10 entry"))
+    (reset! rft/traces [])
+    (re-frame.core/dispatch-sync [::changing-once 6])
+    (let [second-code (code-entries (captured-traces))]
+      (is (some #(= 12 (:result %)) second-code)
+          "second dispatch with x=6 records the (* 2 6) → 12 entry — different result, not deduped"))))
+
+(deftest fn-traced-once-without-flag-still-emits-twice
+  (testing "without :once, identical dispatches emit identical :code each time (sanity)"
+    (re-frame.core/reg-event-db ::no-once (fn [db _] db))
+    (re-frame.core/reg-event-db ::no-once
+                                (tracing/fn-traced
+                                  [db _]
+                                  (let [n (inc 41)]
+                                    (assoc db :n n))))
+    (re-frame.core/dispatch-sync [::no-once])
+    (let [first-count (count (code-entries (captured-traces)))]
+      (reset! rft/traces [])
+      (re-frame.core/dispatch-sync [::no-once])
+      (is (= first-count (count (code-entries (captured-traces))))
+          "without :once, the second dispatch emits the same number of :code entries as the first"))))
+
+(deftest fn-traced-once-composes-with-if
+  (testing ":if AND :once both gate emission"
+    (re-frame.core/reg-event-db ::if-and-once (fn [_ _] {}))
+    (re-frame.core/reg-event-db ::if-and-once
+                                (tracing/fn-traced
+                                  {:once true :if number?}
+                                  [_ _]
+                                  (let [n (inc 41)]
+                                    {:s (str n)})))
+    (re-frame.core/dispatch-sync [::if-and-once])
+    (let [first-code (code-entries (captured-traces))]
+      (is (every? #(number? (:result %)) first-code)
+          ":if number? still suppresses non-numeric results")
+      (is (seq first-code)
+          ":if didn't gate everything; some entries land"))
+    (reset! rft/traces [])
+    (re-frame.core/dispatch-sync [::if-and-once])
+    (let [second-code (code-entries (captured-traces))]
+      (is (empty? second-code)
+          "second dispatch: :once dedupes everything that survived :if"))))

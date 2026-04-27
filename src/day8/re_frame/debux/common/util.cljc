@@ -285,6 +285,66 @@
     (tap> (assoc payload :debux/dbg true)))
   nil)
 
+;;; ----------------------------------------------------------------------
+;;; :once / duplicate-suppression state
+;;; ----------------------------------------------------------------------
+;;;
+;;; When `:once` is set on `fn-traced` / `defn-traced` / `dbg` / `dbgn`,
+;;; emission is gated on whether the (form, result) pair has been seen
+;;; before. The atom below holds the per-form last-result so that
+;;; consecutive identical emissions get suppressed across handler
+;;; invocations — i.e. dispatching the same event twice with unchanged
+;;; inputs produces a `:code` payload on the FIRST dispatch and an
+;;; empty (or smaller) one on the SECOND.
+;;;
+;;; Form identity is `[trace-id syntax-order]`:
+;;;
+;;; - **`trace-id`** is a gensym'd string baked into the macroexpansion
+;;;   of `dbgn-forms` / `dbgn` / `dbg`. One trace-id per macro
+;;;   expansion site — stable across runtime invocations of the same
+;;;   compiled handler, distinct between separate fn-traced'd handlers
+;;;   in the same file.
+;;; - **`syntax-order`** is the per-form index assigned by `insert-trace`
+;;;   during the zipper walk (depth-first, left-to-right). Stable
+;;;   across runs of the same body.
+;;;
+;;; Lifecycle: process-local atom; resets only on explicit
+;;; `-reset-once-state!`. Hot-reload of a macro-call site produces a
+;;; fresh `trace-id` (the gensym is re-generated), so old keys for
+;;; that site become orphaned but harmless. Tests reset the atom in
+;;; the trace-capture fixture so dedup state doesn't leak across
+;;; deftests.
+(defonce ^:private once-state (atom {}))
+
+(defn -reset-once-state!
+  "Drop all `:once` dedup state. Used by the integration-test fixture
+   (so cross-test contamination doesn't make a previous test's last
+   emission silence the next one) and exposed publicly so REPL callers
+   running a long live-debug session can clear the slate without
+   waiting for a hot-reload to invalidate keys."
+  []
+  (reset! once-state {}))
+
+(defn -once-emit?
+  "Returns true if a `:once`-gated form should emit its trace right
+   now, false if the same (form, result) pair was the most recent
+   emission and should be suppressed.
+
+   Side effect: when emit-allowed (returns true), the new result is
+   recorded as the latest for `[trace-id syntax-order]`, so the next
+   call with the same result returns false.
+
+   `nil` and `false` are distinguishable from `::unseen` (the sentinel
+   for 'never emitted'), so a form that legitimately produces a stable
+   `nil` result emits ONCE (on first sighting) and then dedupes."
+  [trace-id syntax-order new-result]
+  (let [k    [trace-id syntax-order]
+        prev (get @once-state k ::unseen)]
+    (if (and (not= prev ::unseen) (= prev new-result))
+      false
+      (do (swap! once-state assoc k new-result)
+          true))))
+
 ;;; For internal debugging
 (defmacro d
   "The internal macro to debug dbg macro.

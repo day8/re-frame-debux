@@ -72,6 +72,11 @@
                pattern: `(dbg form {:locals [['db db] ['x x]]})`)
      :if     — runtime predicate; the trace fires only when (pred
                result) is truthy
+     :once   — suppress consecutive identical emissions from this
+               specific call site. The first invocation emits; the
+               next runs that produce the same result are skipped.
+               Cleared when the result changes, OR explicitly via
+               `day8.re-frame.debux.common.util/-reset-once-state!`.
      :tap?   — also fire tap> alongside the in-trace send-trace!
                emit. Out-of-trace, tap> always fires regardless.
 
@@ -85,13 +90,19 @@
    release builds (production-mode contract)."
   ([form] `(day8.re-frame.tracing/dbg ~form nil))
   ([form opts]
-   (let [r (gensym "dbg-result_")
-         o (gensym "dbg-opts_")
-         p (gensym "dbg-pred_")]
+   (let [r        (gensym "dbg-result_")
+         o        (gensym "dbg-opts_")
+         p        (gensym "dbg-pred_")
+         ;; Macro-expansion-site identity for :once dedup. Stable
+         ;; across runtime invocations of this compiled call site,
+         ;; distinct between separate dbg call sites in the same file.
+         trace-id (str (gensym "dbg_"))]
      `(let [~r ~form
             ~o ~opts
             ~p (:if ~o)]
-        (when (or (nil? ~p) (~p ~r))
+        (when (and (or (nil? ~p) (~p ~r))
+                   (or (not (:once ~o))
+                       (day8.re-frame.debux.common.util/-once-emit? ~trace-id 0 ~r)))
           (day8.re-frame.debux.common.util/send-trace-or-tap!
            (cond-> {:form         '~form
                     :result       ~r
@@ -172,6 +183,12 @@
                       :code trace entry.
      :if      pred  — runtime predicate called with the per-form result;
                       send-trace! fires only when pred returns truthy.
+     :once    true  — suppress consecutive emissions whose (form, result)
+                      pair matches the previous one. Per call site;
+                      dedup state is process-local and survives across
+                      handler invocations until the result actually
+                      changes. Useful for high-frequency dispatches
+                      where you only want to see what's NEW.
    Example: (defn-traced {:locals true} my-handler [db event] ...)"
   {:arglists '([opts? name doc-string? attr-map? [params*] prepost-map? body]
                 [opts? name doc-string? attr-map? ([params*] prepost-map? body) + attr-map?])}
@@ -213,7 +230,12 @@
                       :code trace entry.
      :if      pred  — runtime predicate called with the per-form result;
                       send-trace! fires only when pred returns truthy.
-   Example: (fn-traced {:locals true} [db event] ...)"
+     :once    true  — suppress consecutive emissions whose (form, result)
+                      pair matches the previous one. Per call site;
+                      dedup state is process-local and survives across
+                      handler invocations until the result actually
+                      changes.
+   Example: (fn-traced {:locals true :once true} [db event] ...)"
   {:arglists '[(fn-traced opts? name? [params*] exprs*)
                (fn-traced opts? name? ([params*] exprs*) +)]}
   [& definition]

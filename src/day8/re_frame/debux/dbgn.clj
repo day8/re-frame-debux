@@ -377,13 +377,18 @@
                (contains? ::indent)))     :trace->
       :else :trace->>)))
 
-;; Every trace* arity reads `+debux-dbg-opts+` and
-;; `+debux-dbg-locals+` at runtime. Both are bound by the surrounding
-;; (dbgn / dbgn-forms / mini-dbgn) expansion, so they're always in
-;; scope by the time the emitted code runs. `:locals` adds the
-;; captured arg pairs to the payload; `:if` is a runtime predicate
+;; Every trace* arity reads `+debux-dbg-opts+`, `+debux-dbg-locals+`,
+;; and `+debux-trace-id+` at runtime. All three are bound by the
+;; surrounding (dbgn / dbgn-forms / mini-dbgn) expansion, so they're
+;; always in scope by the time the emitted code runs. `:locals` adds
+;; the captured arg pairs to the payload; `:if` is a runtime predicate
 ;; called with the per-form result, gating send-trace! emission so
-;; high-frequency traces can be filtered without recompilation.
+;; high-frequency traces can be filtered without recompilation; `:once`
+;; suppresses consecutive emissions of the same form+result pair so
+;; loops or repeated dispatches don't spam the Code panel — see
+;; `ut/-once-emit?` for the semantics. The `+debux-trace-id+` string
+;; is the macro-expansion-site identity that lets `:once` distinguish
+;; one fn-traced handler's forms from another's.
 
 (defn- emit-trace-body
   "Emits the `(let [r ...] (when ... (send-trace! ...)) r)` shape
@@ -394,8 +399,10 @@
   [bind-form org-form indent syntax-order num-seen]
   (let [r (gensym "trace-result_")]
     `(let [~r ~bind-form]
-       (when (or (not (:if ~'+debux-dbg-opts+))
-                 ((:if ~'+debux-dbg-opts+) ~r))
+       (when (and (or (not (:if ~'+debux-dbg-opts+))
+                      ((:if ~'+debux-dbg-opts+) ~r))
+                  (or (not (:once ~'+debux-dbg-opts+))
+                      (ut/-once-emit? ~'+debux-trace-id+ ~syntax-order ~r)))
          (ut/send-trace!
            (cond-> {:form         '~org-form
                     :result       ~r
@@ -485,9 +492,10 @@
   [form & [opts]]
   (println "FULLFORM" &form)
   `(let [~'+debux-dbg-opts+   ~(if (ut/cljs-env? &env)
-                                 (dissoc opts :style :js :once)
+                                 (dissoc opts :style :js)
                                  opts)
-         ~'+debux-dbg-locals+ []]
+         ~'+debux-dbg-locals+ []
+         ~'+debux-trace-id+   ~(str (gensym "dbgn_"))]
      (try
        ;; Send whole form to trace point
        (ut/send-form! '~(-> form (ut/tidy-macroexpanded-form {})))
@@ -529,9 +537,10 @@
         ;; captures less").
         locals-pairs (mapv (fn [s] `[(quote ~s) ~s]) args)]
     `(let [~'+debux-dbg-opts+   ~(if (ut/cljs-env? &env)
-                                   (dissoc opts :style :js :once)
+                                   (dissoc opts :style :js)
                                    opts)
-           ~'+debux-dbg-locals+ ~locals-pairs]
+           ~'+debux-dbg-locals+ ~locals-pairs
+           ~'+debux-trace-id+   ~(str (gensym "dbgn-forms_"))]
        (try
        ;; Send whole form to trace point
          (ut/send-form! '~(-> send-form (ut/tidy-macroexpanded-form {})))
@@ -551,8 +560,13 @@
 (defmacro mini-dbgn
   "DeBuG every Nested forms of a form.s"
   [form]
+  ;; mini-dbgn is test-only — used to assert dbgn macroexpansion
+  ;; shape. The trace-id is a fixed string (not a gensym) so the
+  ;; expansion is byte-for-byte stable and the shape assertions in
+  ;; dbgn_test.clj don't have to wildcard-match a moving value.
   `(let [~'+debux-dbg-opts+   nil
-         ~'+debux-dbg-locals+ []]
+         ~'+debux-dbg-locals+ []
+         ~'+debux-trace-id+   "mini-dbgn"]
      ~(-> (if (ut/include-recur? form)
             (sk/insert-o-skip-for-recur form &env)
             form)

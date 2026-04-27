@@ -11,7 +11,8 @@
      - out-of-trace path: `*current-trace*` nil → tap> with
        `:debux/dbg true`
      - opts plumb-through: `:if` (predicate gate), `:tap?` (always
-       tap, in addition to in-trace emit), `:name`, `:locals`
+       tap, in addition to in-trace emit), `:name`, `:locals`,
+       `:once` (consecutive-emit dedup)
      - value transparency: dbg returns the form's value unchanged
 
    We don't need re-frame's full dispatch fixture (cf.
@@ -20,6 +21,7 @@
    `(binding [trace/*current-trace* ...] ...)` per test."
   (:require [clojure.test :refer [deftest is testing]]
             [day8.re-frame.tracing :refer [dbg]]
+            [day8.re-frame.debux.common.util :as util]
             ;; Required for the dbg-stub-is-no-op test: macroexpand-1
             ;; only recognises a fully-qualified macro reference when
             ;; the var actually resolves, which means the ns must be
@@ -182,6 +184,59 @@
 ;; tracing-stubs no-op — `dbg` from the stubs must be value-transparent
 ;; with no trace side effect.
 ;; ---------------------------------------------------------------------------
+
+;; ---------------------------------------------------------------------------
+;; :once — consecutive-emit dedup
+;; ---------------------------------------------------------------------------
+
+(deftest dbg-once-suppresses-second-identical-emit
+  (testing ":once true emits the first invocation and skips the second when result is unchanged"
+    ;; ONE dbg call site (inside the fn body), executed twice — the
+    ;; macro's trace-id is baked into the expansion at compile time,
+    ;; so both invocations share the same trace-id and the second
+    ;; sees the same (form, result) and dedupes.
+    (util/-reset-once-state!)
+    (let [f        (fn [] (dbg (+ 1 2) {:once true}))
+          captured (with-fresh-current-trace (fn [] (f) (f)))
+          entries  (code-entries captured)]
+      (is (= 1 (count entries))
+          "only the first invocation emits — the second's identical result is suppressed"))))
+
+(deftest dbg-once-emits-when-result-changes
+  (testing ":once still emits when the same call site produces a different result"
+    (util/-reset-once-state!)
+    (let [x        (atom 0)
+          ;; ONE dbg call site, executed twice. Each run produces a
+          ;; different result (1, then 2), so neither emission is
+          ;; deduped.
+          f        (fn [] (dbg (swap! x inc) {:once true}))
+          captured (with-fresh-current-trace (fn [] (f) (f)))
+          entries  (code-entries captured)]
+      (is (= 2 (count entries))
+          "swap! produces 1 then 2 — different results, neither deduped"))))
+
+(deftest dbg-once-distinct-call-sites-do-not-dedup-each-other
+  (testing "two SEPARATE (dbg ... {:once true}) call sites each emit on their own first run"
+    ;; Sanity: :once is per-call-site, not per-form-text. Two literal
+    ;; copies of `(dbg (+ 1 2) {:once true})` are separate macro
+    ;; expansions with distinct gensym'd trace-ids, so they don't
+    ;; suppress each other.
+    (util/-reset-once-state!)
+    (let [captured (with-fresh-current-trace
+                     (fn []
+                       (dbg (+ 1 2) {:once true})
+                       (dbg (+ 1 2) {:once true})))
+          entries  (code-entries captured)]
+      (is (= 2 (count entries))
+          "each call site has its own trace-id, so each emits its own first time"))))
+
+(deftest dbg-without-once-emits-twice
+  (testing "without :once, two identical calls emit two trace entries (sanity)"
+    (let [captured (with-fresh-current-trace
+                     (fn []
+                       (dbg (+ 1 2))
+                       (dbg (+ 1 2))))]
+      (is (= 2 (count (code-entries captured)))))))
 
 (deftest dbg-stub-is-no-op
   (testing "the production stub returns the form's value with no tap> / send-trace!"
