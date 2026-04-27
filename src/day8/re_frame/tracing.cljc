@@ -153,11 +153,17 @@
         ;; -send-frame-enter! and -send-frame-exit! receive the same
         ;; id so consumers can pair the markers.
         frame-id        (str (gensym "frame_"))
-        r               (gensym "fn-traced-result_")]
+        r               (gensym "fn-traced-result_")
+        ;; :fx-trace is the fx-traced opt that asks for per-key
+        ;; tracing of the returned effect map. Set by the fx-traced
+        ;; macro — bare fn-traced ignores it.
+        fx-trace?       (:fx-trace opts)]
     (if (= :body body-or-prepost)   ;; no pre and post conditions
       `(~args
         (day8.re-frame.debux.common.util/-send-frame-enter! ~frame-id)
         (let [~r (dbgn/dbgn-forms ~body ~send-form ~args-symbols ~opts)]
+          ~@(when fx-trace?
+              [`(day8.re-frame.debux.common.util/-emit-fx-traces! ~r)])
           (day8.re-frame.debux.common.util/-send-frame-exit! ~frame-id ~r)
           ~r))
     ;; prepost+body
@@ -165,6 +171,8 @@
         ~(:prepost body)
         (day8.re-frame.debux.common.util/-send-frame-enter! ~frame-id)
         (let [~r (dbgn/dbgn-forms ~(:body body) ~send-form ~args-symbols ~opts)]
+          ~@(when fx-trace?
+              [`(day8.re-frame.debux.common.util/-emit-fx-traces! ~r)])
           (day8.re-frame.debux.common.util/-send-frame-exit! ~frame-id ~r)
           ~r)))))
 
@@ -258,4 +266,65 @@
     `(if (is-trace-enabled?)
        (fn-traced* ~opts ~@def')
        (fn ~@def'))))
+
+
+;; ---------------------------------------------------------------------------
+;; fx-traced — fn-traced for reg-event-fx handlers
+;; ---------------------------------------------------------------------------
+;;
+;; reg-event-fx handlers return an effect-map like
+;;   {:db <new-db> :http {...} :dispatch [:other-event ...]}
+;;
+;; fn-traced surfaces the inner sub-forms of the body (each let-binding,
+;; each computation that fed into a value), but doesn't flag the
+;; per-key entries of the RETURNED map. fx-traced does both — it
+;; inherits all of fn-traced's per-form :code emission, frame markers,
+;; :locals / :if / :once / :verbose opts, and adds one :fx-effects
+;; entry per key in the returned map. Consumers (10x panels, custom
+;; inspectors) can render the effect-map breakdown alongside the
+;; form-level trace.
+;;
+;; The returned map flows through unchanged — fx-traced is value-
+;; transparent. The trace emission is a side effect on the active
+;; trace's :tags :fx-effects vector. No-op outside a re-frame trace.
+;;
+;; Internally fx-traced is a thin wrapper that sets `:fx-trace true`
+;; on fn-traced's opts map; fn-body picks up the flag and emits the
+;; -emit-fx-traces! call after the body evaluates.
+
+(defmacro fx-traced
+  "Like fn-traced, but for reg-event-fx handlers that return effect
+   maps. After the body produces the return value, each key of the
+   map is emitted as its own :fx-effects trace entry alongside the
+   usual per-form :code entries.
+
+   Same opts as fn-traced (:locals, :if, :once, :verbose).
+
+   Example:
+     (re-frame.core/reg-event-fx :checkout
+       (fx-traced [_ [_ amount]]
+         (let [taxed (* 1.1 amount)]
+           {:db {:total taxed}
+            :http {:method :post :body taxed}
+            :dispatch [:notify :checkout-done]})))"
+  {:arglists '[(fx-traced opts? name? [params*] exprs*)
+               (fx-traced opts? name? ([params*] exprs*) +)]}
+  [& definition]
+  (let [[opts def'] (split-opts definition)
+        opts'       (assoc (or opts {}) :fx-trace true)]
+    `(day8.re-frame.tracing/fn-traced ~opts' ~@def')))
+
+(defmacro defn-fx-traced
+  "defn variant of fx-traced. Same surface as defn-traced plus the
+   per-effect-key tracing on the returned map.
+
+   Example:
+     (defn-fx-traced checkout-handler [_ [_ amount]]
+       {:db {:total amount} :http {:method :post}})"
+  {:arglists '([opts? name doc-string? attr-map? [params*] prepost-map? body]
+                [opts? name doc-string? attr-map? ([params*] prepost-map? body) + attr-map?])}
+  [& definition]
+  (let [[opts def'] (split-opts definition)
+        opts'       (assoc (or opts {}) :fx-trace true)]
+    `(day8.re-frame.tracing/defn-traced ~opts' ~@def')))
 

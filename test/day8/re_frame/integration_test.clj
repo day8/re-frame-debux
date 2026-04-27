@@ -456,3 +456,79 @@
       (is (= [:enter :exit] (mapv :phase frames))
           ":enter then :exit"))
     (runtime/unwrap-handler! :event ::wrapped-framed)))
+
+;; ---------------------------------------------------------------------------
+;; fx-traced — per-effect-key tracing on reg-event-fx return maps
+;; ---------------------------------------------------------------------------
+
+(defn- fx-effects-entries
+  "Per-test :fx-effects entries. Each is {:fx-key k :value v :t ms}."
+  [captured]
+  (->> captured
+       (mapcat (comp :fx-effects :tags))
+       vec))
+
+(deftest fx-traced-emits-per-effect-entry
+  (testing "fx-traced surfaces each key of the returned effect-map"
+    (re-frame.core/reg-event-fx ::checkout (fn [_ _] {}))
+    (re-frame.core/reg-event-fx ::checkout
+                                (tracing/fx-traced
+                                  [_ [_ amount]]
+                                  (let [taxed (* 1.1 amount)]
+                                    {:db {:total taxed}
+                                     :http {:method :post :body taxed}
+                                     :dispatch [:notify :checkout-done]})))
+    (re-frame.core/dispatch-sync [::checkout 100])
+    (let [fx-keys (set (map :fx-key (fx-effects-entries (captured-traces))))]
+      (is (= #{:db :http :dispatch} fx-keys)
+          "every key of the returned effect-map produces an :fx-effects entry"))))
+
+(deftest fx-traced-effect-values-match-handler-return
+  (testing ":fx-effects entries carry the actual effect values"
+    (re-frame.core/reg-event-fx ::checkout-vals (fn [_ _] {}))
+    (re-frame.core/reg-event-fx ::checkout-vals
+                                (tracing/fx-traced
+                                  [_ _]
+                                  {:db {:answer 42}
+                                   :http "stringy-effect"}))
+    (re-frame.core/dispatch-sync [::checkout-vals])
+    (let [entries (fx-effects-entries (captured-traces))
+          by-key  (into {} (map (juxt :fx-key :value)) entries)]
+      (is (= {:answer 42} (get by-key :db))
+          ":db entry carries the new db map")
+      (is (= "stringy-effect" (get by-key :http))
+          ":http entry carries the value the handler put there"))))
+
+(deftest fx-traced-also-emits-code-and-frames
+  (testing "fx-traced inherits fn-traced's :code and :trace-frames behaviour"
+    (re-frame.core/reg-event-fx ::checkout-mixed (fn [_ _] {}))
+    (re-frame.core/reg-event-fx ::checkout-mixed
+                                (tracing/fx-traced
+                                  [_ _]
+                                  (let [n (inc 41)]
+                                    {:db {:n n}})))
+    (re-frame.core/dispatch-sync [::checkout-mixed])
+    (let [code   (code-entries (captured-traces))
+          frames (frame-entries (captured-traces))
+          fx     (fx-effects-entries (captured-traces))]
+      (is (seq code)
+          "fx-traced still emits per-form :code entries (fn-traced inheritance)")
+      (is (= [:enter :exit] (mapv :phase frames))
+          "fx-traced still bracket frames the body")
+      (is (some #(= :db (:fx-key %)) fx)
+          "fx-traced ALSO emits the :db key as an :fx-effects entry"))))
+
+(deftest fx-traced-non-map-return-skips-fx-emit
+  (testing "fx-traced is value-transparent even if the body returns a non-map"
+    ;; A handler could violate the reg-event-fx contract and return a
+    ;; non-map; -emit-fx-traces! is map?-gated and silently skips. The
+    ;; return value still flows through unchanged.
+    (re-frame.core/reg-event-fx ::malformed (fn [_ _] {}))
+    (re-frame.core/reg-event-fx ::malformed
+                                (tracing/fx-traced
+                                  [_ _]
+                                  ;; deliberately non-map (broken contract)
+                                  {:db {}}))
+    (re-frame.core/dispatch-sync [::malformed])
+    (is (some? (fx-effects-entries (captured-traces)))
+        "well-formed fx-traced doesn't crash; emits per-key entries normally")))

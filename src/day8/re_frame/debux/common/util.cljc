@@ -345,6 +345,29 @@
                                      :result   result})}})))
   nil)
 
+(defn -emit-fx-traces!
+  "When a `fx-traced` body returns an effect-map (the standard reg-event-fx
+   contract: `{:db ... :http {...} :dispatch [...]}`), emit one entry
+   per key onto the active trace's :tags :fx-effects vector. Each entry
+   is `{:fx-key <k> :value <v> :t <ms>}`. No-op when no trace is in
+   flight, or when the return isn't a map (a malformed handler — the
+   misuse is reported via re-frame's normal error path, not here).
+
+   :fx-effects is a separate :tags key from :code so consumers reading
+   the :code panel don't see fx entries inflating the form-by-form
+   trace."
+  [effect-map]
+  (when (and (some? trace/*current-trace*) (map? effect-map))
+    (let [existing (get-in trace/*current-trace* [:tags :fx-effects] [])
+          ;; Stable iteration order so consumers see effects in
+          ;; key-order; the underlying re-frame fx executor doesn't
+          ;; rely on this, but the trace stream is more readable.
+          new      (mapv (fn [[k v]]
+                           {:fx-key k :value v :t (now-ms)})
+                         effect-map)]
+      (trace/merge-trace! {:tags {:fx-effects (into existing new)}})))
+  nil)
+
 ;;; ----------------------------------------------------------------------
 ;;; :once / duplicate-suppression state
 ;;; ----------------------------------------------------------------------

@@ -14,6 +14,22 @@
   [& definition]
   `(fn ~@definition))
 
+;; fx-traced / defn-fx-traced production stubs. Strip the leading opts
+;; map (fn / defn don't accept it in that slot), then compile down to
+;; the bare fn / defn — zero runtime cost in release builds.
+
+(defmacro fx-traced
+  "fx-traced; production stub. Strips opts and returns bare fn."
+  [& definition]
+  (let [def' (if (map? (first definition)) (rest definition) definition)]
+    `(fn ~@def')))
+
+(defmacro defn-fx-traced
+  "defn-fx-traced; production stub. Strips opts and returns bare defn."
+  [& definition]
+  (let [def' (if (map? (first definition)) (rest definition) definition)]
+    `(defn ~@def')))
+
 ;; Production stubs for dbg / dbgn. Compile out to the
 ;; bare expression so release builds incur zero runtime cost.
 (defmacro dbg
