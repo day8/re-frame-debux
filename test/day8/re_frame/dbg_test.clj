@@ -20,7 +20,7 @@
    tap>, so we can drive it directly with a synthetic
    `(binding [trace/*current-trace* ...] ...)` per test."
   (:require [clojure.test :refer [deftest is testing]]
-            [day8.re-frame.tracing :refer [dbg]]
+            [day8.re-frame.tracing :refer [dbg dbg-last]]
             [day8.re-frame.debux.common.util :as util]
             ;; Required for the dbg-stub-is-no-op test: macroexpand-1
             ;; only recognises a fully-qualified macro reference when
@@ -255,6 +255,118 @@
         (let [r (macroexpand-1 '(day8.re-frame.tracing-stubs/dbgn (-> 1 inc inc)))]
           (is (= '(-> 1 inc inc) r)
               "dbgn stub also bare-forms"))
+        (Thread/sleep 50)
+        (is (empty? @taps)
+            "no taps — stubs don't fire any sink")
+        (finally
+          (remove-tap tapper))))))
+
+;; ---------------------------------------------------------------------------
+;; dbg-last — thread-last-friendly variant
+;; ---------------------------------------------------------------------------
+;;
+;; dbg-last expands to (dbg value opts) — args swapped — so dbg's
+;; existing `'~form` capture sees the upstream thread chain. These
+;; tests pin:
+;;   - 1-arity bare form in ->> (no opts)
+;;   - 2-arity with opts in ->>
+;;   - value transparency through the pipeline
+;;   - opts plumb-through (:name, :if, :tap?)
+;;   - production stub is a value pass-through
+
+(deftest dbg-last-bare-in-thread-last-emits-code-entry
+  (testing "(->> ... dbg-last ...) emits one :code entry; the upstream chain is the captured :form"
+    (let [captured (with-fresh-current-trace
+                     (fn []
+                       (->> [1 2 3]
+                            (filter even?)
+                            dbg-last
+                            (map inc)
+                            doall)))
+          [e]      (code-entries captured)]
+      (is (= '(filter even? [1 2 3]) (:form e))
+          "dbg captures the upstream thread expression as :form")
+      (is (= [2] (:result e))
+          "the traced value is the seq produced by the upstream chain"))))
+
+(deftest dbg-last-pipeline-result-unchanged
+  (testing "dbg-last is value-transparent; the pipeline's final result matches a non-traced run"
+    (with-fresh-current-trace
+      (fn []
+        (let [traced  (->> [1 2 3]
+                           (filter even?)
+                           dbg-last
+                           (map inc))
+              control (->> [1 2 3]
+                           (filter even?)
+                           (map inc))]
+          (is (= [3] traced))
+          (is (= control traced)))))))
+
+(deftest dbg-last-with-opts-flows-name-into-payload
+  (testing "(dbg-last opts) in ->> position — opts lead, threaded value trails — opts reach the payload"
+    (let [captured (with-fresh-current-trace
+                     (fn []
+                       (->> [10 20]
+                            (map inc)
+                            (dbg-last {:name "after-inc"})
+                            doall)))
+          [e]      (code-entries captured)]
+      (is (= "after-inc" (:name e)))
+      (is (= [11 21] (:result e))))))
+
+(deftest dbg-last-if-predicate-gates-emission
+  (testing ":if pred — trace fires only when (pred result) is truthy"
+    (let [captured (with-fresh-current-trace
+                     (fn []
+                       ;; non-empty seq → (seq res) truthy → emits
+                       (->> [1 3 5]
+                            (filter odd?)
+                            (dbg-last {:if seq})
+                            doall)
+                       ;; empty seq → (seq res) nil → suppressed
+                       (->> [1 3 5]
+                            (filter even?)
+                            (dbg-last {:if seq})
+                            doall)))
+          entries  (code-entries captured)]
+      (is (= 1 (count entries))
+          "non-empty seq emits, empty seq suppresses")
+      (is (= [1 3 5] (:result (first entries)))))))
+
+(deftest dbg-last-out-of-trace-falls-back-to-tap
+  (testing "outside any re-frame trace event, dbg-last taps the threaded value with :debux/dbg true"
+    (let [taps   (atom [])
+          tapper #(swap! taps conj %)]
+      (add-tap tapper)
+      (try
+        (let [r (->> [1 2 3]
+                     (map inc)
+                     dbg-last
+                     (reduce +))]
+          (is (= 9 r)
+              "value-transparent out of trace; pipeline yields (+ 2 3 4) = 9"))
+        (Thread/sleep 50)
+        (is (= 1 (count @taps)))
+        (let [t (first @taps)]
+          (is (= [2 3 4] (:result t)))
+          (is (= '(map inc [1 2 3]) (:form t)))
+          (is (= true (:debux/dbg t))))
+        (finally
+          (remove-tap tapper))))))
+
+(deftest dbg-last-stub-is-no-op
+  (testing "the production stub returns the threaded value with no trace side effect"
+    (let [taps   (atom [])
+          tapper #(swap! taps conj %)]
+      (add-tap tapper)
+      (try
+        (let [r (macroexpand-1 '(day8.re-frame.tracing-stubs/dbg-last (+ 2 3)))]
+          (is (= '(+ 2 3) r)
+              "1-arity stub macroexpands to bare value"))
+        (let [r (macroexpand-1 '(day8.re-frame.tracing-stubs/dbg-last {:name "x"} (+ 2 3)))]
+          (is (= '(+ 2 3) r)
+              "2-arity stub also macroexpands to the bare value, opts dropped"))
         (Thread/sleep 50)
         (is (empty? @taps)
             "no taps — stubs don't fire any sink")

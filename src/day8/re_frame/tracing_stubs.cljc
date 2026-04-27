@@ -43,3 +43,9 @@
    without emitting traces."
   [form & _opts] form)
 
+(defmacro dbg-last
+  "Thread-last-friendly single-form tracer; production stub. Returns
+   the threaded value with no trace side effect."
+  ([value] value)
+  ([_opts value] value))
+

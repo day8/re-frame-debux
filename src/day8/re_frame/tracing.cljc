@@ -114,6 +114,47 @@
            (boolean (:tap? ~o))))
         ~r))))
 
+;; `dbg-last` is the thread-last-friendly counterpart to `dbg`. The
+;; usability gap it closes: `dbg` wraps an expression, but `->>`
+;; pipelines flow values through positions rather than expressions —
+;; dropping `(dbg ...)` mid-pipeline forces a restructure. `dbg-last`
+;; sits in the natural ->> step slot:
+;;
+;;   (->> coll
+;;        (filter pred?)
+;;        dbg-last           ; bare; or (dbg-last opts-map)
+;;        (map xf)
+;;        (reduce +))
+;;
+;; The expansion swaps args and delegates to `dbg`: the threaded
+;; value reaches dbg as its leading form-arg (so dbg's `'~form`
+;; capture sees the upstream thread chain, just like a wrapped
+;; expression), while opts (if supplied) trail. Same payload, opts
+;; contract, and trace-id semantics as `dbg`.
+
+(defmacro dbg-last
+  "Thread-last-friendly variant of `dbg`. Suitable as a `->>` step:
+
+     (->> coll
+          (filter pred?)
+          dbg-last                          ; bare
+          (map xf))
+
+     (->> coll
+          (filter pred?)
+          (dbg-last {:name \"after-filter\"})  ; with opts
+          (map xf))
+
+   Value-transparent — the threaded value flows through unchanged.
+   Same payload schema and opts as `dbg` (:name, :locals, :if,
+   :once, :tap?). See `dbg`'s docstring for details.
+
+   Expands to `(dbg <value> <opts>)`, so the trace record captures
+   the upstream thread chain (everything between the head of the
+   `->>` and this call site) as the `:form` field."
+  ([value] `(day8.re-frame.tracing/dbg ~value nil))
+  ([opts value] `(day8.re-frame.tracing/dbg ~value ~opts)))
+
 ;;; macro registering APIs
 (defmacro register-macros! [macro-type symbols]
   `(day8.re-frame.debux.cs.macro-types/register-macros! ~macro-type ~symbols))
