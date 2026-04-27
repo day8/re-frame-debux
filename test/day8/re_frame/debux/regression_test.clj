@@ -351,4 +351,20 @@
       (is (= "ell" (f "hello" 1 4))
           "memfn args weren't instrumented; the resulting fn does .substring")
       (is (= 1 (count @traces))
-          "one trace for the memfn form"))))
+          "one trace for the memfn form")))
+
+  (testing "use — quoted-ns args opaque, ns is loaded successfully"
+    (reset! traces [])
+    ;; The CLJ-side classifier had previously listed only the CLJS-
+    ;; namespaced `cljs.core/use`; under JVM-CLJ macroexpansion the
+    ;; resolved `clojure.core/use` symbol fell through to the fn-call
+    ;; default and dbgn descended into the (quote clojure.string)
+    ;; arg — extra trace noise at best, classification breakage at
+    ;; worst for callers carrying multiple symbol args.
+    (let [result (eval `(dbgn (use 'clojure.string)))]
+      (is (nil? result)
+          "use returns nil after referring the namespace's vars")
+      (is (= 1 (count @traces))
+          "exactly one trace; the quoted ns arg wasn't descended into")
+      (is (zero? (:indent-level (first @traces)))
+          "the trace covers the whole use form (indent 0, no descent)"))))

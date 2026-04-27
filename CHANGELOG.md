@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file. This change
 #### Fixed
 
 * Production stub for the runtime API. Two new files — `tracing-stubs/src/day8/re_frame/tracing/runtime.cljc` and the in-src counterpart `src/day8/re_frame/tracing_stubs/runtime.cljc` — close the gap that broke release builds (two-jar setup) for any caller requiring `day8.re-frame.tracing.runtime`. Stub `wrap-handler!` / `wrap-event-fx!` / `wrap-event-ctx!` / `wrap-sub!` / `wrap-fx!` macros compile to bare `re-frame.core/reg-event-db` (or sibling) with no `fn-traced` wrap; `unwrap-*` / `wrapped?` / `wrapped-list` / `unwrap-all!` become no-op runtime fns. Mirrors the `fn-traced` / `fx-traced` / `dbg` / `dbgn` stub pattern (commits e0bd687, bae1b0d, b3248af).
+* CLJ-side `:skip-all-args-type` classifier now lists `use`, mirroring the CLJS-side entry. Without this, `(dbgn (use 'some.ns))` under JVM-CLJ fell through to the fn-call default and dbgn descended into the quoted-ns arg — extra trace noise at best, ill-formed classification for callers passing multiple symbol args. New regression test in `test/day8/re_frame/debux/regression_test.clj` pins the one-trace, no-descent contract.
 
 ## [0.7.0] - 2026-04-27
 

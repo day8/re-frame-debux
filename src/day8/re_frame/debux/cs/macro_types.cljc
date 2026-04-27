@@ -86,7 +86,8 @@
              :skip-all-args-type
              `#{condp declare defmacro defmulti defstruct extend
                 extend-protocol extend-type import memfn new ns
-                proxy proxy-super quote refer-clojure reify sync var}
+                proxy proxy-super quote refer-clojure reify
+                sync use var}
              :skip-form-itself-type
              `#{catch comment definline definterface defprotocol
                 defrecord deftype finally gen-class gen-interface
