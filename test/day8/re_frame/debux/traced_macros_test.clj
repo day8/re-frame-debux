@@ -1,6 +1,7 @@
 (ns day8.re-frame.debux.traced-macros-test
   (:require [clojure.test :refer [deftest is]]
-            [day8.re-frame.debux.core :refer [defn-traced fn-traced]]))
+            [day8.re-frame.debux.core :refer [defn-traced fn-traced]]
+            [day8.re-frame.tracing]))
 
 (comment
   (with-redefs [ut/send-form!  #(zp/czprint %)
@@ -81,6 +82,91 @@
                 meta
                 :doc)
            "test")))
+
+;; ---------------------------------------------------------------------------
+;; defn-traced must propagate the leading docstring + attr-map onto the var
+;; ---------------------------------------------------------------------------
+;;
+;; Spotted while fixing rfd-543. The ::ms/defn-args spec conforms
+;; :docstring and :meta but defn-traced* in core.clj / tracing.cljc
+;; only read :name and :bs, silently discarding both. The
+;; defn-traced-test cases above include forms with leading docstrings
+;; + attr-maps but only assert (var? expansion) — they pass even
+;; though :doc / :added never landed on the var. These tests close
+;; that gap by reading .meta on the resulting var.
+
+(deftest defn-traced-leading-docstring-lands-on-var
+  (let [v (m-expand-eval
+            '(day8.re-frame.debux.core/defn-traced f-with-doc
+               "this fn has a docstring"
+               [x]
+               x))]
+    (is (var? v))
+    (is (= "this fn has a docstring" (:doc (meta v)))
+        "leading docstring lands as :doc on the var")))
+
+(deftest defn-traced-leading-attr-map-lands-on-var
+  (let [v (m-expand-eval
+            '(day8.re-frame.debux.core/defn-traced f-with-attr
+               {:added "1.0" :tag String}
+               [x]
+               x))]
+    (is (var? v))
+    (is (= "1.0" (:added (meta v)))
+        ":added from the leading attr-map is on the var meta")
+    (is (= String (:tag (meta v)))
+        ":tag from the leading attr-map is on the var meta")))
+
+(deftest defn-traced-docstring-and-attr-both-land-on-var
+  (let [v (m-expand-eval
+            '(day8.re-frame.debux.core/defn-traced f-with-both
+               "doc and attr"
+               {:added "1.0"}
+               [x]
+               x))]
+    (is (var? v))
+    (is (= "doc and attr" (:doc (meta v))))
+    (is (= "1.0" (:added (meta v))))))
+
+(deftest defn-traced-docstring-with-arity-n
+  (let [v (m-expand-eval
+            '(day8.re-frame.debux.core/defn-traced f-multi-arity
+               "multi-arity with doc"
+               {:added "1.0"}
+               ([] 0)
+               ([x] x)
+               ([x y] (+ x y))))]
+    (is (var? v))
+    (is (= "multi-arity with doc" (:doc (meta v)))
+        "docstring survives arity-n expansion")
+    (is (= "1.0" (:added (meta v)))
+        "leading attr-map survives arity-n expansion")))
+
+;; The modernized `day8.re-frame.tracing/defn-traced` (in
+;; tracing.cljc) has its own defn-traced* expansion — verify the same
+;; fix applies there too.
+
+(deftest defn-traced-tracing-ns-docstring-and-attr-land-on-var
+  (let [v (m-expand-eval
+            '(day8.re-frame.tracing/defn-traced f-tracing-ns
+               "tracing.cljc docstring"
+               {:added "0.7"}
+               [x]
+               x))]
+    (is (var? v))
+    (is (= "tracing.cljc docstring" (:doc (meta v))))
+    (is (= "0.7" (:added (meta v))))))
+
+(deftest defn-traced-tracing-ns-arity-n-docstring
+  (let [v (m-expand-eval
+            '(day8.re-frame.tracing/defn-traced f-tracing-arity-n
+               "multi-arity tracing.cljc"
+               {:added "0.7"}
+               ([] 0)
+               ([x] x)))]
+    (is (var? v))
+    (is (= "multi-arity tracing.cljc" (:doc (meta v))))
+    (is (= "0.7" (:added (meta v))))))
 
 (deftest fn-traced-test
   ;; These are testing that they all compile and don't throw.

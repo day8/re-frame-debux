@@ -186,14 +186,28 @@
 
 (defmacro defn-traced*
   [opts & definition]
+  ;; ::ms/defn-args also conforms :docstring and :meta plus an arity-n
+  ;; trailing-attr — splice them back into the emitted defn so they
+  ;; land on the resulting var. Order: name → docstring → meta →
+  ;; bodies → trailing-attr (arity-n only) — standard defn signature.
   (let [conformed (s/conform ::ms/defn-args definition)
         name      (:name conformed)
+        docstring (:docstring conformed)
+        meta-map  (:meta conformed)
         bs        (:bs conformed)
         arity-1?  (= (nth bs 0) :arity-1)
         args+body (nth bs 1)]
     (if arity-1?
-      `(defn ~name ~@(fn-body args+body opts &form))
-      `(defn ~name ~@(map #(fn-body % opts &form) (:bodies args+body))))))
+      `(defn ~name
+         ~@(when docstring [docstring])
+         ~@(when meta-map [meta-map])
+         ~@(fn-body args+body opts &form))
+      (let [trailing-attr (:attr args+body)]
+        `(defn ~name
+           ~@(when docstring [docstring])
+           ~@(when meta-map [meta-map])
+           ~@(map #(fn-body % opts &form) (:bodies args+body))
+           ~@(when trailing-attr [trailing-attr]))))))
 
 (defmacro defn-traced
   "Traced defn. Accepts an optional opts map immediately after the

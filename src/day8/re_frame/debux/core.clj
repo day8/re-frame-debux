@@ -43,17 +43,27 @@
 
 (defmacro defn-traced*
   [& definition]
+  ;; ::ms/defn-args also conforms :docstring and :meta — splice them
+  ;; back into the emitted defn so they land on the resulting var.
+  ;; Without this, `(defn-traced f "doc" {:added "1.0"} [x] x)` produced
+  ;; a var with no :doc / :added meta. Order: name → docstring → meta
+  ;; → bodies → trailing-attr (arity-n only) — standard defn signature.
   (let [conformed (s/conform ::ms/defn-args definition)
-        name (:name conformed)
-        bs (:bs conformed)
+        name      (:name conformed)
+        docstring (:docstring conformed)
+        meta-map  (:meta conformed)
+        bs        (:bs conformed)
         arity-1?  (= (nth bs 0) :arity-1)
         args+body (nth bs 1)]
     (if arity-1?
-      `(defn ~name ~@(fn-body args+body))
-      ;; arity-n may carry a trailing attr-map (see ::ms/defn-args:
-      ;; :attr (s/? map?)); forward it so meta lands on the var.
+      `(defn ~name
+         ~@(when docstring [docstring])
+         ~@(when meta-map [meta-map])
+         ~@(fn-body args+body))
       (let [trailing-attr (:attr args+body)]
         `(defn ~name
+           ~@(when docstring [docstring])
+           ~@(when meta-map [meta-map])
            ~@(map fn-body (:bodies args+body))
            ~@(when trailing-attr [trailing-attr]))))))
 
