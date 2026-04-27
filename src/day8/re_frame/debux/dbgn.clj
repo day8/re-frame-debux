@@ -559,7 +559,7 @@
 (defmacro dbgn
   "DeBuG every Nested forms of a form.s"
   [form & [opts]]
-  (println "FULLFORM" &form)
+  ; (println "FULLFORM" &form)
   `(let [~'+debux-dbg-opts+   ~(if (ut/cljs-env? &env)
                                  (dissoc opts :style :js)
                                  opts)
