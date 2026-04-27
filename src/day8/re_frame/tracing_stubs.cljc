@@ -14,3 +14,16 @@
   [& definition]
   `(fn ~@definition))
 
+;; rfd-btn — production stubs for dbg / dbgn. Compile out to the
+;; bare expression so release builds incur zero runtime cost.
+(defmacro dbg
+  "Single-form tracer; production stub. Returns the form's value
+   without emitting a trace."
+  ([form] form)
+  ([form _opts] form))
+
+(defmacro dbgn
+  "Nested-form tracer; production stub. Returns the form's value
+   without emitting traces."
+  [form & _opts] form)
+

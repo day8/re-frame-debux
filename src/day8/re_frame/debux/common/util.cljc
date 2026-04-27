@@ -245,15 +245,45 @@
         ;; from the function args. Whitelisted explicitly so the
         ;; payload contract stays small (10x's Code panel reads
         ;; specific keys; merging arbitrary extras would be brittle).
+        ;; rfd-btn — :name (label from a `dbg` call) follows the same
+        ;; whitelist convention; consumers can branch on its presence.
         entry (cond-> {:form         (tidy-macroexpanded-form (:form code-trace) {})
                        :result       (:result code-trace)
                        :indent-level (:indent-level code-trace)
                        :syntax-order (:syntax-order code-trace)
                        :num-seen     (:num-seen code-trace)}
                 (contains? code-trace :locals)
-                (assoc :locals (:locals code-trace)))]
+                (assoc :locals (:locals code-trace))
+                (contains? code-trace :name)
+                (assoc :name (:name code-trace)))]
     ;; TODO: also capture macroexpanded form? Might be useful in some cases?
     (trace/merge-trace! {:tags {:code (conj code entry)}})))
+
+;; rfd-btn — sink dispatch for the dbg macro. Inside a re-frame trace
+;; event (`*current-trace*` bound non-nil during with-trace) accumulate
+;; onto the active event's :tags :code via send-trace!. Outside, fall
+;; back to tap> so REPL callers still see output. Out-of-trace tap>
+;; payloads carry `:debux/dbg true` so `add-tap` consumers can branch.
+;;
+;; Why a separate helper rather than inlining in the macro: keeps the
+;; `*current-trace*` reference + the tap-fallback logic in CLJ source
+;; (testable via plain deftest) instead of macro-expanded boilerplate
+;; at every dbg call-site.
+
+(defn send-trace-or-tap!
+  "If a re-frame trace event is in flight, accumulate `payload` onto
+   the active event's :tags :code via `send-trace!`. Otherwise tap>
+   so REPL callers still see output.
+
+   `tap-also?` — when true, ALSO tap> alongside the in-trace emit
+   (for callers that want both signals). Out-of-trace, tap> always
+   fires regardless. Returns nil."
+  [payload tap-also?]
+  (if (some? trace/*current-trace*)
+    (do (send-trace! payload)
+        (when tap-also? (tap> (assoc payload :debux/dbg true))))
+    (tap> (assoc payload :debux/dbg true)))
+  nil)
 
 ;;; For internal debugging
 (defmacro d

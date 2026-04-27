@@ -34,6 +34,75 @@
   (let [opts' (ut/parse-opts opts)]
     `(day8.re-frame.debux.dbgn/dbgn ~form ~opts')))
 
+;; rfd-btn — `dbg` is the single-form counterpart to `dbgn`. Wrap any
+;; expression to emit one trace record per evaluation; inside a
+;; re-frame event handler the trace lands on :tags :code (same surface
+;; as fn-traced — 10x's Code panel and re-frame-pair's :debux/code
+;; pick it up identically). Outside any trace context, falls back to
+;; tap> so REPL callers still see output.
+;;
+;; Self-contained at the macro level — no zipper / cljs.analyzer
+;; dependency, so it's safe to live in tracing.cljc alongside the
+;; other CLJC wrappers (vs. the dbgn zipper machinery in dbgn.clj).
+
+(defmacro dbg
+  "DeBuG a single form. `(dbg form)` or `(dbg form opts-map)`.
+
+   The expression evaluates exactly as if dbg weren't there — `dbg`
+   is value-transparent. As a side effect, one trace record per
+   evaluation is emitted with the same payload contract as fn-traced:
+     {:form         <quoted source>
+      :result       <evaluated value>
+      :indent-level 0   ; single form — no nesting
+      :syntax-order 0
+      :num-seen     0
+      :locals?      <opt> :name? <opt>}
+
+   Sink: `re-frame.trace/*current-trace*` non-nil → merge into the
+   active event's :tags :code (rfd-btn → re-frame-pair surfaces it
+   as :debux/code in the coerced epoch); nil → tap> with `:debux/dbg
+   true` so REPL `add-tap` consumers can branch.
+
+   Trailing opts map (all optional):
+     :name   — string label carried in the payload
+     :locals — vec of [[sym val] ...] pairs (caller-supplied — the
+               macro can't introspect &env across CLJ/CLJS the way
+               fn-traced does at function-arg time, so callers
+               wanting locals capture do the gather themselves;
+               pattern: `(dbg form {:locals [['db db] ['x x]]})`)
+     :if     — runtime predicate; the trace fires only when (pred
+               result) is truthy
+     :tap?   — also fire tap> alongside the in-trace send-trace!
+               emit. Out-of-trace, tap> always fires regardless.
+
+   Example:
+     (re-frame.core/reg-event-db
+       :user/login
+       (fn-traced [db [_ creds]]
+         (assoc db :user (dbg (lookup-user creds) {:name \"login\"}))))
+
+   Compiles out to a plain `~form` evaluation under tracing-stubs in
+   release builds (rfd-8g9 production-mode contract)."
+  ([form] `(day8.re-frame.tracing/dbg ~form nil))
+  ([form opts]
+   (let [r (gensym "dbg-result_")
+         o (gensym "dbg-opts_")
+         p (gensym "dbg-pred_")]
+     `(let [~r ~form
+            ~o ~opts
+            ~p (:if ~o)]
+        (when (or (nil? ~p) (~p ~r))
+          (day8.re-frame.debux.common.util/send-trace-or-tap!
+           (cond-> {:form         '~form
+                    :result       ~r
+                    :indent-level 0
+                    :syntax-order 0
+                    :num-seen     0}
+             (:name ~o)   (assoc :name (:name ~o))
+             (:locals ~o) (assoc :locals (:locals ~o)))
+           (boolean (:tap? ~o))))
+        ~r))))
+
 ;;; macro registering APIs
 (defmacro register-macros! [macro-type symbols]
   `(day8.re-frame.debux.cs.macro-types/register-macros! ~macro-type ~symbols))
