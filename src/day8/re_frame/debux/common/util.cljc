@@ -512,6 +512,9 @@
         (#{:once :o} f)
         (recur (next opts) (assoc acc :once true))
 
+        (#{:verbose :show-all} f)
+        (recur (next opts) (assoc acc :verbose true))
+
         (#{:style :s} f)
         (recur (nnext opts) (assoc acc :style s))
 

@@ -215,9 +215,20 @@
       z/down))
 
 ;;; insert/remove d
-(defn insert-trace 
-  ([form d-sym env] (insert-trace form d-sym env []))
-  ([form d-sym env seen]
+;;
+;; `verbose?` (5-arity) is the :verbose / :show-all switch. Default
+;; behaviour skips literal nodes (numbers, strings, booleans, keywords,
+;; chars, nil) at the :else branch — they're "obvious" evaluations
+;; whose traces would clutter the Code panel without adding signal.
+;; When verbose? is true, those literals get wrapped in the trace
+;; marker too. Special-form skips (recur, throw, var, quote, etc. —
+;; the :skip-form-itself-type set in cs/macro_types.cljc) STAY
+;; honoured even in verbose mode because instrumenting them
+;; corrupts evaluation semantics (e.g. recur out of tail position).
+(defn insert-trace
+  ([form d-sym env] (insert-trace form d-sym env [] false))
+  ([form d-sym env seen] (insert-trace form d-sym env seen false))
+  ([form d-sym env seen verbose?]
   ; (println "INSERT-TRACE" (prn-str form))
   (loop [loc          (ut/sequential-zip form)
           indent       0
@@ -358,6 +369,19 @@
                                              ::num-seen ~num-seen} ~node))
                    ;; We're not zipping down inside the node further, so we don't need to add a
                    ;; second z/right like we do in the case of a vector or ifn? node above.
+                    ut/right-or-next)
+                indent syntax-order seen)
+
+        ;; verbose / :show-all mode — wrap leaf literals (number,
+        ;; string, boolean, keyword, char, nil) that the default
+        ;; behaviour skips. Anything that's NOT a structural node
+        ;; (seq / vector / map / set — handled above) is in scope.
+         (and verbose?
+              (or (number? node) (string? node) (boolean? node)
+                  (keyword? node) (char? node) (nil? node)))
+         (recur (-> (z/replace loc `(~d-sym {::indent ~(real-depth loc)
+                                             ::syntax-order ~syntax-order
+                                             ::num-seen ~num-seen} ~node))
                     ut/right-or-next)
                 indent syntax-order seen)
 
@@ -503,7 +527,8 @@
               (sk/insert-o-skip-for-recur form &env)
               form)
             (insert-skip &env)
-            (insert-trace 'day8.re-frame.debux.dbgn/trace &env)
+            (insert-trace 'day8.re-frame.debux.dbgn/trace &env []
+                          (boolean (or (:verbose opts) (:show-all opts))))
             remove-skip)
        ;; TODO: can we remove try/catch too?
        (catch ~(if (ut/cljs-env? &env)
@@ -548,7 +573,8 @@
                                  (sk/insert-o-skip-for-recur form &env)
                                  form)
                                (insert-skip &env)
-                               (insert-trace 'day8.re-frame.debux.dbgn/trace &env args)
+                               (insert-trace 'day8.re-frame.debux.dbgn/trace &env args
+                                             (boolean (or (:verbose opts) (:show-all opts))))
                                remove-skip))
                 forms)
        ;; TODO: can we remove try/catch too?

@@ -179,17 +179,22 @@
 (defmacro defn-traced
   "Traced defn. Accepts an optional opts map immediately after the
    macro name:
-     :locals true   — attach captured args as [[sym val] ...] to each
-                      :code trace entry.
-     :if      pred  — runtime predicate called with the per-form result;
-                      send-trace! fires only when pred returns truthy.
-     :once    true  — suppress consecutive emissions whose (form, result)
-                      pair matches the previous one. Per call site;
-                      dedup state is process-local and survives across
-                      handler invocations until the result actually
-                      changes. Useful for high-frequency dispatches
-                      where you only want to see what's NEW.
-   Example: (defn-traced {:locals true} my-handler [db event] ...)"
+     :locals    true — attach captured args as [[sym val] ...] to each
+                       :code trace entry.
+     :if        pred — runtime predicate called with the per-form result;
+                       send-trace! fires only when pred returns truthy.
+     :once      true — suppress consecutive emissions whose (form, result)
+                       pair matches the previous one. Per call site;
+                       dedup state is process-local and survives across
+                       handler invocations until the result actually
+                       changes. Useful for high-frequency dispatches
+                       where you only want to see what's NEW.
+     :verbose   true — also wrap leaf literals (numbers, strings, booleans,
+       (or :show-all)  keywords, chars, nil) that the default mode skips
+                       for noise reduction. Special-form skips (recur,
+                       throw, var, quote, etc.) stay honoured because
+                       instrumenting them corrupts evaluation semantics.
+   Example: (defn-traced {:locals true :verbose true} my-handler [db event] ...)"
   {:arglists '([opts? name doc-string? attr-map? [params*] prepost-map? body]
                 [opts? name doc-string? attr-map? ([params*] prepost-map? body) + attr-map?])}
   [& definition]
@@ -226,15 +231,14 @@
 (defmacro fn-traced
   "Traced fn. Accepts an optional opts map immediately after the
    macro name:
-     :locals true   — attach captured args as [[sym val] ...] to each
-                      :code trace entry.
-     :if      pred  — runtime predicate called with the per-form result;
-                      send-trace! fires only when pred returns truthy.
-     :once    true  — suppress consecutive emissions whose (form, result)
-                      pair matches the previous one. Per call site;
-                      dedup state is process-local and survives across
-                      handler invocations until the result actually
-                      changes.
+     :locals    true — attach captured args as [[sym val] ...] to each
+                       :code trace entry.
+     :if        pred — runtime predicate called with the per-form result;
+                       send-trace! fires only when pred returns truthy.
+     :once      true — suppress consecutive emissions whose (form, result)
+                       pair matches the previous one. Per call site.
+     :verbose   true — also wrap leaf literals that the default mode skips
+       (or :show-all)  for noise reduction.
    Example: (fn-traced {:locals true :once true} [db event] ...)"
   {:arglists '[(fn-traced opts? name? [params*] exprs*)
                (fn-traced opts? name? ([params*] exprs*) +)]}

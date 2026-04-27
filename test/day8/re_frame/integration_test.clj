@@ -333,3 +333,58 @@
     (let [second-code (code-entries (captured-traces))]
       (is (empty? second-code)
           "second dispatch: :once dedupes everything that survived :if"))))
+
+;; ---------------------------------------------------------------------------
+;; :verbose / :show-all option — wrap leaf literals that the default
+;; behaviour skips for noise reduction
+;; ---------------------------------------------------------------------------
+
+(deftest fn-traced-default-skips-leaf-literals
+  (testing "without :verbose, leaf number/string literals don't produce :code entries with the literal as :form"
+    (re-frame.core/reg-event-db ::quiet-literals (fn [_ _] {}))
+    (re-frame.core/reg-event-db ::quiet-literals
+                                (tracing/fn-traced
+                                  [_ _]
+                                  (let [n 42
+                                        s "hello"]
+                                    {:n n :s s})))
+    (re-frame.core/dispatch-sync [::quiet-literals])
+    (let [forms (set (map :form (code-entries (captured-traces))))]
+      ;; Default mode: literals appear inside enclosing forms (the let
+      ;; binding, the map literal) but are NOT emitted as their own
+      ;; standalone entries with :form 42 / :form "hello".
+      (is (not (contains? forms 42))
+          "no entry has :form 42 in default mode")
+      (is (not (contains? forms "hello"))
+          "no entry has :form \"hello\" in default mode"))))
+
+(deftest fn-traced-verbose-wraps-leaf-literals
+  (testing ":verbose true wraps the leaf literals the default mode skips"
+    (re-frame.core/reg-event-db ::loud-literals (fn [_ _] {}))
+    (re-frame.core/reg-event-db ::loud-literals
+                                (tracing/fn-traced
+                                  {:verbose true}
+                                  [_ _]
+                                  (let [n 42
+                                        s "hello"]
+                                    {:n n :s s})))
+    (re-frame.core/dispatch-sync [::loud-literals])
+    (let [forms (set (map :form (code-entries (captured-traces))))]
+      (is (contains? forms 42)
+          ":verbose surfaces the 42 literal as its own :code entry (:form 42)")
+      (is (contains? forms "hello")
+          ":verbose surfaces the \"hello\" literal too"))))
+
+(deftest fn-traced-show-all-alias-wraps-literals
+  (testing ":show-all is an accepted alias for :verbose"
+    (re-frame.core/reg-event-db ::show-all-alias (fn [_ _] {}))
+    (re-frame.core/reg-event-db ::show-all-alias
+                                (tracing/fn-traced
+                                  {:show-all true}
+                                  [_ _]
+                                  (let [n 99]
+                                    {:n n})))
+    (re-frame.core/dispatch-sync [::show-all-alias])
+    (let [forms (set (map :form (code-entries (captured-traces))))]
+      (is (contains? forms 99)
+          ":show-all wraps the 99 literal just like :verbose would"))))
