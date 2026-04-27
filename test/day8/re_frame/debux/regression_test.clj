@@ -198,3 +198,97 @@
                                               (> x# 3) (* 2))
                                   :else     :neg))))]
       (is (= 12 result) "5 → cond-> inc=6 → *2=12"))))
+
+;; ----------------------------------------------------------------------
+;; :skip-all-args-type classifier coverage
+;; ----------------------------------------------------------------------
+;;
+;; Forms classified as :skip-all-args-type in cs/macro_types.cljc emit
+;; ONE trace for the whole form and do NOT descend into the args.
+;; This semantics matters because the args of these forms carry
+;; compile-time meaning that ordinary expression instrumentation would
+;; corrupt — protocol impl bodies, reify methods, var/quote special-
+;; form arguments, defmulti's dispatch fn, etc.
+;;
+;; Two regression vectors this fixture guards against:
+;;
+;;   1. A form drops out of the classifier entirely. Its args are now
+;;      walked as normal expressions, which produces compile errors on
+;;      protocol-impl forms (the impl bodies aren't first-class
+;;      expressions — `[this]` is a parameter destructure, not a vec
+;;      literal).
+;;   2. A form regresses to :skip-form-itself-type — silently emits
+;;      ZERO traces, the user sees nothing for that form in their
+;;      Code panel. The trace-count == 1 assertion catches this.
+
+(defprotocol SkipAllArgsProbe
+  "Protocol used only by skip-all-args-type-classifier-coverage. The
+   tests below rely on the impl bodies being opaque — if dbgn ever
+   instruments the bodies of `reify` / `extend-type`, the impl forms
+   become ill-formed expressions and the test fails at compile time."
+  (probe [this]))
+
+(deftest skip-all-args-type-classifier-coverage
+  (testing "reify — body opaque, impl returns its literal value"
+    (reset! traces [])
+    (let [r (eval `(dbgn (reify SkipAllArgsProbe (probe [_#] :reified))))]
+      (is (= :reified (probe r))
+          "reify method body wasn't instrumented; impl returns :reified")
+      (is (= 1 (count @traces))
+          "exactly one trace — :skip-all-args-type, not :skip-form-itself-type")
+      (is (zero? (:indent-level (first @traces)))
+          "the trace covers the whole reify form (indent 0, no descent)")))
+
+  (testing "extend-type — protocol extension reaches the body"
+    (reset! traces [])
+    (eval `(dbgn (extend-type java.lang.Long
+                   SkipAllArgsProbe
+                   (probe [_#] :long-extended))))
+    (is (= :long-extended (probe 42))
+        "extend-type body wasn't instrumented; protocol method dispatches to :long-extended")
+    (is (= 1 (count @traces))
+        "one trace, args weren't descended into"))
+
+  (testing "proxy — Object method override is callable"
+    (reset! traces [])
+    ;; ~' on the proxy form: `toString` is a method name that proxy
+    ;; treats as a literal symbol. Syntax-quote would otherwise
+    ;; namespace it to `regression-test/toString` and proxy's parse
+    ;; would fail to find the matching Object method.
+    (let [p (eval `(dbgn ~'(proxy [Object] [] (toString [] "proxied"))))]
+      (is (= "proxied" (.toString ^Object p))
+          "proxy method body wasn't instrumented; toString returns the literal")
+      (is (= 1 (count @traces))
+          "one trace for the whole proxy form")))
+
+  (testing "defmulti — macroexpands without descending into the dispatch fn"
+    (let [result (macroexpand-with-timeout
+                   `(dbgn (defmulti skip-all-mm# identity)))]
+      (is (not= ::timeout result)
+          "defmulti macroexpansion did not stall (no zipper recursion through `identity`)")))
+
+  (testing "declare — emits one trace, no descent"
+    (reset! traces [])
+    (eval `(dbgn (declare skip-all-declared#)))
+    (is (= 1 (count @traces))
+        "exactly one trace; the declared symbol arg wasn't instrumented (would be ill-formed)"))
+
+  (testing "var special form — returns the var, dbgn preserves semantics"
+    (reset! traces [])
+    (let [v (eval `(dbgn (var inc)))]
+      (is (var? v)
+          "(var inc) returns #'clojure.core/inc; dbgn preserved the special-form semantics")
+      (is (= 1 (count @traces))
+          "one trace for (var inc); the var arg wasn't walked")))
+
+  (testing "memfn — produces a callable that delegates to the named method"
+    (reset! traces [])
+    ;; ~' on the memfn form: `substring`/`start`/`end` are the literal
+    ;; method name and arg-name symbols that memfn weaves into a
+    ;; (.substring target start end) interop call. Syntax-quote
+    ;; would namespace them and break the interop expansion.
+    (let [f (eval `(dbgn ~'(memfn substring start end)))]
+      (is (= "ell" (f "hello" 1 4))
+          "memfn args weren't instrumented; the resulting fn does .substring")
+      (is (= 1 (count @traces))
+          "one trace for the memfn form"))))
