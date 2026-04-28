@@ -37,6 +37,36 @@
 (defn- macro-types [t]
   (t @mt/macro-types*))
 
+(def ^:private skip-handlers
+  (array-map
+   :def-type              [sk/insert-skip-in-def z/next]
+   :defn-type             [sk/insert-skip-in-defn z/next]
+   :fn-type               [sk/insert-skip-in-fn z/next]
+   :let-type              [sk/insert-skip-in-let z/next]
+   :loop-type             [sk/insert-skip-in-let z/next]
+   :letfn-type            [sk/insert-skip-in-letfn z/next]
+   :for-type              [sk/insert-skip-in-for z/next]
+   :case-type             [sk/insert-skip-in-case z/next]
+   :thread-first-type     [sk/insert-skip-thread-first z/next]
+   :thread-last-type      [sk/insert-skip-thread-last z/next]
+   :cond-first-type       [sk/insert-skip-cond-first z/next]
+   :cond-last-type        [sk/insert-skip-cond-last z/next]
+   :skip-arg-1-type       [sk/insert-skip-arg-1 z/next]
+   :skip-arg-2-type       [sk/insert-skip-arg-2 z/next]
+   :skip-arg-1-2-type     [sk/insert-skip-arg-1-2 z/next]
+   :skip-arg-2-3-type     [sk/insert-skip-arg-2-3 z/next]
+   :skip-arg-1-3-type     [sk/insert-skip-arg-1-3 z/next]
+   :skip-all-args-type    [sk/insert-skip-all-args ut/right-or-next]
+   :skip-form-itself-type [sk/insert-skip-form-itself ut/right-or-next]
+   :dot-type              [sk/insert-skip-in-dot #(-> % z/down z/right)]
+   :dot-dot-type          [sk/insert-skip-in-dot-dot #(-> % z/down z/right)]))
+
+(defn- skip-handler [sym]
+  (some (fn [[macro-type handler]]
+          (when ((macro-types macro-type) sym)
+            handler))
+        skip-handlers))
+
 ;;; insert skip
 (defn insert-skip
   "Marks the form to skip."
@@ -56,111 +86,8 @@
         (and (seq? node) (symbol? (first node)))
         (let [sym (ut/ns-symbol (first node) env)]
           ;; (println "NODE" node "SYM" sym)
-          (cond
-            ((macro-types :def-type) sym)
-            (-> (z/replace loc (sk/insert-skip-in-def node))
-                z/next
-                recur)
-
-            ((macro-types :defn-type) sym)
-            (-> (z/replace loc (sk/insert-skip-in-defn node))
-                z/next
-                recur)
-
-            ((macro-types :fn-type) sym)
-            (-> (z/replace loc (sk/insert-skip-in-fn node))
-                z/next
-                recur)
-
-
-            (or ((macro-types :let-type) sym)
-                ((macro-types :loop-type) sym))
-            (-> (z/replace loc (sk/insert-skip-in-let node))
-                z/next
-                recur)
-
-            ((macro-types :letfn-type) sym)
-            (-> (z/replace loc (sk/insert-skip-in-letfn node))
-                z/next
-                recur)
-
-
-            ((macro-types :for-type) sym)
-            (-> (z/replace loc (sk/insert-skip-in-for node))
-                z/next
-                recur)
-
-            ((macro-types :case-type) sym)
-            (-> (z/replace loc (sk/insert-skip-in-case node))
-                z/next
-                recur)
-
-            ((macro-types :thread-first-type) sym)
-            (-> (z/replace loc (sk/insert-skip-thread-first node))
-                z/next
-                recur)
-
-            ((macro-types :thread-last-type) sym)
-            (-> (z/replace loc (sk/insert-skip-thread-last node))
-                z/next
-                recur)
-
-            ((macro-types :cond-first-type) sym)
-            (-> (z/replace loc (sk/insert-skip-cond-first node))
-                z/next
-                recur)
-
-            ((macro-types :cond-last-type) sym)
-            (-> (z/replace loc (sk/insert-skip-cond-last node))
-                z/next
-                recur)
-
-            ((macro-types :skip-arg-1-type) sym)
-            (-> (z/replace loc (sk/insert-skip-arg-1 node))
-                z/next
-                recur)
-
-            ((macro-types :skip-arg-2-type) sym)
-            (-> (z/replace loc (sk/insert-skip-arg-2 node))
-                z/next
-                recur)
-
-            ((macro-types :skip-arg-1-2-type) sym)
-            (-> (z/replace loc (sk/insert-skip-arg-1-2 node))
-                z/next
-                recur)
-
-            ((macro-types :skip-arg-2-3-type) sym)
-            (-> (z/replace loc (sk/insert-skip-arg-2-3 node))
-                z/next
-                recur)
-
-            ((macro-types :skip-arg-1-3-type) sym)
-            (-> (z/replace loc (sk/insert-skip-arg-1-3 node))
-                z/next
-                recur)
-
-            ((macro-types :skip-all-args-type) sym)
-            (-> (z/replace loc (sk/insert-skip-all-args node))
-                ut/right-or-next
-                recur)
-
-            ((macro-types :skip-form-itself-type) sym)
-            (-> (z/replace loc (sk/insert-skip-form-itself node))
-                ut/right-or-next
-                recur)
-
-            ((macro-types :dot-type) sym)
-            (-> (z/replace loc (sk/insert-skip-in-dot node))
-                z/down z/right
-                recur)
-
-            ((macro-types :dot-dot-type) sym)
-            (-> (z/replace loc (sk/insert-skip-in-dot-dot node))
-                z/down z/right
-                recur)
-
-            :else
+          (if-let [[skip-fn nav] (skip-handler sym)]
+            (recur (nav (z/replace loc (skip-fn node))))
             (recur (z/next loc))))
 
         :else (recur (z/next loc))))))
