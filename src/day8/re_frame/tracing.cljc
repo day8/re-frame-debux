@@ -29,6 +29,7 @@
 (def set-print-seq-length! ut/set-print-seq-length!)
 (def set-tap-output! ut/set-tap-output!)
 (def set-trace-frames-output! ut/set-trace-frames-output!)
+(def reset-once-state! ut/-reset-once-state!)
 
 
 ;;; debugging APIs
@@ -92,7 +93,7 @@
                specific call site. The first invocation emits; the
                next runs that produce the same result are skipped.
                Cleared when the result changes, OR explicitly via
-               `day8.re-frame.debux.common.util/-reset-once-state!`.
+               `day8.re-frame.tracing/reset-once-state!`.
      :tap?   — also fire tap> alongside the in-trace send-trace!
                emit. Out-of-trace, tap> always fires regardless.
 
