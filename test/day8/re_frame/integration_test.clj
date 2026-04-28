@@ -111,6 +111,19 @@
   [captured]
   (mapv #(pr-str (:form %)) (code-entries captured)))
 
+(defn- code-form-present?
+  [code form]
+  (some #(and (contains? % :form)
+              (= form (:form %)))
+        code))
+
+(defn- code-form-with-head-present?
+  [code head]
+  (some #(let [form (:form %)]
+           (and (seq? form)
+                (= head (first form))))
+        code))
+
 (defn- frame-entries
   "Flatten the per-test capture stream into a vec of :trace-frames
    entries (entry/exit markers) regardless of which trace carried
@@ -521,6 +534,95 @@
     (let [forms (set (map :form (code-entries (captured-traces))))]
       (is (contains? forms 99)
           ":show-all wraps the 99 literal just like :verbose would"))))
+
+(deftest fn-traced-verbose-covers-all-leaf-types
+  (testing ":verbose surfaces every default-skipped leaf literal type"
+    (let [leaf-literals [42 "hello" true :leaf/keyword \a nil]]
+      (re-frame.core/reg-event-db ::all-leaf-types-default (fn [_ _] {}))
+      (re-frame.core/reg-event-db ::all-leaf-types-default
+                                  (tracing/fn-traced
+                                    [_ _]
+                                    (let [number-literal 42
+                                          string-literal "hello"
+                                          boolean-literal true
+                                          keyword-literal :leaf/keyword
+                                          char-literal \a
+                                          nil-literal nil]
+                                      {:number number-literal
+                                       :string string-literal
+                                       :boolean boolean-literal
+                                       :keyword keyword-literal
+                                       :char char-literal
+                                       :nil nil-literal})))
+      (re-frame.core/dispatch-sync [::all-leaf-types-default])
+      (let [default-code (code-entries (captured-traces))]
+        (doseq [literal leaf-literals]
+          (is (not (code-form-present? default-code literal))
+              (str "default mode does not emit standalone leaf literal "
+                   (pr-str literal)))))
+
+      (reset! rft/traces [])
+
+      (re-frame.core/reg-event-db ::all-leaf-types-verbose (fn [_ _] {}))
+      (re-frame.core/reg-event-db ::all-leaf-types-verbose
+                                  (tracing/fn-traced
+                                    {:verbose true}
+                                    [_ _]
+                                    (let [number-literal 42
+                                          string-literal "hello"
+                                          boolean-literal true
+                                          keyword-literal :leaf/keyword
+                                          char-literal \a
+                                          nil-literal nil]
+                                      {:number number-literal
+                                       :string string-literal
+                                       :boolean boolean-literal
+                                       :keyword keyword-literal
+                                       :char char-literal
+                                       :nil nil-literal})))
+      (re-frame.core/dispatch-sync [::all-leaf-types-verbose])
+      (let [verbose-code (code-entries (captured-traces))]
+        (doseq [literal leaf-literals]
+          (is (code-form-present? verbose-code literal)
+              (str ":verbose emits standalone leaf literal "
+                   (pr-str literal))))))))
+
+(deftest fn-traced-verbose-still-honours-skip-form-itself
+  (testing ":verbose leaves special forms opaque enough to preserve evaluation semantics"
+    (re-frame.core/reg-event-db ::verbose-special-form-skips (fn [_ _] {}))
+    (re-frame.core/reg-event-db ::verbose-special-form-skips
+                                (tracing/fn-traced
+                                  {:verbose true}
+                                  [_ _]
+                                  (let [loop-result (loop [n 0
+                                                           acc 0]
+                                                      (if (< n 3)
+                                                        (recur (inc n) (+ acc n))
+                                                        acc))
+                                        quoted-leaf (quote [:quoted-leaf-sentinel])
+                                        throw-branch (if false
+                                                       (throw (ex-info "unreachable"
+                                                                       {:kind :throw-sentinel}))
+                                                       :not-thrown)]
+                                    {:loop-result loop-result
+                                     :quoted-leaf quoted-leaf
+                                     :throw-branch throw-branch})))
+    (re-frame.core/dispatch-sync [::verbose-special-form-skips])
+    (is (= {:loop-result 3
+            :quoted-leaf [:quoted-leaf-sentinel]
+            :throw-branch :not-thrown}
+           @re-frame.db/app-db)
+        "special-form-heavy handler still evaluates correctly")
+    (let [code (code-entries (captured-traces))]
+      (doseq [head '[recur throw]]
+        (is (not (code-form-with-head-present? code head))
+            (str ":verbose does not emit a standalone "
+                 head
+                 " form")))
+      (is (not (code-form-present? code :quoted-leaf-sentinel))
+          "quote remains opaque; verbose does not trace quoted leaves")
+      (is (not (code-form-present? code :throw-sentinel))
+          "throw remains opaque; verbose does not trace throw body literals"))))
 
 ;; ---------------------------------------------------------------------------
 ;; :trace-frames — function entry/exit markers around fn-traced bodies
