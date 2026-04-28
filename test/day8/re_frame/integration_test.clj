@@ -777,6 +777,156 @@
         "well-formed fx-traced doesn't crash; emits per-key entries normally")))
 
 ;; ---------------------------------------------------------------------------
+;; fx-traced opts surface — :msg / :locals / :if / :once / :verbose
+;; ---------------------------------------------------------------------------
+;;
+;; fx-traced shares fn-body with fn-traced and only flips :fx-trace.
+;; The opts surface is therefore a transitive contract: every
+;; fn-traced opt should reach the fx-traced :code path. Pin that
+;; assumption per-opt so a future change to opts threading can't
+;; silently break fx-traced while leaving fn-traced green. The
+;; :final variant lives in debux/final_option_test.cljc alongside
+;; the rest of the :final coverage.
+
+(deftest fx-traced-msg-option-labels-every-code-entry
+  (testing ":msg \"label\" attaches the label as :msg on every fx-traced :code entry"
+    (re-frame.core/reg-event-fx ::fx-with-msg (fn [_ _] {}))
+    (re-frame.core/reg-event-fx ::fx-with-msg
+                                (tracing/fx-traced
+                                  {:msg "checkout-handler"}
+                                  [_ _]
+                                  (let [n (inc 41)]
+                                    {:db {:n n}})))
+    (re-frame.core/dispatch-sync [::fx-with-msg])
+    (let [code (code-entries (captured-traces))]
+      (is (seq code)
+          "at least one :code entry was emitted")
+      (is (every? #(= "checkout-handler" (:msg %)) code)
+          "every :code entry from fx-traced carries :msg = \"checkout-handler\""))))
+
+(deftest fx-traced-locals-option-captures-args
+  (testing ":locals true on fx-traced attaches captured arg pairs to each :code entry"
+    (re-frame.core/reg-event-fx ::fx-with-locals (fn [_ _] {}))
+    (re-frame.core/reg-event-fx ::fx-with-locals
+                                (tracing/fx-traced
+                                  {:locals true}
+                                  [_ [_ x]]
+                                  (let [n (inc x)]
+                                    {:db {:n n}})))
+    (re-frame.core/dispatch-sync [::fx-with-locals 7])
+    (let [code (code-entries (captured-traces))]
+      (is (seq code)
+          "at least one :code entry was emitted")
+      (is (every? :locals code)
+          "every :code entry carries a :locals key when :locals true")
+      (let [a-locals (-> code first :locals)]
+        (is (some #(= 'x (first %)) a-locals)
+            ":locals includes the bound x arg")
+        (is (some #(= 7 (second %)) a-locals)
+            ":locals binds x to its runtime value (7)")))))
+
+(deftest fx-traced-if-option-gates-emission
+  (testing ":if (constantly false) on fx-traced suppresses every :code entry"
+    (re-frame.core/reg-event-fx ::fx-quiet-if (fn [_ _] {}))
+    (re-frame.core/reg-event-fx ::fx-quiet-if
+                                (tracing/fx-traced
+                                  {:if (constantly false)}
+                                  [_ _]
+                                  (let [n (inc 41)]
+                                    {:db {:n n}})))
+    (re-frame.core/dispatch-sync [::fx-quiet-if])
+    (is (empty? (code-entries (captured-traces)))
+        ":if predicate returned false → send-trace! gated for every form, even through fx-traced")))
+
+(deftest fx-traced-once-dedupes-across-dispatches
+  (testing ":once true on fx-traced suppresses :code emission when (form, result) is unchanged"
+    ;; Handler ignores both args and returns a fresh constant map both
+    ;; times — every traced form's result is identical across the two
+    ;; dispatches, so :once should suppress them all the second time.
+    (re-frame.core/reg-event-fx ::fx-stable-once (fn [_ _] {}))
+    (re-frame.core/reg-event-fx ::fx-stable-once
+                                (tracing/fx-traced
+                                  {:once true}
+                                  [_ _]
+                                  (let [n (inc 41)]
+                                    {:db {:n n}})))
+    (re-frame.core/dispatch-sync [::fx-stable-once])
+    (let [first-code (code-entries (captured-traces))]
+      (is (seq first-code)
+          "first dispatch emits :code entries (forms haven't been seen)"))
+    (reset! rft/traces [])
+    (re-frame.core/dispatch-sync [::fx-stable-once])
+    (let [second-code (code-entries (captured-traces))]
+      (is (empty? second-code)
+          "second dispatch with identical results emits nothing — :once dedupes through fx-traced"))))
+
+(deftest fx-traced-verbose-wraps-leaf-literals
+  (testing ":verbose true on fx-traced wraps the leaf literals the default mode skips"
+    (re-frame.core/reg-event-fx ::fx-loud-literals (fn [_ _] {}))
+    (re-frame.core/reg-event-fx ::fx-loud-literals
+                                (tracing/fx-traced
+                                  {:verbose true}
+                                  [_ _]
+                                  (let [n 42
+                                        s "hello"]
+                                    {:db {:n n :s s}})))
+    (re-frame.core/dispatch-sync [::fx-loud-literals])
+    (let [forms (set (map :form (code-entries (captured-traces))))]
+      (is (contains? forms 42)
+          ":verbose surfaces the 42 literal as its own :code entry through fx-traced")
+      (is (contains? forms "hello")
+          ":verbose surfaces the \"hello\" literal too"))))
+
+;; ---------------------------------------------------------------------------
+;; defn-fx-traced — defn variant of fx-traced. Sanity coverage only:
+;; a bare invocation (no opts) and an opts-bearing invocation, each
+;; verified through reg-event-fx + dispatch-sync. The macroexpansion
+;; path (defn-fx-traced → defn-traced + :fx-trace flag) is exercised
+;; in tracing_stubs_test.clj; this section pins the live integration
+;; shape — macro expands, var interns, dispatch flows through, and
+;; both :code (fn-traced inheritance) and :fx-effects (fx-traced
+;; addition) entries land on the trace stream.
+;; ---------------------------------------------------------------------------
+
+(declare fx-defn-bare-impl fx-defn-opts-impl)
+
+(deftest defn-fx-traced-bare-dispatches-through-reg-event-fx
+  (testing "defn-fx-traced without opts: macro expands, var interns, dispatch flows through reg-event-fx producing :code and :fx-effects entries"
+    (tracing/defn-fx-traced fx-defn-bare-impl [_ [_ amount]]
+      (let [doubled (* 2 amount)]
+        {:db {:total doubled}}))
+    (re-frame.core/reg-event-fx ::fx-defn-bare-event fx-defn-bare-impl)
+    (re-frame.core/dispatch-sync [::fx-defn-bare-event 100])
+    (let [code (code-entries (captured-traces))
+          fs   (forms (captured-traces))
+          fx   (fx-effects-entries (captured-traces))]
+      (is (seq code)
+          "defn-fx-traced body produced :code entries via fn-traced inheritance")
+      (is (some #(re-find #"\* 2 amount" %) fs)
+          "captured forms include the (* 2 amount) sub-form")
+      (is (some #(= :db (:fx-key %)) fx)
+          "defn-fx-traced still emits per-key :fx-effects entries"))))
+
+(deftest defn-fx-traced-with-opts-dispatches-through-reg-event-fx
+  (testing "defn-fx-traced with leading opts map: opts thread through to the :code payload"
+    (tracing/defn-fx-traced
+      {:msg "fx-defn-labelled"}
+      fx-defn-opts-impl
+      [_ [_ amount]]
+      (let [doubled (* 2 amount)]
+        {:db {:total doubled}}))
+    (re-frame.core/reg-event-fx ::fx-defn-opts-event fx-defn-opts-impl)
+    (re-frame.core/dispatch-sync [::fx-defn-opts-event 50])
+    (let [code (code-entries (captured-traces))
+          fx   (fx-effects-entries (captured-traces))]
+      (is (seq code)
+          "opts-bearing defn-fx-traced still emitted :code entries")
+      (is (every? #(= "fx-defn-labelled" (:msg %)) code)
+          ":msg flows through defn-fx-traced → defn-traced → fn-traced opts threading")
+      (is (some #(= :db (:fx-key %)) fx)
+          ":fx-trace flag also makes it through; per-key :fx-effects still emitted"))))
+
+;; ---------------------------------------------------------------------------
 ;; tap> output channel — set-tap-output!
 ;; ---------------------------------------------------------------------------
 ;;

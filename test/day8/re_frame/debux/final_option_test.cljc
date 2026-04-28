@@ -212,3 +212,34 @@
         (let [code (code-entries (captured-traces))]
           (is (some pos? (map :indent-level code))
               "at least one intermediate (indent>0) entry — :final is what gates them"))))))
+
+;; ---------------------------------------------------------------------------
+;; fx-traced — :final on a reg-event-fx handler suppresses intermediate
+;; :code entries through the full dispatch pipeline. fx-traced shares
+;; fn-body with fn-traced and only flips :fx-trace, so every fn-traced
+;; opt should reach the fx-traced :code path; this deftest pins the
+;; :final case alongside its fn-traced sibling above.
+;; ---------------------------------------------------------------------------
+
+(deftest fx-traced-final-suppresses-intermediates
+  (with-trace-capture
+    (fn []
+      (testing ":final true on fx-traced suppresses every :code entry except the outermost"
+        (re-frame.core/reg-event-fx ::fx-final-handler (fn [_ _] {}))
+        (re-frame.core/reg-event-fx ::fx-final-handler
+                                    (tracing/fx-traced
+                                      {:final true}
+                                      [_ _]
+                                      (let [v (->> (range 5)
+                                                   (filter odd?)
+                                                   (map inc)
+                                                   (reduce +))]
+                                        {:db {:v v}})))
+        (re-frame.core/dispatch-sync [::fx-final-handler])
+        (let [code (code-entries (captured-traces))]
+          (is (seq code)
+              "at least one :code entry made it through fx-traced + :final")
+          (is (every? zero? (map :indent-level code))
+              "every surviving :code entry is at indent 0 — intermediates suppressed")
+          (is (some #(= {:db {:v 6}} (:result %)) code)
+              "the outer body result (effect map with v=6) is among the surviving entries"))))))
