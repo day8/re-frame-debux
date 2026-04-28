@@ -243,9 +243,6 @@
            :else
            (recur (-> loc z/down z/next z/down ut/right-or-next) indent syntax-order seen))
 
-        ;; TODO: handle lists that are just lists, not function calls
-         
-
         ;; in case of (skip-outer ...)
          (and (seq? node)
               (= `ms/skip-outer (first node)))
