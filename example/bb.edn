@@ -1,0 +1,24 @@
+{:min-bb-version "0.4.0"
+
+ :tasks
+ {clean
+  {:doc  "Remove compiled example output."
+   :task (shell "rm -rf resources/public/js/compiled target .shadow-cljs")}
+
+  dev
+  {:doc  "Start the example app at http://localhost:8280/."
+   :task (clojure "-M:dev:shadow" "watch" "app")}
+
+  compile
+  {:doc  "Compile the development build once."
+   :task (clojure "-M:dev:shadow" "compile" "app")}
+
+  release
+  {:doc  "Compile the release build with tracing namespaces aliased to stubs."
+   :task (clojure "-M:dev:prod:shadow" "release" "app")}
+
+  karma
+  {:doc  "Compile the legacy karma target and run the example karma config."
+   :task (do
+           (clojure "-M:dev:shadow" "compile" "karma-test")
+           (shell "../node_modules/.bin/karma start --single-run --reporters junit,dots"))}}}
