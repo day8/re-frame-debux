@@ -18,10 +18,15 @@
    needed for these tests — they live alongside the macroexpansion
    suite, not in the (separately-gated) browser-test build.
 
-   CLJ-only by design — this fixture stubs `rft/schedule-debounce`
-   to no-op, sidestepping a CLJ-specific quirk where the trace cb
-   runs synchronously on the outermost finish-trace and resets
-   `traces` BEFORE the test reads it. CLJS uses
+   CLJ-only by design — this fixture replaces `rft/schedule-debounce`
+   with a synchronous cb-runner, sidestepping a CLJ-specific quirk
+   in re-frame's `debounce` shim that binds `schedule-debounce` to
+   `[]` at namespace-load time (the `:clj` branch invokes its arg
+   instead of wrapping it). The fixture's runner delivers `@traces`
+   to every registered `trace-cb` synchronously and does NOT clear
+   the atom, so sibling tests that read `@rft/traces` directly
+   (the SEND side) keep working alongside `register-trace-cb`
+   tests that pin the DELIVERY side. CLJS uses
    `goog.functions/debounce`, so the cb is deferred and the same
    stub isn't needed there — but the tap-output Thread/sleep waits
    for the CLJ tap-loop agent are also JVM-only. A CLJS analogue
@@ -55,13 +60,14 @@
 ;; `run-tracing-callbacks!` then calls `(schedule-debounce)` and
 ;; throws ArityException at every dispatch.
 ;;
-;; We sidestep the broken delivery path by reading from the public
-;; `re-frame.trace/traces` atom directly. The `finish-trace` macro
-;; swap!s each trace into that atom synchronously inside `with-trace`,
-;; so by the time `dispatch-sync` returns, every trace produced by
-;; the wrapped handler is in `@traces`. We also stub
-;; `schedule-debounce` to a callable no-op so the cb path doesn't
-;; throw partway through dispatch.
+;; The fixture works around the broken root binding by replacing
+;; `schedule-debounce` with a synchronous cb-runner. The runner
+;; delivers `@traces` to every registered `trace-cb`, but does NOT
+;; reset the atom — sibling tests that read `@traces` directly to
+;; verify the SEND side still see the full stream after dispatch.
+;; A separate `register-trace-cb` deftest then pins the DELIVERY
+;; side: a real consumer registering a cb gets the :code payload
+;; from the same dispatch the SEND-side tests inspect.
 
 (defn- captured-traces
   "Snapshot of the re-frame.trace stream so far in the current test.
@@ -74,11 +80,25 @@
   [f]
   (with-redefs [rft/trace-enabled?     true
                 tracing/trace-enabled? true
-                ;; Stub the broken-on-CLJ cb scheduler so
-                ;; run-tracing-callbacks! doesn't throw.
-                rft/schedule-debounce  (fn [] nil)]
+                ;; Real cb-runner replacing the broken-on-CLJ
+                ;; schedule-debounce root binding (see the fixture
+                ;; comment block above). Synchronously delivers the
+                ;; current `@traces` snapshot to every registered cb;
+                ;; does NOT reset the atom so SEND-side assertions
+                ;; reading `@rft/traces` keep working alongside
+                ;; DELIVERY-side assertions reading the cb's batches.
+                rft/schedule-debounce
+                (fn synchronous-cb-runner []
+                  (doseq [[k cb] @rft/trace-cbs]
+                    (try (cb @rft/traces)
+                         (catch Exception e
+                           (println "trace cb" k "threw:" e)))))]
     (reset! rft/traces [])
     (reset! rft/next-delivery 0)
+    ;; trace-cbs is a process-global registry; clear between deftests
+    ;; so a registered cb in one test doesn't fire under another's
+    ;; dispatch.
+    (reset! rft/trace-cbs {})
     (reset! runtime/wrapped-originals {})
     ;; :once dedup state is process-local; reset between deftests so
     ;; one test's last emission doesn't silence the next test.
@@ -86,7 +106,8 @@
     (try
       (f)
       (finally
-        (runtime/unwrap-all!)))))
+        (runtime/unwrap-all!)
+        (reset! rft/trace-cbs {})))))
 
 (use-fixtures :each with-trace-capture)
 
@@ -169,6 +190,47 @@
     (re-frame.core/dispatch-sync [::quiet])
     (is (empty? (code-entries (captured-traces)))
         "after unwrap, no :code entries land — fn-traced is gone")))
+
+;; ---------------------------------------------------------------------------
+;; Trace-cb delivery channel — `register-trace-cb` is the public surface
+;; that production consumers (re-frame-10x, re-frame-pair) use; the
+;; sibling deftests above only verify the SEND side via `@rft/traces`.
+;; This pins the DELIVERY side so a regression in the
+;; merge-trace! → finish-trace → run-tracing-callbacks! pipeline can't
+;; sneak through with green tests and only break in real tools.
+;; ---------------------------------------------------------------------------
+
+(deftest fn-traced-code-payload-reaches-registered-trace-cb
+  (testing "register-trace-cb receives the :code payload from a wrapped fn-traced handler"
+    (let [delivered (atom [])
+          probe-key ::trace-cb-probe]
+      (try
+        (rft/register-trace-cb probe-key
+                               (fn [batch] (swap! delivered conj (vec batch))))
+        (re-frame.core/reg-event-db ::cb-target (fn [db _] db))
+        (runtime/wrap-handler! :event ::cb-target
+                               (fn [db _]
+                                 (let [n (inc 41)]
+                                   (assoc db :n n))))
+        (re-frame.core/dispatch-sync [::cb-target])
+        (let [batches @delivered
+              code    (->> batches
+                           (mapcat identity)
+                           (mapcat (comp :code :tags))
+                           vec)
+              forms   (set (map (comp pr-str :form) code))
+              results (set (map :result code))]
+          (is (seq batches)
+              "registered trace-cb received at least one delivery during dispatch-sync")
+          (is (seq code)
+              "the cb's deliveries carried at least one :code entry")
+          (is (some #(re-find #"inc" %) forms)
+              "the cb's :code stream includes the wrapped body's inc form")
+          (is (contains? results 42)
+              "the cb's :code stream carries the (inc 41) → 42 result"))
+        (finally
+          (rft/remove-trace-cb probe-key)
+          (runtime/unwrap-handler! :event ::cb-target))))))
 
 ;; ---------------------------------------------------------------------------
 ;; #40 regression at the integration level — complement the
