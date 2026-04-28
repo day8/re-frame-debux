@@ -732,6 +732,25 @@
 
 ;;; parse options
 (defn parse-opts
+  "Parse trailing macro option tokens into the normalized opts map used
+   by dbgn/dbg-style trace emitters.
+
+   Recognized forms:
+     number        -> {:n number}
+     string        -> {:msg string}
+     :if pred      -> {:if pred}
+     :js           -> {:js true}
+     :once or :o   -> {:once true}
+     :final or :f  -> {:final true}
+     :msg/:m value -> {:msg value}
+     :verbose      -> {:verbose true}
+     :show-all     -> {:verbose true}
+     :style/:s val -> {:style val}
+     :clog         -> {:clog true}
+
+   Callers that already accept an opts map, such as fn-traced and
+   dbgn-forms, pass those maps through directly instead of using this
+   trailing-token parser."
   [opts]
   (loop [opts opts
          acc  {}]

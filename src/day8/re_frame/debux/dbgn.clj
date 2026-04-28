@@ -560,7 +560,23 @@
 
 ;;; dbgn
 (defmacro dbgn
-  "DeBuG every Nested forms of a form.s"
+  "DeBuG every nested form in `form`.
+
+   `opts` is the normalized opts map produced by
+   `day8.re-frame.debux.common.util/parse-opts`, or a map supplied by
+   callers that delegate directly to this macro.
+
+   Supported opts:
+     :if      runtime predicate; emit a trace only when (pred result)
+              is truthy for the per-form result
+     :once    suppress consecutive duplicate emissions from this call
+              site; :o is parsed as an alias by parse-opts
+     :final   emit only the outermost form result; :f is parsed as an
+              alias by parse-opts
+     :msg     label copied onto each code trace; :m is parsed as an
+              alias by parse-opts
+     :verbose also trace leaf literals normally skipped for noise
+              reduction; :show-all is parsed as an alias by parse-opts"
   [form & [opts]]
   ; (println "FULLFORM" &form)
   `(let [~'+debux-dbg-opts+   ~(if (ut/cljs-env? &env)
@@ -591,9 +607,15 @@
     forms - the sequence of forms i.e. an implied do in a fn
     send-form - the form sent to be traced
     args - the symbols in the args (that need to be added to num-seen)
-    opts - optional opts map; supports :locals (capture args as
-           [[sym val] ...] in the trace payload) and :if (a runtime
-           predicate gating send-trace! on the per-form result)."
+    opts - optional normalized opts map. Supported keys:
+           :locals - capture args as [[sym val] ...] in the trace payload
+           :if - runtime predicate gating each per-form trace on result
+           :once - suppress consecutive duplicate emissions from this
+                   macro expansion site
+           :final - emit only the outermost form result
+           :msg - label copied onto each code trace; :m is also honored
+           :verbose - also trace leaf literals normally skipped for
+                      noise reduction; :show-all is also honored"
   [forms send-form args & [opts]]
   (let [send-form (-> send-form  ;;for some reason the form is wrapped in a list
                       first)
@@ -637,7 +659,7 @@
                 ~'e (throw ~'e))))))
 
 (defmacro mini-dbgn
-  "DeBuG every Nested forms of a form.s"
+  "Test-only nested-form tracer with a fixed trace-id for stable macroexpansion assertions."
   [form]
   ;; mini-dbgn is test-only — used to assert dbgn macroexpansion
   ;; shape. The trace-id is a fixed string (not a gensym) so the

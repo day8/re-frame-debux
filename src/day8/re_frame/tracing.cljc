@@ -31,7 +31,19 @@
 
 
 ;;; debugging APIs
-(defmacro dbgn [form & opts]
+(defmacro dbgn
+  "Trace every nested form in `form` when tracing is enabled.
+
+   Trailing option tokens are parsed by
+   `day8.re-frame.debux.common.util/parse-opts` and passed to
+   `day8.re-frame.debux.dbgn/dbgn`. Common options include:
+     :if pred      emit a trace only when (pred result) is truthy
+     :once or :o   suppress consecutive duplicate emissions
+     :final or :f  emit only the outermost form result
+     :msg/:m text  label each emitted code trace
+     :verbose      also trace leaf literals normally skipped for noise
+     :show-all     alias for :verbose"
+  [form & opts]
   (let [opts' (ut/parse-opts opts)]
     `(if (is-trace-enabled?)
        (day8.re-frame.debux.dbgn/dbgn ~form ~opts')
