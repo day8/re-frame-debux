@@ -133,8 +133,32 @@
 ;;; stream from re-frame-debux. Everything in `dbgn`'s zipper walk
 ;;; eventually funnels through one of them.
 ;;;
-;;; `send-form!` writes a single `:form` tag once per traced function
-;;; invocation, carrying the outermost macroexpanded form.
+;;; Trace-stream contract
+;;;
+;;; re-frame-debux writes cooperating sibling channels under
+;;; `re-frame.trace/*current-trace*`'s `:tags` map:
+;;;
+;;; - `:form` is a single tidied whole-form written once per traced
+;;;   function invocation by `send-form!`.
+;;; - `:code` is an accumulated vector of per-form trace entries
+;;;   written by `send-trace!`.
+;;; - `:trace-frames` is an accumulated vector of optional invocation
+;;;   boundary markers written by `-send-frame-enter!` /
+;;;   `-send-frame-exit!` when frame marker output is enabled.
+;;; - `:fx-effects` is an accumulated vector of per-effect-key entries
+;;;   written by `-emit-fx-traces!` for `fx-traced` bodies.
+;;;
+;;; One traced function invocation normally produces one `:form`, zero
+;;; or more `:code` entries, optionally one `:trace-frames` enter/exit
+;;; pair, and for `fx-traced` zero or more `:fx-effects` entries.
+;;; Downstream consumers such as re-frame-10x and re-frame-pair should
+;;; treat these as a coordinated trace stream, not four unrelated tags.
+;;; Accumulation order is append-only within each channel; frame
+;;; entries also carry `:frame-id` so enter and exit can be paired.
+;;;
+;;; `send-form!` writes a single `:form` tag with this shape:
+;;;
+;;;   {:form <tidied whole-form>}
 ;;;
 ;;; `send-trace!` is called once per instrumented sub-form during the
 ;;; function's body. It accumulates each call into a vector under the
@@ -195,6 +219,15 @@
 ;;; Stability: this shape has been stable since v0.5.x. If a future
 ;;; release adds new fields, append-only is the contract — existing
 ;;; consumers keep working.
+;;;
+;;; `:trace-frames` entries are documented near
+;;; `-send-frame-enter!` / `-send-frame-exit!`; each entry has
+;;; `{:phase :enter|:exit :frame-id <id> :t <ms>}` plus optional
+;;; `:msg` and, for exits, `:result`.
+;;;
+;;; `:fx-effects` entries are documented near `-emit-fx-traces!`; each
+;;; entry has `{:fx-key <k> :value <v> :t <ms>}`. All keys from one
+;;; returned effect map share the same timestamp.
 
 ;;; Production-mode loud-fail check (improvement-plan §5(b)).
 ;;; If a release build accidentally bundles the live
