@@ -1,5 +1,6 @@
 (ns day8.re-frame.debux.common.util-test
   (:require [clojure.test :refer [deftest testing is]]
+            #?(:clj [cljs.analyzer.api :as ana])
             [day8.re-frame.debux.common.util :as ut]
             [re-frame.trace :as rft]))
 
@@ -79,6 +80,14 @@
                              {::ut/form-tidied? true}))
            (is (= '(inc 1)
                   (get-in rft/*current-trace* [:tags :code 0 :form]))))))))
+
+#?(:clj
+   (deftest ns-symbol-for-cljs-keeps-local-symbols-test
+     (testing "CLJS analyzer locals remain unqualified"
+       (with-redefs [ana/resolve (fn [_env sym]
+                                   {:local true
+                                    :name  sym})]
+         (is (= 'x (#'ut/ns-symbol-for-cljs 'x {:ns {:name 'example.core}})))))))
 
 ;; ---------------------------------------------------------------------------
 ;; parse-opts — keyword-style opts sequence → opts map.
