@@ -79,6 +79,16 @@
         (is (= 3 (:result e))
             "the surviving entry's :result is the final value (3)")))))
 
+(deftest dbgn-f-alias-suppresses-intermediates
+  (testing ":f is the map-style shorthand alias for :final"
+    (let [r       (atom nil)
+          traces  (with-unit-capture
+                    (fn []
+                      (reset! r (dbgn (-> 1 inc inc) {:f true}))))]
+      (is (= 3 @r))
+      (is (= 1 (count traces))
+          ":f gates intermediates identically to :final"))))
+
 (deftest dbgn-without-final-emits-intermediates
   (testing "without :final, the same form emits multiple :code entries (sanity baseline)"
     (let [traces (with-unit-capture
@@ -195,6 +205,25 @@
           ;; (range 5) → (0 1 2 3 4); (filter odd?) → (1 3); (map inc) → (2 4); (reduce +) → 6
           (is (some #(= 6 (:result %)) code)
               "the outer ->> reduce result (6) is among the surviving entries"))))))
+
+(deftest fn-traced-f-alias-suppresses-intermediates
+  (with-trace-capture
+    (fn []
+      (testing ":f is the map-style shorthand alias for :final on fn-traced"
+        (re-frame.core/reg-event-db ::f-alias-handler (fn [db _] db))
+        (re-frame.core/reg-event-db ::f-alias-handler
+                                    (tracing/fn-traced
+                                      {:f true}
+                                      [db _]
+                                      (->> (range 5)
+                                           (filter odd?)
+                                           (map inc)
+                                           (reduce +))))
+        (re-frame.core/dispatch-sync [::f-alias-handler])
+        (let [code (code-entries (captured-traces))]
+          (is (seq code))
+          (is (every? zero? (map :indent-level code))
+              ":f gates intermediates identically to :final"))))))
 
 (deftest fn-traced-without-final-emits-intermediates
   (with-trace-capture

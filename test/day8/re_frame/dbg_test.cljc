@@ -317,6 +317,15 @@
       (is (= 1 (count entries))
           "only the first invocation emits — the second's identical result is suppressed"))))
 
+(deftest dbg-o-alias-suppresses-second-identical-emit
+  (testing ":o is the map-style shorthand alias for :once"
+    (util/-reset-once-state!)
+    (let [f        (fn [] (dbg (+ 1 2) {:o true}))
+          captured (with-fresh-current-trace (fn [] (f) (f)))
+          entries  (code-entries captured)]
+      (is (= 1 (count entries))
+          ":o dedups identically to :once"))))
+
 (deftest dbg-once-emits-when-result-changes
   (testing ":once still emits when the same call site produces a different result"
     (util/-reset-once-state!)
@@ -515,6 +524,20 @@
           entries  (code-entries captured)]
       (is (= 1 (count entries))
           "only the first identical dbg-last invocation emits")
+      (is (= [1 3] (:result (first entries)))))))
+
+(deftest dbg-last-o-alias-suppresses-second-identical-emit
+  (testing ":o reaches dbg through dbg-last's thread-last arg swap"
+    (util/-reset-once-state!)
+    (let [f        (fn []
+                     (->> [1 2 3]
+                          (filter odd?)
+                          (dbg-last {:o true})
+                          doall))
+          captured (with-fresh-current-trace (fn [] (f) (f)))
+          entries  (code-entries captured)]
+      (is (= 1 (count entries))
+          ":o dedups identically to :once for dbg-last")
       (is (= [1 3] (:result (first entries)))))))
 
 (deftest dbg-last-out-of-trace-falls-back-to-tap

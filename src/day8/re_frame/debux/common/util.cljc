@@ -857,6 +857,21 @@
 
 
 ;;; parse options
+(defn once-opt?
+  "True when an opts map enables :once using either public spelling."
+  [opts]
+  (boolean (or (:once opts) (:o opts))))
+
+(defn final-opt?
+  "True when an opts map enables :final using either public spelling."
+  [opts]
+  (boolean (or (:final opts) (:f opts))))
+
+(defn msg-opt
+  "Return the trace label from an opts map. :msg wins over :m."
+  [opts]
+  (or (:msg opts) (:m opts)))
+
 (defn parse-opts
   "Parse trailing macro option tokens into the normalized opts map used
    by dbgn/dbg-style trace emitters.
@@ -881,8 +896,8 @@
    when the cond falls through.
 
    Callers that already accept an opts map, such as fn-traced and
-   dbgn-forms, pass those maps through directly instead of using this
-   trailing-token parser."
+   dbgn-forms, use once-opt?, final-opt?, and msg-opt to honor the
+   same aliases without reparsing a map as positional tokens."
   [opts]
   (loop [opts opts
          acc  {}]
