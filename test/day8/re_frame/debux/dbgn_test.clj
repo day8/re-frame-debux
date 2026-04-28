@@ -1,7 +1,8 @@
 (ns day8.re-frame.debux.dbgn-test
   (:require [clojure.test :refer [use-fixtures deftest is]]
             [day8.re-frame.debux.common.util :as ut]
-            [day8.re-frame.debux.dbgn :as dbgn :refer [dbgn mini-dbgn]]))
+            [day8.re-frame.debux.dbgn :as dbgn :refer [dbgn mini-dbgn]]
+            [day8.re-frame.tracing]))
 
 (def traces (atom []))
 (def form (atom nil))
@@ -50,6 +51,32 @@
         "macro-generated :form values are tidied before runtime")
     (is (every? #(-> % meta ::ut/form-tidied?) @captured)
         "macro-generated trace maps tell send-trace! to skip retidying")))
+
+(deftest dbgn-body-exception-propagates
+  ;; Pins the post-removal contract: dbgn no longer wraps its body in
+  ;; an identity-arms try/catch, so a throw inside the traced body
+  ;; must reach the caller unchanged. fn-traced expands through
+  ;; dbgn-forms, so exercising both macros here covers the same
+  ;; expansion shape on each path.
+  (with-redefs [ut/send-trace! (fn [_])
+                ut/send-form!  (fn [_])]
+    (let [thrown (try
+                   (eval '(day8.re-frame.debux.dbgn/dbgn
+                            (throw (ex-info "boom" {:k :v}))))
+                   nil
+                   (catch clojure.lang.ExceptionInfo e e))]
+      (is (some? thrown) "dbgn body throw escapes to caller")
+      (is (= "boom" (.getMessage ^Throwable thrown)))
+      (is (= {:k :v} (ex-data thrown))))
+    (let [thrown (try
+                   (eval '((day8.re-frame.tracing/fn-traced
+                             []
+                             (throw (ex-info "kaboom" {:n 1})))))
+                   nil
+                   (catch clojure.lang.ExceptionInfo e e))]
+      (is (some? thrown) "fn-traced (dbgn-forms) body throw escapes to caller")
+      (is (= "kaboom" (.getMessage ^Throwable thrown)))
+      (is (= {:n 1} (ex-data thrown))))))
 
 ;; Works in Cursive, fails with lein test
 ;; See https://github.com/technomancy/leiningen/issues/912

@@ -569,22 +569,16 @@
                                  opts)
          ~'+debux-dbg-locals+ []
          ~'+debux-trace-id+   ~(str (gensym "dbgn_"))]
-     (try
-       ;; Send whole form to trace point
-       (ut/send-form! '~(-> form (ut/tidy-macroexpanded-form {})))
-       ~(-> (if (ut/include-recur? form)
-              (sk/insert-o-skip-for-recur form &env)
-              form)
-            (insert-skip &env)
-            (insert-trace 'day8.re-frame.debux.dbgn/trace &env []
-                          (boolean (or (:verbose opts) (:show-all opts)))
-                          opts)
-            remove-skip)
-       ;; TODO: can we remove try/catch too?
-       (catch ~(if (ut/cljs-env? &env)
-                 :default
-                 Exception)
-              ~'e (throw ~'e)))))
+     ;; Send whole form to trace point
+     (ut/send-form! '~(-> form (ut/tidy-macroexpanded-form {})))
+     ~(-> (if (ut/include-recur? form)
+            (sk/insert-o-skip-for-recur form &env)
+            form)
+          (insert-skip &env)
+          (insert-trace 'day8.re-frame.debux.dbgn/trace &env []
+                        (boolean (or (:verbose opts) (:show-all opts)))
+                        opts)
+          remove-skip)))
 
 ;;; dbgn
 (defmacro dbgn-forms
@@ -627,23 +621,17 @@
                                    opts)
            ~'+debux-dbg-locals+ ~locals-form
            ~'+debux-trace-id+   ~(str (gensym "dbgn-forms_"))]
-       (try
        ;; Send whole form to trace point
-         (ut/send-form! '~(-> send-form (ut/tidy-macroexpanded-form {})))
-         ~@(map (fn [form] (-> (if (ut/include-recur? form)
-                                 (sk/insert-o-skip-for-recur form &env)
-                                 form)
-                               (insert-skip &env)
-                               (insert-trace 'day8.re-frame.debux.dbgn/trace &env args
-                                             (boolean (or (:verbose opts) (:show-all opts)))
-                                             opts)
-                               remove-skip))
-                forms)
-       ;; TODO: can we remove try/catch too?
-         (catch ~(if (ut/cljs-env? &env)
-                   :default
-                   Exception)
-                ~'e (throw ~'e))))))
+       (ut/send-form! '~(-> send-form (ut/tidy-macroexpanded-form {})))
+       ~@(map (fn [form] (-> (if (ut/include-recur? form)
+                               (sk/insert-o-skip-for-recur form &env)
+                               form)
+                             (insert-skip &env)
+                             (insert-trace 'day8.re-frame.debux.dbgn/trace &env args
+                                           (boolean (or (:verbose opts) (:show-all opts)))
+                                           opts)
+                             remove-skip))
+              forms))))
 
 (defmacro mini-dbgn
   "Test-only nested-form tracer with a fixed trace-id for stable macroexpansion assertions."
