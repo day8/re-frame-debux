@@ -26,6 +26,8 @@
   trace-enabled?)
 
 (def reset-indent-level! ut/reset-indent-level!)
+(def set-date-time-fn! ut/set-date-time-fn!)
+(def set-print-length! ut/set-print-length!)
 (def set-print-seq-length! ut/set-print-seq-length!)
 (def set-tap-output! ut/set-tap-output!)
 (def set-trace-frames-output! ut/set-trace-frames-output!)

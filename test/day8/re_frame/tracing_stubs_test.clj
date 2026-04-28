@@ -165,6 +165,7 @@
         (is (= (extract in-src "defmacro" m) (extract subproj "defmacro" m))
             (str m " stub diverges between the two stub files — they must be byte-identical")))
       (doseq [f ["set-tap-output!" "set-trace-frames-output!"
+                 "set-date-time-fn!" "set-print-length!"
                  "set-print-seq-length!" "reset-indent-level!"]]
         (is (= (extract in-src "defn" f) (extract subproj "defn" f))
             (str f " stub diverges between the two stub files — they must be byte-identical"))))))
@@ -267,11 +268,13 @@
   (testing "the production stub at day8.re-frame.tracing-stubs advertises the
             runtime configuration knobs that consumers wire at app boot —
             set-tap-output!, set-trace-frames-output!,
-            set-print-seq-length!, reset-indent-level!. Without the stubs,
-            a release build with these calls in the boot path would fail to
-            load against an unbound-var error."
+            set-date-time-fn!, set-print-length!, set-print-seq-length!,
+            reset-indent-level!. Without the stubs, a release build with
+            these calls in the boot path would fail to load against an
+            unbound-var error."
     (let [stub-vars (set (keys (ns-publics 'day8.re-frame.tracing-stubs)))]
       (doseq [v '[set-tap-output! set-trace-frames-output!
+                  set-date-time-fn! set-print-length!
                   set-print-seq-length! reset-indent-level!]]
         (is (contains? stub-vars v)
             (str v " missing from day8.re-frame.tracing-stubs — release builds will 404"))))))

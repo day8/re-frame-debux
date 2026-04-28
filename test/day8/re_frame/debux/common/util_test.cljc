@@ -211,6 +211,21 @@
 (defn- once-state-entries []
   (:entries (deref @#'ut/once-state)))
 
+(deftest print-length-bounds-collections
+  (testing "take-n-if-seq keeps its old name but bounds all collections"
+    (is (= [1 2] (ut/take-n-if-seq 2 [1 2 3])))
+    (is (= [[:a 1] [:b 2]]
+           (ut/take-n-if-seq 2 (array-map :a 1 :b 2 :c 3))))
+    (is (= 2 (count (ut/take-n-if-seq 2 #{1 2 3})))))
+  (testing "set-print-length! aliases the existing global bound"
+    (let [old @ut/print-seq-length*]
+      (try
+        (ut/set-print-length! 2)
+        (is (= 2 @ut/print-seq-length*))
+        (is (= [1 2] (ut/take-n-if-seq nil [1 2 3])))
+        (finally
+          (ut/set-print-length! old))))))
+
 (deftest once-emit-stores-fingerprints-not-results
   (testing ":once dedupes a large result without retaining the live value"
     (ut/-reset-once-state!)

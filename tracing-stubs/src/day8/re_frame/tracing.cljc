@@ -75,10 +75,21 @@
   [_enabled?]
   nil)
 
-(defn set-print-seq-length!
+(defn set-date-time-fn!
+  "Production stub. No-op — the dev-side setter controls tap payload
+   :date-time values; in a release build no payloads are produced."
+  [_f]
+  nil)
+
+(defn set-print-length!
   "Production stub. No-op — the dev-side setter bounds collection
    pretty-printing inside trace payloads; in a release build no
    payloads are produced so the bound is moot."
+  [_num]
+  nil)
+
+(defn set-print-seq-length!
+  "Production stub. No-op — deprecated alias for set-print-length!."
   [_num]
   nil)
 

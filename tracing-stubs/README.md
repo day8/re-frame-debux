@@ -14,9 +14,9 @@ is also stubbed — the wrap macros expand to plain re-frame registrations
 and the unwrap helpers become no-ops.
 
 The runtime configuration knobs on `day8.re-frame.tracing` —
-`set-tap-output!`, `set-trace-frames-output!`, `set-print-seq-length!`,
-`reset-indent-level!` — ship as no-op `defn`s so app-boot wiring keeps
-compiling.
+`set-tap-output!`, `set-trace-frames-output!`, `set-date-time-fn!`,
+`set-print-length!`, `set-print-seq-length!`, `reset-indent-level!` —
+ship as no-op `defn`s so app-boot wiring keeps compiling.
 
 See the [main project README](https://github.com/day8/re-frame-debux) for
 installation and the two-jar approach (Option 1) plus the shadow-cljs
