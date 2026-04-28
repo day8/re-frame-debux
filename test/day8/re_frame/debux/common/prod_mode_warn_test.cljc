@@ -44,8 +44,8 @@
          (let [orig-debug js/goog.DEBUG]
            (try
              (set! js/goog.DEBUG false)
-             ;; Reset the warned-state so this test isn't gated by an earlier one.
-             (reset! @#'ut/prod-mode-warned? false)
+             ;; Reset the one-shot flag so this test isn't gated by an earlier one.
+             (#'ut/reset-production-mode-warning!)
              (#'ut/maybe-warn-production-mode!)
              (#'ut/maybe-warn-production-mode!) ;; second call should NOT re-warn
              (is (= 1 (count @warns)) "warns exactly once per session")
@@ -64,7 +64,7 @@
          (let [orig-debug js/goog.DEBUG]
            (try
              (set! js/goog.DEBUG true)
-             (reset! @#'ut/prod-mode-warned? false)
+             (#'ut/reset-production-mode-warning!)
              (#'ut/maybe-warn-production-mode!)
              (is (empty? @warns) "dev mode (goog.DEBUG true) — no warn")
              (finally
