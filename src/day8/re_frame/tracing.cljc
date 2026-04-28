@@ -222,6 +222,9 @@
   (let [args            (or (-> args+body :args :args) [])
         body-or-prepost (-> args+body :body (nth 0))
         body            (nth (:body args+body) 1)
+        prepost?        (not= :body body-or-prepost)
+        prepost-form    (when prepost? (:prepost body))
+        traced-body     (if prepost? (:body body) body)
         args-symbols    (find-symbols args)
         ;; Per-call-site frame id, baked in at expansion. Both
         ;; -send-frame-enter! and -send-frame-exit! receive the same
@@ -242,27 +245,16 @@
                           (if (= :ctx fx-trace)
                             `(day8.re-frame.debux.common.util/-emit-fx-traces! (:effects ~r))
                             `(day8.re-frame.debux.common.util/-emit-fx-traces! ~r)))]
-    (if (= :body body-or-prepost)   ;; no pre and post conditions
-      `(~args
-        (let [~emit-frames? (day8.re-frame.debux.common.util/frame-markers-enabled?)]
+    `(~args
+      ~@(when prepost-form [prepost-form])
+      (let [~emit-frames? (day8.re-frame.debux.common.util/frame-markers-enabled?)]
+        (when ~emit-frames?
+          (day8.re-frame.debux.common.util/-send-frame-enter! ~frame-id ~frame-msg))
+        (let [~r (dbgn/dbgn-forms ~traced-body ~send-form ~args-symbols ~opts)]
+          ~@(when emit-fx-form [emit-fx-form])
           (when ~emit-frames?
-            (day8.re-frame.debux.common.util/-send-frame-enter! ~frame-id ~frame-msg))
-          (let [~r (dbgn/dbgn-forms ~body ~send-form ~args-symbols ~opts)]
-            ~@(when emit-fx-form [emit-fx-form])
-            (when ~emit-frames?
-              (day8.re-frame.debux.common.util/-send-frame-exit! ~frame-id ~r ~frame-msg))
-            ~r)))
-    ;; prepost+body
-      `(~args
-        ~(:prepost body)
-        (let [~emit-frames? (day8.re-frame.debux.common.util/frame-markers-enabled?)]
-          (when ~emit-frames?
-            (day8.re-frame.debux.common.util/-send-frame-enter! ~frame-id ~frame-msg))
-          (let [~r (dbgn/dbgn-forms ~(:body body) ~send-form ~args-symbols ~opts)]
-            ~@(when emit-fx-form [emit-fx-form])
-            (when ~emit-frames?
-              (day8.re-frame.debux.common.util/-send-frame-exit! ~frame-id ~r ~frame-msg))
-            ~r))))))
+            (day8.re-frame.debux.common.util/-send-frame-exit! ~frame-id ~r ~frame-msg))
+          ~r)))))
 
 ;; Components of a defn
 ;; name
