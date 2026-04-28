@@ -26,8 +26,8 @@
   :license     {"Eclipse Public License"
                 "http://www.eclipse.org/legal/epl-v10.html"}
 
-  :dependencies [[org.clojure/clojure       "1.11.4"   :scope "provided"]
-                 [org.clojure/clojurescript "1.11.132" :scope "provided"
+  :dependencies [[org.clojure/clojure       "1.12.1"  :scope "provided"]
+                 [org.clojure/clojurescript "1.12.42" :scope "provided"
                   :exclusions [com.google.javascript/closure-compiler-unshaded
                                org.clojure/google-closure-library
                                org.clojure/google-closure-library-third-party]]
