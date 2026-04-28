@@ -743,12 +743,14 @@
    (defn- ns-symbol-for-cljs [sym env]
      (if-let [meta (ana/resolve env sym)]
        ;; normal symbol
-       (let [[ns name] (str/split (str (:name meta)) #"/")]
-         ;; The special symbol `.` must be handled in the following special symbol part.
-         ;; However, the special symbol `.` returns meta {:name / :ns nil}, which may be a bug.
-         (if (nil? ns)
-           sym
-           (symbol ns name)))
+       (if (:local meta)
+         sym
+         (let [[ns name] (str/split (str (:name meta)) #"/")]
+           ;; The special symbol `.` must be handled in the following special symbol part.
+           ;; However, the special symbol `.` returns meta {:name / :ns nil}, which may be a bug.
+           (if (nil? ns)
+             sym
+             (symbol ns name))))
        ;; special symbols except for `.`
        sym)))
 
