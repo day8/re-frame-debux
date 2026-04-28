@@ -211,14 +211,21 @@
         r               (gensym "fn-traced-result_")
         ;; :fx-trace is the fx-traced opt that asks for per-key
         ;; tracing of the returned effect map. Set by the fx-traced
-        ;; macro — bare fn-traced ignores it.
-        fx-trace?       (:fx-trace opts)]
+        ;; macro — bare fn-traced ignores it. Tristate:
+        ;;   nil  → no fx-effects emission
+        ;;   true → body return IS the effect-map (reg-event-fx contract)
+        ;;   :ctx → body return is a context map; effects sit at
+        ;;          (:effects ctx) (reg-event-ctx contract)
+        fx-trace        (:fx-trace opts)
+        emit-fx-form    (when fx-trace
+                          (if (= :ctx fx-trace)
+                            `(day8.re-frame.debux.common.util/-emit-fx-traces! (:effects ~r))
+                            `(day8.re-frame.debux.common.util/-emit-fx-traces! ~r)))]
     (if (= :body body-or-prepost)   ;; no pre and post conditions
       `(~args
         (day8.re-frame.debux.common.util/-send-frame-enter! ~frame-id)
         (let [~r (dbgn/dbgn-forms ~body ~send-form ~args-symbols ~opts)]
-          ~@(when fx-trace?
-              [`(day8.re-frame.debux.common.util/-emit-fx-traces! ~r)])
+          ~@(when emit-fx-form [emit-fx-form])
           (day8.re-frame.debux.common.util/-send-frame-exit! ~frame-id ~r)
           ~r))
     ;; prepost+body
@@ -226,8 +233,7 @@
         ~(:prepost body)
         (day8.re-frame.debux.common.util/-send-frame-enter! ~frame-id)
         (let [~r (dbgn/dbgn-forms ~(:body body) ~send-form ~args-symbols ~opts)]
-          ~@(when fx-trace?
-              [`(day8.re-frame.debux.common.util/-emit-fx-traces! ~r)])
+          ~@(when emit-fx-form [emit-fx-form])
           (day8.re-frame.debux.common.util/-send-frame-exit! ~frame-id ~r)
           ~r)))))
 
@@ -357,9 +363,12 @@
 ;; transparent. The trace emission is a side effect on the active
 ;; trace's :tags :fx-effects vector. No-op outside a re-frame trace.
 ;;
-;; Internally fx-traced is a thin wrapper that sets `:fx-trace true`
-;; on fn-traced's opts map; fn-body picks up the flag and emits the
-;; -emit-fx-traces! call after the body evaluates.
+;; Internally fx-traced is a thin wrapper that sets `:fx-trace` on
+;; fn-traced's opts map; fn-body picks up the flag and emits the
+;; -emit-fx-traces! call after the body evaluates. The flag is
+;; tristate: nil (off), true (effect-map IS the body return), or
+;; :ctx (effects sit at (:effects ctx) — reg-event-ctx contract).
+;; The public `:ctx-mode true` opt translates to `:fx-trace :ctx`.
 
 (defmacro fx-traced
   "Like fn-traced, but for reg-event-fx handlers that return effect
@@ -367,7 +376,15 @@
    map is emitted as its own :fx-effects trace entry alongside the
    usual per-form :code entries.
 
-   Same opts as fn-traced (:locals, :if, :once, :verbose).
+   Same opts as fn-traced (:locals, :if, :once, :verbose), plus:
+     :ctx-mode  true — handler returns a re-frame *context* (the
+                       reg-event-ctx contract) instead of a bare
+                       effect-map. Effects are extracted from
+                       (:effects ctx) before per-key emission. Use
+                       this when wrapping the body of a
+                       reg-event-ctx handler so :fx-effects entries
+                       still surface even though the body's return
+                       is the larger context structure.
 
    Example:
      (re-frame.core/reg-event-fx :checkout
@@ -380,12 +397,16 @@
                (fx-traced opts? name? ([params*] exprs*) +)]}
   [& definition]
   (let [[opts def'] (split-opts definition)
-        opts'       (assoc (or opts {}) :fx-trace true)]
+        ctx-mode?   (:ctx-mode opts)
+        opts'       (-> (or opts {})
+                        (dissoc :ctx-mode)
+                        (assoc :fx-trace (if ctx-mode? :ctx true)))]
     `(day8.re-frame.tracing/fn-traced ~opts' ~@def')))
 
 (defmacro defn-fx-traced
   "defn variant of fx-traced. Same surface as defn-traced plus the
-   per-effect-key tracing on the returned map.
+   per-effect-key tracing on the returned map. Accepts the same
+   `:ctx-mode true` opt as fx-traced for reg-event-ctx handlers.
 
    Example:
      (defn-fx-traced checkout-handler [_ [_ amount]]
@@ -394,5 +415,8 @@
                 [opts? name doc-string? attr-map? ([params*] prepost-map? body) + attr-map?])}
   [& definition]
   (let [[opts def'] (split-opts definition)
-        opts'       (assoc (or opts {}) :fx-trace true)]
+        ctx-mode?   (:ctx-mode opts)
+        opts'       (-> (or opts {})
+                        (dissoc :ctx-mode)
+                        (assoc :fx-trace (if ctx-mode? :ctx true)))]
     `(day8.re-frame.tracing/defn-traced ~opts' ~@def')))

@@ -157,6 +157,15 @@
      "Like wrap-handler! but uses re-frame.core/reg-event-fx so the
       traced body returns an effects map (not an updated db).
 
+      Wraps the replacement with `fx-traced` (not bare `fn-traced`)
+      so per-key entries of the returned effect-map surface as
+      :fx-effects trace tags alongside the usual per-form :code
+      payload. This matches the source-edit
+      `(reg-event-fx :foo (fx-traced [...] ...))` trace surface —
+      runtime-wrapped event-fx handlers expose the same data 10x's
+      Code/Fx panels and re-frame-pair render for source-instrumented
+      handlers.
+
       Returns `[:event id]` on success; refuses with the same
       `{:ok? false :reason :already-wrapped|:no-handler …}` shape
       as wrap-handler! when [:event id] is already wrapped or has
@@ -176,13 +185,19 @@
             (do
               (swap! wrapped-originals assoc [:event id#] orig#)
               (re-frame.core/reg-event-fx id#
-                                          (day8.re-frame.tracing/fn-traced ~@args+body))
+                                          (day8.re-frame.tracing/fx-traced ~@args+body))
               [:event id#]))))))
 
 #?(:clj
    (defmacro wrap-event-ctx!
      "Like wrap-handler! but uses re-frame.core/reg-event-ctx so the
       traced body receives and returns a context map.
+
+      Wraps with `fx-traced` in `:ctx-mode` so per-key entries of
+      the returned context's `:effects` map surface as :fx-effects
+      trace tags. A context handler returns the entire context, but
+      :fx-effects emission targets the `(:effects ctx)` sub-map —
+      the same per-effect breakdown that wrap-event-fx! produces.
 
       Returns `[:event id]` on success; refuses with the same
       `{:ok? false :reason :already-wrapped|:no-handler …}` shape
@@ -203,7 +218,9 @@
             (do
               (swap! wrapped-originals assoc [:event id#] orig#)
               (re-frame.core/reg-event-ctx id#
-                                           (day8.re-frame.tracing/fn-traced ~@args+body))
+                                           (day8.re-frame.tracing/fx-traced
+                                             {:ctx-mode true}
+                                             ~@args+body))
               [:event id#]))))))
 
 #?(:clj

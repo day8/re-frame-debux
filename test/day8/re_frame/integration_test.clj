@@ -155,6 +155,15 @@
        (mapcat (comp :trace-frames :tags))
        vec))
 
+(defn- fx-effects-entries
+  "Per-test :fx-effects entries from the captured trace stream. Each
+   entry is {:fx-key k :value v :t ms} per the contract documented
+   in -emit-fx-traces! (src/.../common/util.cljc)."
+  [captured]
+  (->> captured
+       (mapcat (comp :fx-effects :tags))
+       vec))
+
 ;; ---------------------------------------------------------------------------
 ;; Acceptance tests for wrap-handler! / unwrap-handler!
 ;; (the wrap-and-emit-:code-on-dispatch contract).
@@ -287,7 +296,7 @@
 ;; ---------------------------------------------------------------------------
 
 (deftest wrap-event-fx-traces-the-effects-map
-  (testing "wrap-event-fx! installs a fn-traced reg-event-fx; dispatch
+  (testing "wrap-event-fx! installs an fx-traced reg-event-fx; dispatch
             flows through the effects-map chain (handler returns
             {:db ...}, do-fx applies it) and :code entries surface from
             the wrapped body."
@@ -301,7 +310,8 @@
     (let [code (code-entries (captured-traces))
           fs   (forms (captured-traces))]
       (is (seq code)
-          "wrap-event-fx! body produced :code entries via fn-traced")
+          "wrap-event-fx! body produced :code entries via fx-traced
+           (which inherits fn-traced's :code emission)")
       (is (some #(re-find #"\* 2 amount" %) fs)
           "captured forms include the (* 2 amount) sub-form"))
     (is (= 200 (:total @re-frame.db/app-db))
@@ -311,9 +321,10 @@
         "unwrap restores the baseline reg-event-fx handler")))
 
 (deftest wrap-event-ctx-traces-context
-  (testing "wrap-event-ctx! installs a fn-traced reg-event-ctx; dispatch
-            flows through the context-style chain (handler takes ctx,
-            returns ctx) and :code entries surface from the wrapped body."
+  (testing "wrap-event-ctx! installs an fx-traced :ctx-mode reg-event-ctx;
+            dispatch flows through the context-style chain (handler takes
+            ctx, returns ctx) and :code entries surface from the wrapped
+            body."
     (reset! re-frame.db/app-db {})
     (re-frame.core/reg-event-ctx ::ctx-baseline (fn [ctx] ctx))
     (runtime/wrap-event-ctx! ::ctx-baseline
@@ -325,7 +336,8 @@
     (let [code (code-entries (captured-traces))
           fs   (forms (captured-traces))]
       (is (seq code)
-          "wrap-event-ctx! body produced :code entries via fn-traced")
+          "wrap-event-ctx! body produced :code entries via fx-traced
+           (which inherits fn-traced's :code emission)")
       (is (some #(re-find #"inc 41" %) fs)
           "captured forms include the (inc 41) sub-form"))
     (is (= 42 (:n @re-frame.db/app-db))
@@ -334,6 +346,69 @@
          processed the return ctx")
     (is (true? (runtime/unwrap-handler! :event ::ctx-baseline))
         "unwrap restores the baseline reg-event-ctx handler")))
+
+;; ---------------------------------------------------------------------------
+;; wrap-event-fx! / wrap-event-ctx! also emit :fx-effects per-key.
+;;
+;; The runtime-wrap path used to expand to bare fn-traced and so never
+;; surfaced the per-effect-key entries that source-edit
+;; (reg-event-fx :foo (fx-traced [...] ...)) produces. After the
+;; fx-traced switch, runtime wraps yield the same trace surface the
+;; source-edit form does — these tests pin that contract end-to-end
+;; via dispatch-sync so a future regression to fn-traced (or to a
+;; wrapper that swallows the :fx-trace opts) gets caught.
+;; ---------------------------------------------------------------------------
+
+(deftest wrap-event-fx-emits-fx-effects-per-key
+  (testing "wrap-event-fx! produces one :fx-effects entry per key in the
+            returned effect-map — same contract as a source-edit
+            (reg-event-fx :foo (fx-traced [...] ...))."
+    (re-frame.core/reg-event-fx ::checkout-fx-effects (fn [_ _] {}))
+    (runtime/wrap-event-fx! ::checkout-fx-effects
+                            (fn [_ [_ amount]]
+                              (let [taxed (* 1.1 amount)]
+                                {:db {:total taxed}
+                                 :http {:method :post :body taxed}
+                                 :dispatch [:notify :checkout-done]})))
+    (re-frame.core/dispatch-sync [::checkout-fx-effects 100])
+    (let [fx      (fx-effects-entries (captured-traces))
+          fx-keys (set (map :fx-key fx))]
+      (is (= #{:db :http :dispatch} fx-keys)
+          "every key of the wrapped body's effect-map produced a :fx-effects entry")
+      (let [by-key (into {} (map (juxt :fx-key :value)) fx)]
+        (is (= {:total 110.00000000000001} (get by-key :db))
+            ":db entry carries the value the wrapped body produced")
+        (is (= [:notify :checkout-done] (get by-key :dispatch))
+            ":dispatch entry carries the dispatched event tuple")))
+    (is (true? (runtime/unwrap-handler! :event ::checkout-fx-effects)))))
+
+(deftest wrap-event-ctx-emits-fx-effects-from-ctx-effects-map
+  (testing "wrap-event-ctx! produces :fx-effects entries from
+            (:effects ctx) — the ctx-mode adaptation of fx-traced.
+            A context handler returns the larger context structure;
+            the per-effect breakdown sits at :effects, and only that
+            sub-map gets per-key emission."
+    (reset! re-frame.db/app-db {})
+    (re-frame.core/reg-event-ctx ::ctx-fx-effects (fn [ctx] ctx))
+    (runtime/wrap-event-ctx! ::ctx-fx-effects
+                             (fn [ctx]
+                               (-> ctx
+                                   (assoc-in [:effects :db] {:n 42})
+                                   (assoc-in [:effects :dispatch]
+                                             [:downstream :payload]))))
+    (re-frame.core/dispatch-sync [::ctx-fx-effects])
+    (let [fx      (fx-effects-entries (captured-traces))
+          fx-keys (set (map :fx-key fx))]
+      (is (contains? fx-keys :db)
+          ":db effect set into (:effects ctx) surfaced as a :fx-effects entry")
+      (is (contains? fx-keys :dispatch)
+          ":dispatch effect set into (:effects ctx) surfaced as a :fx-effects entry")
+      (let [by-key (into {} (map (juxt :fx-key :value)) fx)]
+        (is (= {:n 42} (get by-key :db))
+            ":db entry carries the effect value, not the wrapping ctx")
+        (is (= [:downstream :payload] (get by-key :dispatch))
+            ":dispatch entry carries the effect value")))
+    (is (true? (runtime/unwrap-handler! :event ::ctx-fx-effects)))))
 
 ;; ---------------------------------------------------------------------------
 ;; wrap-fx! traces effect-payload sub-forms (the
@@ -748,13 +823,6 @@
 ;; fx-traced — per-effect-key tracing on reg-event-fx return maps
 ;; ---------------------------------------------------------------------------
 
-(defn- fx-effects-entries
-  "Per-test :fx-effects entries. Each is {:fx-key k :value v :t ms}."
-  [captured]
-  (->> captured
-       (mapcat (comp :fx-effects :tags))
-       vec))
-
 (deftest fx-traced-emits-per-effect-entry
   (testing "fx-traced surfaces each key of the returned effect-map"
     (re-frame.core/reg-event-fx ::checkout (fn [_ _] {}))
@@ -837,6 +905,31 @@
     (re-frame.core/dispatch-sync [::malformed])
     (is (some? (fx-effects-entries (captured-traces)))
         "well-formed fx-traced doesn't crash; emits per-key entries normally")))
+
+(deftest fx-traced-ctx-mode-targets-effects-sub-map
+  (testing ":ctx-mode true points :fx-effects emission at (:effects ctx)
+            instead of the body's full return. The wrapped reg-event-ctx
+            handler returns the larger context structure, but only the
+            effects sub-map should produce per-key entries — :coeffects
+            / :queue / :stack are infrastructure, not effects."
+    (re-frame.core/reg-event-ctx ::ctx-fx-mode (fn [ctx] ctx))
+    (re-frame.core/reg-event-ctx ::ctx-fx-mode
+                                 (tracing/fx-traced
+                                   {:ctx-mode true}
+                                   [ctx]
+                                   (-> ctx
+                                       (assoc-in [:effects :db] {:n 42})
+                                       (assoc-in [:effects :http] :stub))))
+    (re-frame.core/dispatch-sync [::ctx-fx-mode])
+    (let [fx     (fx-effects-entries (captured-traces))
+          fx-ks  (set (map :fx-key fx))
+          by-key (into {} (map (juxt :fx-key :value)) fx)]
+      (is (= #{:db :http} fx-ks)
+          ":fx-effects keys are exactly the keys of (:effects ctx) — not
+           :coeffects / :queue / :stack")
+      (is (= {:n 42} (get by-key :db))
+          ":db entry carries the effect value, not the wrapping ctx")
+      (is (= :stub (get by-key :http))))))
 
 ;; ---------------------------------------------------------------------------
 ;; fx-traced opts surface — :msg / :locals / :if / :once / :verbose
