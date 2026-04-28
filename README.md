@@ -180,7 +180,7 @@ Convenience wrappers:
 | Macro / fn                               | Notes                                                                                                                  |
 |------------------------------------------|------------------------------------------------------------------------------------------------------------------------|
 | `wrap-event-fx!` / `wrap-event-ctx!`     | Use these instead of `wrap-handler! :event` when the traced body returns an effects map / context map.                 |
-| `wrap-sub!` / `wrap-fx!`                 | Convenience for `wrap-handler! :sub` / `wrap-handler! :fx`.                                                            |
+| `wrap-sub!` / `wrap-fx!`                 | Convenience for `wrap-handler! :sub` / `wrap-handler! :fx`; `wrap-sub!` accepts layer-2, signal-fn, and `:<-` shapes. |
 | `unwrap-sub!` / `unwrap-fx!` / `unwrap-all!` | Restore one or all wrapped handlers.                                                                              |
 | `wrapped?` / `wrapped-list`              | Inspect the side-table — useful for tools badging the wrapped state in their UI.                                       |
 | `runtime-api?`                           | Feature-detection predicate: `true` when this namespace is loaded. Stable hook for downstream tools.                   |

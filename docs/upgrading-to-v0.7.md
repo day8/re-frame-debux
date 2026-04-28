@@ -179,7 +179,7 @@ value can't be re-traced. Convenience wrappers:
 | Macro / fn                                   | Use when                                                                  |
 | -------------------------------------------- | ------------------------------------------------------------------------- |
 | `wrap-event-fx!` / `wrap-event-ctx!`         | The traced body returns an effects map / context map (per-key `:fx-effects` emission). |
-| `wrap-sub!` / `wrap-fx!`                     | Convenience for `wrap-handler! :sub` / `:fx`.                             |
+| `wrap-sub!` / `wrap-fx!`                     | Convenience for `wrap-handler! :sub` / `:fx`; `wrap-sub!` accepts layer-2, signal-fn, and `:<-` shapes. |
 | `unwrap-sub!` / `unwrap-fx!` / `unwrap-all!` | Restore one or all wrapped handlers.                                      |
 | `wrapped?` / `wrapped-list`                  | Inspect the side-table — useful for tools badging the wrap state in UI.   |
 | `runtime-api?`                               | Feature-detection predicate: `true` when this namespace is loaded.        |
