@@ -6,15 +6,15 @@
 
 ## 1. Executive summary
 
-re-frame-debux is in **stable maintenance mode** with a small, well-defined surface (`day8.re-frame.tracing/{fn-traced,defn-traced}`), a working zipper-based AST walker, and a production-elision story (`tracing-stubs` jar + shadow-cljs `:ns-aliases`). The core engine works and produces useful output through re-frame-10x's Code panel. But the project shows the fingerprints of a sprint that stalled: **dependencies are pinned to 2020 snapshots**, **issue #40 (a critical `loop`/`recur` hang) has been open since 2021**, and **four feature requests from a 2020 sprint have sat untouched** for over four years. Recent activity (2026) is limited to a `bd init` commit.
+re-frame-debux is in **stable maintenance mode** with a now-expanded tracing surface (`day8.re-frame.tracing/{fn-traced,defn-traced,dbg,dbg-last,fx-traced,defn-fx-traced}` plus `day8.re-frame.tracing.runtime`), a working zipper-based AST walker, and a production-elision story (`tracing-stubs` jar + shadow-cljs `:ns-aliases`). The core engine works and produces useful output through re-frame-10x's Code panel.
 
-**Top-3 highest-leverage improvements**, in priority order:
+This document began as an early-2026 recovery plan. The original emergency items have since shipped: issue #40's `loop`/`recur` hang is fixed, core dependency pins were refreshed, the `:code` payload schema is documented, `:locals` / `:if` landed, and the v0.7 feature quartet added `:once`, fx tracing, frame markers, and verbose tracing. What remains is no longer "unstall v0.6"; it is keeping the maintainer-facing roadmap truthful, closing the operator-owned upstream issue loop, and treating the new trace payloads as stable contracts for downstream tools.
 
-1. **Fix issue #40 — `loop`/`recur` infinite macroexpansion (P0).** Critical bug that makes `fn-traced` unusable on a common Clojure idiom. Likely a missing zipper carve-out for `recur`. Estimated 1 week.
-2. **Bump core dependency pins (P1).** re-frame 1.2.0 → 1.4+, shadow-cljs 2.11.22 → 2.20+, Clojure 1.10.3 → 1.11+. No breaking-API risk identified; the staleness signal alone is hurting trust in the library. Estimated 1 day.
-3. **Add `:locals` and `:if` options to `fn-traced` (P1).** Two of three debux options that transfer cleanly to the re-frame-trace sink model (`:once` is the third but harder). `:locals` (~50 LOC) and `:if` (~5 LOC) widen what the tracing surface exposes by an order of magnitude with low risk. Directly amplifies re-frame-pair's on-demand-instrumentation recipe.
+**Current highest-leverage follow-ups**, in priority order:
 
-The `:once` option, fx/effect-map tracing (a TODO at `dbgn.clj:341`), and the four 2020 feature requests sit in a second tier — useful, but each requires design work disproportionate to its frequency-of-use.
+1. **Close or annotate the upstream GitHub issues.** #36 and #37 shipped in v0.7, #34 and #35 were declined, #40 is fixed, and #38 remains an operator-side README image decision.
+2. **Keep release-facing docs aligned with the shipped surface.** README and CHANGELOG now carry most of the v0.7+ feature tour; this plan and `docs/v0.6-roadmap.md` should stay historical/status documents rather than active queues.
+3. **Guard the new public contracts.** The expanded runtime API, `:code` / `:trace-frames` / `:fx-effects` payloads, tap output, and tracing-stubs parity are now the highest-value regression surfaces.
 
 ---
 
@@ -88,43 +88,56 @@ The `:if` option is the lowest-risk addition. Five lines of code, no new state, 
 
 re-frame-pair is a Claude Code skill that drives running re-frame apps via REPL. It already has hot-swap as a primitive — meaning the skill can wrap any registered handler with `fn-traced` *on demand*, with no source edits. re-frame-debux is uniquely well-positioned for this because its trace data already flows into `re-frame.trace/merge-trace!`, which re-frame-pair already reads via 10x's epoch buffer.
 
-The integration is described in detail in `/home/mike/code/re-frame-pair/docs/inspirations-debux.md`. From re-frame-debux's side, three small changes would amplify it dramatically:
+The integration is described in detail in `/home/mike/code/re-frame-pair/docs/inspirations-debux.md`. The three original re-frame-debux-side recommendations have all shipped; the original text is retained here as design history with current status notes.
 
-**(a) Document the `:code` payload schema.** The fields `{:form, :result, :indent-level, :syntax-order, :num-seen}` are written to `:tags :code` (`util.cljc:138–140`) but their semantics aren't documented anywhere — neither in the README nor in inline comments. Any tool that wants to consume this payload (re-frame-pair, third-party 10x panels, custom inspectors) reverse-engineers it. **A 30-line schema comment in `util.cljc` near `send-trace!`** — naming each field, giving an example shape, and noting the `tidy-macroexpanded-form` step — closes the documentation gap and turns the payload into a contract.
+**(a) Document the `:code` payload schema.** ✓ **Shipped** in commit `6b4f042`. The fields `{:form, :result, :indent-level, :syntax-order, :num-seen}` were written to `:tags :code` but their semantics were not documented anywhere — neither in the README nor in inline comments. The schema comment near `send-trace!` now names each field, gives an example shape, and notes the `tidy-macroexpanded-form` step, turning the payload into a contract for re-frame-pair, third-party 10x panels, and custom inspectors.
 
-**(b) Make the production-mode warning loud, not silent.** Today, if a user's release build accidentally ships `day8.re-frame.tracing` (instead of the stubs), tracing runs in production with no warning. A defensive runtime check at the first `send-trace!` call — `(when (and (some-shadow-detection) (not (goog-defined? trace-enabled?))) (js/console.warn "re-frame-debux is active in what looks like a production build; check :ns-aliases"))` — costs nothing in dev and shouts at the operator if their build config drifts. Even better, add a clojure-side macro-expansion-time assertion that fires at compile when `goog.DEBUG` is false but `trace-enabled?` is true.
+**(b) Make the production-mode warning loud, not silent.** ✓ **Shipped** in commit `10d27fd`. If a user's release build accidentally ships `day8.re-frame.tracing` instead of the stubs, the first trace send now emits a loud production-mode warning. The check is covered by `prod_mode_warn_test.cljc`.
 
-**(c) Expose a public `wrap-fn-traced!` runtime function.** Today, the only entry point is the `fn-traced` macro at source-edit time. re-frame-pair wants to do this at the REPL, which currently requires the skill to manually `eval` the rewriting macro form. A small public API — `(day8.re-frame.tracing/wrap-handler! kind id)` that re-registers the existing handler under the same id with `fn-traced` applied — would make the recipe one call instead of a synthesised macro form. Bonus: `(day8.re-frame.tracing/unwrap-handler! kind id)` to restore the original. ~40 LOC. This is the single most leveraged change for the on-demand-instrumentation recipe.
+**(c) Expose public `wrap-handler!` / `unwrap-handler!` runtime functions.** ✓ **Shipped** in `day8.re-frame.tracing.runtime` in commit `4ed07c9`, with follow-up coverage for missing-handler, double-wrap, sub/fx/event-fx/event-ctx, and production-stub parity. re-frame-pair can now wrap and restore registered handlers with one public call instead of synthesising macro forms at the REPL.
 
-**Sub-tracing and fx-tracing.** A direct extension of the same idea. `(wrap-sub! id)` re-registers a subscription with `fn-traced` body; `(wrap-fx! id)` does the same for an effect handler. fx tracing in particular would fix the `dbgn.clj:341` TODO ("trace inside maps, especially for fx"): the wrapper can introspect the `:effects` map structure and emit per-effect traces without modifying the zipper walker.
+**Sub-tracing and fx-tracing.** ✓ **Shipped.** `wrap-sub!` / `wrap-fx!` are available as runtime conveniences, and `fx-traced` / `defn-fx-traced` shipped in commit `bae1b0d` to emit per-key `:fx-effects` entries without generalising the zipper walker. Runtime `wrap-event-fx!` / `wrap-event-ctx!` later moved to the same per-effect surface in commit `67181fa`.
 
 ---
 
-## 6. Prioritised roadmap
+## 6. Prioritised roadmap — status as of v0.7.x
 
-Concrete sequencing. Each item has a rough effort estimate and a testable acceptance criterion.
+This section is now an implementation ledger for the original roadmap. "Operator-owned" means local code work is complete or intentionally declined, but the human maintainer still needs to update upstream GitHub issue state.
 
-### Next session (this week or next)
+### Original next session
 
-1. **Fix #40 — `loop`/`recur` non-termination** (~1 week). Most likely a missing carve-out in `cs/macro_types.cljc` for `recur` similar to the existing `:skip-form-itself-type` entries. Add a regression-test fixture covering `loop`/`recur`, `cond`, `cond->`, `letfn`, deeply-nested `for`, and `case` (this is the test gap that has let three macro-walker bugs through). [P0, blocking]
-2. **Bump dependency pins** (~1 day). re-frame 1.2.0 → 1.4+, shadow-cljs 2.11.22 → 2.20+, Clojure 1.10.3 → 1.11+, project.clj `[day8.re-frame/tracing "0.5.3"]` and example/project.clj `[day8.re-frame/tracing "0.5.5"]` to the new release. Update README's Clojure 1.8.0 claim to match reality. [P1, trust-building]
-3. **Document the `:code` payload schema** (~1 hour). 30-line block comment in `util.cljc` near `send-trace!`. [P1, doc, prereq for re-frame-pair integration]
-4. **Close or merge the 2020 sprint backlog** (~1 hour). Either close #34/#35/#36/#37 with a roadmap pointer or roll them into one design-doc issue. [P2, hygiene]
-5. **README image fix or removal** (~1 hour, #38). [P2, docs]
+1. **Fix #40 — `loop`/`recur` non-termination** — ✓ **Shipped.** `recur` was added to `:skip-form-itself-type` with regression coverage in commit `db9b7de`; the root `o-skip?` FQN bug was fixed in `48de2e8`; the integration wiring and a tail-position fix landed in `8d4e331`.
+2. **Bump dependency pins** — ✓ **Shipped.** The tools/dependency refresh landed across the `rfd-iqz` series (`c940967` / `a1fc73e` / `acea1d0` / `4109a0c`) and commit `ee768f2`, with later Clojure / CLJS pin alignment in `48258d4`.
+3. **Document the `:code` payload schema** — ✓ **Shipped** in commit `6b4f042`.
+4. **Close or merge the 2020 sprint backlog** — **Operator-owned.** #36 and #37 shipped in v0.7; #34 and #35 were declined; `docs/v0.6-roadmap.md` carries close-comment templates for all four issues.
+5. **README image fix or removal (#38)** — **Operator-owned.** This is still outside local code-agent scope unless the operator decides to patch the upstream README assets.
 
-### Next month
+### Original next month
 
-6. **Add `:locals` and `:if` options to `fn-traced`** (~50 + 5 LOC, ~1 week including tests). Both ride in the same release. The `&env` capture for locals needs a CLJS branch (env shapes differ); plan for this. [P1, biggest debux→rfd port]
-7. **Expose `wrap-handler!` / `unwrap-handler!` runtime API** (~40 LOC, ~3 days). The single largest amplifier for re-frame-pair's recipe. Document with examples. [P1, integration]
-8. **Production-mode loud-fail check** (~20 LOC, ~1 day). Macro-time assertion + runtime console.warn when `goog.DEBUG=false` and tracing is active. [P2, footgun]
-9. **End-to-end integration test** (~1 week). Spin up a re-frame fixture in karma, fire a dispatch through a `fn-traced` handler, inspect the resulting epoch's `:code` tag. Catches version-skew bugs and silent payload regressions. [P1, trust-building]
+6. **Add `:locals` and `:if` options to `fn-traced`** — ✓ **Shipped** in commit `4d6e507`, with follow-up fixes for option parsing, varargs locals, and production stubs.
+7. **Expose `wrap-handler!` / `unwrap-handler!` runtime API** — ✓ **Shipped** in commit `4ed07c9`. Follow-ups added feature detection, edge-case tests, sub/fx/event-fx/event-ctx wrappers, and tracing-stubs parity.
+8. **Production-mode loud-fail check** — ✓ **Shipped** in commit `10d27fd`.
+9. **End-to-end integration test** — ✓ **Shipped with caveat.** Commit `6e4f5d1` scaffolded four pending integration tests; commit `8d4e331` wired them into `bb test` and fixed the macro-walker bugs they exposed. Browser coverage continued later in the CLJS integration fixture.
 
-### Someday
+### Original someday
 
-10. **`:once` / duplicate-suppression option** (~80 LOC, ~1 week). Lower priority; complicated by gensym scoping and lifecycle. Worth doing once `:locals` is in.
-11. **fx-map tracing (#341 TODO)** (~1 week). Walk effect maps inside `:effects` and emit per-effect traces. Could be implemented as a new macro `fx-traced` that wraps `reg-fx` instead of generalising `dbgn`'s walker.
-12. **Function entry/exit markers (#37)** — ✓ **Shipped in v0.7.0** as the `:trace-frames` tag emitted by `fn-traced` / `defn-traced` (commit `8ba53a8`). Original plan: ~1 week. Easier once `wrap-handler!` exists — entry/exit can be emitted by the wrapper rather than the macro.
-13. **"Show all" verbosity mode (#36)** — ✓ **Shipped in v0.7.0** as the `:verbose` / `:show-all` option on `fn-traced` / `defn-traced` / `dbgn` (commit `0177254`). Original plan: ~1 week. Likely a flag on `send-trace!` that disables the noise filter.
+10. **`:once` / duplicate-suppression option** — ✓ **Shipped in v0.7.0** in commit `33225e8`.
+11. **fx-map tracing (#341 TODO)** — ✓ **Shipped in v0.7.0** as `fx-traced` / `defn-fx-traced` in commit `bae1b0d`, with runtime `wrap-event-fx!` / `wrap-event-ctx!` parity added in commit `67181fa`.
+12. **Function entry/exit markers (#37)** — ✓ **Shipped in v0.7.0** as the `:trace-frames` tag emitted by `fn-traced` / `defn-traced` in commit `8ba53a8`.
+13. **"Show all" verbosity mode (#36)** — ✓ **Shipped in v0.7.0** as the `:verbose` / `:show-all` option on `fn-traced` / `defn-traced` / `dbgn` in commit `0177254`.
+
+### Additive shipped work not in the original roadmap
+
+- **Single-form tracing:** `dbg` (`992fd28`) and `dbg-last` (`304ef11`).
+- **Trace filtering and labelling:** `:final` / `:f` (`8eeadf6`) and `:msg` / `:m` (`b0a68b9`).
+- **Tap output:** `set-tap-output!` (`18b06dc`) and later tap parity for forms, frames, and fx effects (`d207b45`).
+- **Classifier parity / walker hardening:** notable fixes include `b471026`, `622a9dd`, `a13f7d8`, and the integration/browser fixtures that now exercise the tricky paths.
+
+### Current follow-ups
+
+- Upstream issue hygiene: close #40 / #36 / #37 as shipped, close #34 / #35 as declined, decide #38.
+- Release/status polish: keep README, CHANGELOG, `docs/v0.6-roadmap.md`, and this plan aligned with the shipped surface.
+- Contract coverage: preserve tests around `:code`, `:trace-frames`, `:fx-effects`, tap output, runtime wrappers, and tracing-stubs parity.
 
 ### Deliberately out of scope
 
@@ -136,11 +149,11 @@ Concrete sequencing. Each item has a rough effort estimate and a testable accept
 ## 7. Open questions — resolved 2026-04-27
 
 - **Is the day8 team actively maintaining this library?** **Yes — actively maintained.** The 2020 gap was a sprint stall, not abandonment. README / milestone statement to follow when next visible release lands.
-- **Is there a reason the fork doesn't expose `dbg` / single-form tracing alongside `fn-traced`?** **No deliberate omission.** `dbg` should be added for re-frame-pair (and other downstream consumers) to use at the REPL — single-expression tracing is debux's lowest-friction surface and the absence is unmet demand, not scope. Tracked as a future bead.
+- **Is there a reason the fork doesn't expose `dbg` / single-form tracing alongside `fn-traced`?** **No deliberate omission.** `dbg` shipped in commit `992fd28`, and `dbg-last` followed in `304ef11` for thread-last pipelines.
 - **Should `:locals` capture from `&env` (compile-time bindings) or use a runtime probe?** Resolved in `rfd-880` (commit `4d6e507`) — `&env` only; CLJS captures less, accepted.
 - **What's the right home for re-frame-pair-specific helpers?** Resolved 2026-04-26: re-frame-debux owns the contract. `wrap-handler!` / `unwrap-handler!` shipped in `day8.re-frame.tracing/runtime` (commit `4ed07c9`); re-frame-pair consumes via the public surface (rfp-6z2, commit `a285c1d`).
-- **CHANGELOG cadence?** **Yes — there should be a CHANGELOG file.** Every dependency bump and option addition gets a user-visible-delta entry. Tracked as a future bead.
+- **CHANGELOG cadence?** **Yes — there should be a CHANGELOG file.** `CHANGELOG.md` now exists and carries user-visible entries for dependency bumps, option additions, runtime API changes, and production-stub parity.
 
 ---
 
-*End of plan. Recommended first-action: open a single tracking issue ("v0.6 roadmap") referencing this doc, then close #34/#35/#36/#37 with a pointer to it.*
+*End of plan. Recommended first action: finish upstream issue hygiene and keep this file as a historical/status ledger, not an active queue of already-shipped work.*
