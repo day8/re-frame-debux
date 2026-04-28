@@ -215,7 +215,12 @@
     [(first definition) (rest definition)]
     [nil definition]))
 
-(defn fn-body [args+body opts & send-form]
+(defn fn-body
+  "Build the traced body for day8.re-frame.tracing macros.
+   This is the richer helper for the public tracing surface: it handles
+   opts, frame markers, locals, send-form metadata, and fx-effect tracing.
+   The legacy day8.re-frame.debux.core macros use legacy-fn-body in core.clj."
+  [args+body opts & send-form]
   (let [args            (or (-> args+body :args :args) [])
         body-or-prepost (-> args+body :body (nth 0))
         body            (nth (:body args+body) 1)
