@@ -154,6 +154,37 @@
            (ut/parse-opts [:if even? :final :msg "x" 7]))
         ":if (value-arg) followed by :final (flag) followed by :msg (value-arg) followed by a number (flag) — every advance shape exercised in one parse")))
 
+#?(:clj
+   (defn- with-err-str* [f]
+     (let [sw (java.io.StringWriter.)]
+       (binding [*err* sw]
+         (let [v (f)]
+           [v (str sw)])))))
+
+#?(:clj
+   (deftest parse-opts-unknown-keyword-preserves-accumulator-test
+     (testing "an unrecognized option warns and is skipped, prior and later opts survive"
+       (let [[result err] (with-err-str* #(ut/parse-opts [:once :unknown :final]))]
+         (is (= {:once true :final true} result)
+             "the cond fall-through used to return nil and drop {:once true} along with :final — :else recurs to keep both")
+         (is (re-find #"unrecognized option" err)
+             "the warning is emitted to *err* so the typo is visible at macroexpansion")))))
+
+#?(:clj
+   (deftest parse-opts-unknown-keyword-alone-test
+     (testing "a lone unrecognized option returns {} (not nil) so dependent code doesn't NPE"
+       (let [[result err] (with-err-str* #(ut/parse-opts [:typo]))]
+         (is (= {} result)
+             "the cond fall-through used to return nil — :else recurs to terminate the loop with acc")
+         (is (re-find #":typo" err))))))
+
+#?(:clj
+   (deftest parse-opts-unknown-trailing-keyword-test
+     (testing "unknown option AFTER a recognized one still leaves the prior opts intact"
+       (let [[result _] (with-err-str* #(ut/parse-opts [:once :verbose :onec]))]
+         (is (= {:once true :verbose true} result)
+             ":onec is the typo; :once and :verbose accumulate before it, the :else branch consumes :onec and the empty? branch returns acc")))))
+
 (defn- once-state-entries []
   (:entries (deref @#'ut/once-state)))
 
