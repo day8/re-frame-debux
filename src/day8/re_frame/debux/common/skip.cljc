@@ -159,7 +159,6 @@
 ;;; :thread-first-type
 (defn insert-skip-thread-first
   [form]
-  ; (println "INSERT-SKIP-THREAD-FIRST" form)
   (let [name (first form)
         value (second form)
         new-args (map (fn[f] (if (seq? f)
@@ -172,7 +171,6 @@
 ;;; :thread-last-type
 (defn insert-skip-thread-last
   [form]
-  ; (println "INSERT-SKIP-THREAD-LAST" form)
   (let [name (first form)
         value (second form)
         new-args (map (fn[f] (if (seq? f)
@@ -185,7 +183,6 @@
 ;;; :cond-first-type
 (defn insert-skip-cond-first
   [form]
-  ; (println "INSERT-SKIP-COND-FIRST" form)
   (let [name      (first form)
         value     (second form)
         clauses   (drop 2 form)
@@ -202,7 +199,6 @@
 ;;; :cond-last-type
 (defn insert-skip-cond-last
   [form]
-  ; (println "INSERT-SKIP-COND-LAST" form)
   (let [name      (first form)
         value     (second form)
         clauses   (drop 2 form)
