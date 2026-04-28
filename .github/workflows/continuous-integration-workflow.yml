@@ -46,6 +46,11 @@ jobs:
       - name: Run Clojure tests
         run: bb test
 
+      - name: Setup node
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4
+        with:
+          node-version: '20'
+
       - name: npm cache
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
@@ -53,6 +58,9 @@ jobs:
           key: ${{ runner.os }}-npm-${{ hashFiles('package.json') }}-${{ hashFiles('package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-npm-
+
+      - name: Install npm deps
+        run: npm ci
 
       - name: shadow-cljs compiler cache
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
