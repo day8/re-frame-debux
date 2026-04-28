@@ -5,7 +5,6 @@
             [clojure.pprint :as pp]
             [clojure.zip :as z]
             [clojure.walk :as walk]
-            [cljs.analyzer.api :as ana]
             [clojure.repl :as repl]
             [re-frame.trace :as trace]))
 
@@ -741,7 +740,7 @@
 
 #?(:clj
    (defn- ns-symbol-for-cljs [sym env]
-     (if-let [meta (ana/resolve env sym)]
+     (if-let [meta ((requiring-resolve 'cljs.analyzer.api/resolve) env sym)]
        ;; normal symbol
        (if (:local meta)
          sym
