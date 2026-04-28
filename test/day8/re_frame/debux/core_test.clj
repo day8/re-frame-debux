@@ -79,6 +79,27 @@
           (filter debux-form?))
         forms))
 
+(defn contains-keyword-call? [k form]
+  (boolean
+   (some #(and (seq? %) (= k (first %)))
+         (tree-seq coll? seq form))))
+
+(deftest trace-body-opts-are-expanded-selectively
+  (let [bare       (macroexpand-all
+                    '(day8.re-frame.debux.dbgn/dbgn (inc (+ 1 2)) nil))
+        final-only (macroexpand-all
+                    '(day8.re-frame.debux.dbgn/dbgn (inc (+ 1 2)) {:final true}))
+        msg-only   (macroexpand-all
+                    '(day8.re-frame.debux.dbgn/dbgn (inc (+ 1 2)) {:msg "label"}))]
+    (doseq [k [:final :if :once :locals :msg :m]]
+      (is (not (contains-keyword-call? k bare))))
+    (is (contains-keyword-call? :final final-only))
+    (doseq [k [:if :once :locals :msg :m]]
+      (is (not (contains-keyword-call? k final-only))))
+    (is (contains-keyword-call? :msg msg-only))
+    (doseq [k [:final :if :once :locals :m]]
+      (is (not (contains-keyword-call? k msg-only))))))
+
 (deftest tricky-dbgn-test
   (let [f '(let [res (-> [1 2 3 4 5]
                        (->> (map (fn [val] (condp = val

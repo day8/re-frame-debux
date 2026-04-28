@@ -146,6 +146,16 @@
       z/right
       z/down))
 
+(def ^:private trace-opts-omitted (Object.))
+
+(defn- trace-meta
+  [indent syntax-order num-seen trace-opts]
+  (cond-> {::indent       indent
+           ::syntax-order syntax-order
+           ::num-seen     num-seen}
+    (not (identical? trace-opts-omitted trace-opts))
+    (assoc ::opts trace-opts)))
+
 ;;; insert/remove d
 ;;
 ;; `verbose?` (5-arity) is the :verbose / :show-all switch. Default
@@ -161,6 +171,8 @@
   ([form d-sym env] (insert-trace form d-sym env [] false))
   ([form d-sym env seen] (insert-trace form d-sym env seen false))
   ([form d-sym env seen verbose?]
+   (insert-trace form d-sym env seen verbose? trace-opts-omitted))
+  ([form d-sym env seen verbose? trace-opts]
   ; (println "INSERT-TRACE" (prn-str form))
   (loop [loc          (ut/sequential-zip form)
           indent       0
@@ -203,9 +215,10 @@
         ;; clause pairs, etc.). The (a-skip ~form) wrapper is stripped
         ;; in remove-skip, leaving (~d-sym {meta} ~form) at runtime.
          (and (seq? node) (= `ms/a-skip (first node)))
-         (recur (-> (z/replace loc `(~d-sym {::indent ~(real-depth loc)
-                                             ::syntax-order ~syntax-order
-                                             ::num-seen ~num-seen} ~node))
+         (recur (-> (z/replace loc `(~d-sym ~(trace-meta (real-depth loc)
+                                                         syntax-order
+                                                         num-seen
+                                                         trace-opts) ~node))
                     ut/right-or-next)
                 indent syntax-order seen)
 
@@ -275,9 +288,10 @@
          
         ;; DC: why not def? where is that handled?
          (and (seq? node) (ifn? (first node)))
-         (recur (-> (z/replace loc  `(~d-sym {::indent ~(real-depth loc)
-                                              ::syntax-order ~syntax-order
-                                              ::num-seen ~num-seen} ~node))
+         (recur (-> (z/replace loc  `(~d-sym ~(trace-meta (real-depth loc)
+                                                          syntax-order
+                                                          num-seen
+                                                          trace-opts) ~node))
                     skip-past-trace 
                     ut/right-or-next)
                 (inc indent) syntax-order seen)
@@ -288,17 +302,19 @@
 
          (vector? node)
          (recur (-> loc
-                    (z/replace `(~d-sym {::indent ~(real-depth loc)
-                                         ::syntax-order ~syntax-order
-                                         ::num-seen ~num-seen} ~node))
+                    (z/replace `(~d-sym ~(trace-meta (real-depth loc)
+                                                     syntax-order
+                                                     num-seen
+                                                     trace-opts) ~node))
                     skip-past-trace)
                 indent syntax-order seen)
 
          (map? node)
          (recur (-> loc 
-                    (z/replace `(~d-sym {::indent ~(real-depth loc)
-                                         ::syntax-order ~syntax-order
-                                         ::num-seen ~num-seen} ~node))
+                    (z/replace `(~d-sym ~(trace-meta (real-depth loc)
+                                                     syntax-order
+                                                     num-seen
+                                                     trace-opts) ~node))
                     skip-past-trace)
                 indent syntax-order seen)
 
@@ -309,9 +325,10 @@
         ;; DC: We might also want to trace inside maps, especially for fx
         ;; in case of symbol, or set
          (or (symbol? node) (map? node) (set? node))
-         (recur (-> (z/replace loc `(~d-sym {::indent ~(real-depth loc)
-                                             ::syntax-order ~syntax-order
-                                             ::num-seen ~num-seen} ~node))
+         (recur (-> (z/replace loc `(~d-sym ~(trace-meta (real-depth loc)
+                                                         syntax-order
+                                                         num-seen
+                                                         trace-opts) ~node))
                    ;; We're not zipping down inside the node further, so we don't need to add a
                    ;; second z/right like we do in the case of a vector or ifn? node above.
                     ut/right-or-next)
@@ -324,9 +341,10 @@
          (and verbose?
               (or (number? node) (string? node) (boolean? node)
                   (keyword? node) (char? node) (nil? node)))
-         (recur (-> (z/replace loc `(~d-sym {::indent ~(real-depth loc)
-                                             ::syntax-order ~syntax-order
-                                             ::num-seen ~num-seen} ~node))
+         (recur (-> (z/replace loc `(~d-sym ~(trace-meta (real-depth loc)
+                                                         syntax-order
+                                                         num-seen
+                                                         trace-opts) ~node))
                     ut/right-or-next)
                 indent syntax-order seen)
 
@@ -346,18 +364,50 @@
                (contains? ::indent)))     :trace->
       :else :trace->>)))
 
-;; Every trace* arity reads `+debux-dbg-opts+`, `+debux-dbg-locals+`,
-;; and `+debux-trace-id+` at runtime. All three are bound by the
-;; surrounding (dbgn / dbgn-forms / mini-dbgn) expansion, so they're
-;; always in scope by the time the emitted code runs. `:locals` adds
-;; the captured arg pairs to the payload; `:if` is a runtime predicate
-;; called with the per-form result, gating send-trace! emission so
-;; high-frequency traces can be filtered without recompilation; `:once`
-;; suppresses consecutive emissions of the same form+result pair so
-;; loops or repeated dispatches don't spam the Code panel — see
-;; `ut/-once-emit?` for the semantics. The `+debux-trace-id+` string
-;; is the macro-expansion-site identity that lets `:once` distinguish
-;; one fn-traced handler's forms from another's.
+;; Each trace* arity can receive expansion-time opts through the trace
+;; metadata emitted by insert-trace. When the opts shape is known, only
+;; the requested runtime gates are emitted. If an older direct trace
+;; call lacks opts metadata, preserve the historical "check all gates"
+;; shape.
+
+(defn- trace-option-flags
+  [trace-meta]
+  (if (contains? trace-meta ::opts)
+    (let [opts (::opts trace-meta)
+          literal? (or (nil? opts) (map? opts))
+          has-opt? (fn [k]
+                     (and (map? opts) (contains? opts k)))
+          msg? (or (has-opt? :msg) (has-opt? :m))]
+      (if literal?
+        {:final?  (has-opt? :final)
+         :if?     (has-opt? :if)
+         :once?   (has-opt? :once)
+         :locals? (has-opt? :locals)
+         :msg?    msg?
+         :msg-expr (cond
+                     (and (has-opt? :msg) (has-opt? :m))
+                     `(or (:msg ~'+debux-dbg-opts+)
+                          (:m ~'+debux-dbg-opts+))
+
+                     (has-opt? :msg)
+                     `(:msg ~'+debux-dbg-opts+)
+
+                     (has-opt? :m)
+                     `(:m ~'+debux-dbg-opts+))}
+        {:final?  true
+         :if?     true
+         :once?   true
+         :locals? true
+         :msg?    true
+         :msg-expr `(or (:msg ~'+debux-dbg-opts+)
+                        (:m ~'+debux-dbg-opts+))}))
+    {:final?  true
+     :if?     true
+     :once?   true
+     :locals? true
+     :msg?    true
+     :msg-expr `(or (:msg ~'+debux-dbg-opts+)
+                    (:m ~'+debux-dbg-opts+))}))
 
 (defn- emit-trace-body
   "Emits the `(let [r ...] (when ... (send-trace! ...)) r)` shape
@@ -365,62 +415,70 @@
    computation (`form` for :trace, `(-> f form)` for :trace->,
    `(->> f form)` for :trace->>). `org-form` is the cleaned-up
    user form for the trace payload."
-  [bind-form org-form indent syntax-order num-seen]
-  (let [r          (gensym "trace-result_")
-        m          (gensym "trace-msg_")
-        trace-form (ut/tidy-macroexpanded-form org-form {})
-        ;; `:final` suppresses every per-form emission except the
-        ;; outermost (indent 0) — useful for long thread-* pipelines
-        ;; where intermediate steps are noise. The depth check is
-        ;; baked at expansion time: for indent=0 the literal is
-        ;; `true` (always pass), for indent>0 it's `false` so the
-        ;; runtime gate collapses to `(not (:final opts))` —
-        ;; suppress when set, emit otherwise.
-        outermost? (zero? indent)]
-    `(let [~r ~bind-form
-           ;; :msg is the developer-supplied label; :m is the alias.
-           ;; Resolved here once so the cond-> branch reads a fixed
-           ;; local instead of evaluating `or` against the opts map
-           ;; twice (the value lookup AND the truthy test).
-           ~m (or (:msg ~'+debux-dbg-opts+) (:m ~'+debux-dbg-opts+))]
-       (when (and (or (not (:final ~'+debux-dbg-opts+))
-                      ~outermost?)
-                  (or (not (:if ~'+debux-dbg-opts+))
-                      ((:if ~'+debux-dbg-opts+) ~r))
-                  (or (not (:once ~'+debux-dbg-opts+))
-                      (ut/-once-emit? ~'+debux-trace-id+ ~syntax-order ~r)))
-         (ut/send-trace!
-           (with-meta
-             (cond-> {:form         '~trace-form
-                      :result       ~r
-                      :indent-level ~indent
-                      :syntax-order ~syntax-order
-                      :num-seen     ~num-seen}
-               (:locals ~'+debux-dbg-opts+)
-               (assoc :locals ~'+debux-dbg-locals+)
-               ~m
-               (assoc :msg ~m))
-             {::ut/form-tidied? true})))
+  [bind-form org-form indent syntax-order num-seen trace-meta]
+  (let [r            (gensym "trace-result_")
+        m            (gensym "trace-msg_")
+        trace-form   (ut/tidy-macroexpanded-form org-form {})
+        {:keys [final? if? once? locals? msg? msg-expr]}
+        (trace-option-flags trace-meta)
+        final?       (and final? (not (zero? indent)))
+        bind-pairs   (cond-> [r bind-form]
+                       msg? (conj m msg-expr))
+        gate-forms   (cond-> []
+                       final?
+                       (conj `(not (:final ~'+debux-dbg-opts+)))
+
+                       if?
+                       (conj `(or (not (:if ~'+debux-dbg-opts+))
+                                  ((:if ~'+debux-dbg-opts+) ~r)))
+
+                       once?
+                       (conj `(or (not (:once ~'+debux-dbg-opts+))
+                                  (ut/-once-emit? ~'+debux-trace-id+
+                                                  ~syntax-order
+                                                  ~r))))
+        base-payload `{:form         '~trace-form
+                       :result       ~r
+                       :indent-level ~indent
+                       :syntax-order ~syntax-order
+                       :num-seen     ~num-seen}
+        payload      (if (or locals? msg?)
+                       `(cond-> ~base-payload
+                          ~@(when locals?
+                              [`(:locals ~'+debux-dbg-opts+)
+                               `(assoc :locals ~'+debux-dbg-locals+)])
+                          ~@(when msg?
+                              [m `(assoc :msg ~m)]))
+                       base-payload)
+        send-trace   `(ut/send-trace!
+                        (with-meta
+                          ~payload
+                          {::ut/form-tidied? true}))]
+    `(let [~@bind-pairs]
+       ~(if (seq gate-forms)
+          `(when (and ~@gate-forms)
+             ~send-trace)
+          send-trace)
        ~r)))
 
 (defmethod trace* :trace
-  [{::keys [indent syntax-order num-seen]} form]
+  [{::keys [indent syntax-order num-seen] :as trace-meta} form]
   (emit-trace-body form
                    (remove-d form 'day8.re-frame.debux.dbgn/trace)
-                   indent syntax-order num-seen))
+                   indent syntax-order num-seen trace-meta))
 
 
 (defmethod trace* :trace->
-  [f {::keys [indent syntax-order num-seen]} form]
+  [f {::keys [indent syntax-order num-seen] :as trace-meta} form]
   (emit-trace-body `(-> ~f ~form)
                    (remove-d form 'day8.re-frame.debux.dbgn/trace)
-                   indent syntax-order num-seen))
+                   indent syntax-order num-seen trace-meta))
 
 (defmethod trace* :trace->>
-  [{::keys [indent syntax-order num-seen]} form f]
+  [{::keys [indent syntax-order num-seen] :as trace-meta} form f]
   (emit-trace-body `(->> ~f ~form)
                    (remove-d form 'day8.re-frame.debux.dbgn/trace)
-                   indent syntax-order num-seen))
+                   indent syntax-order num-seen trace-meta))
 
 (defmacro trace [& args]
   ;; (println "TRACE" args)
@@ -519,7 +577,8 @@
               form)
             (insert-skip &env)
             (insert-trace 'day8.re-frame.debux.dbgn/trace &env []
-                          (boolean (or (:verbose opts) (:show-all opts))))
+                          (boolean (or (:verbose opts) (:show-all opts)))
+                          opts)
             remove-skip)
        ;; TODO: can we remove try/catch too?
        (catch ~(if (ut/cljs-env? &env)
@@ -576,7 +635,8 @@
                                  form)
                                (insert-skip &env)
                                (insert-trace 'day8.re-frame.debux.dbgn/trace &env args
-                                             (boolean (or (:verbose opts) (:show-all opts))))
+                                             (boolean (or (:verbose opts) (:show-all opts)))
+                                             opts)
                                remove-skip))
                 forms)
        ;; TODO: can we remove try/catch too?
