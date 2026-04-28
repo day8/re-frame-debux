@@ -230,7 +230,25 @@
   `(ms/o-skip ~form))
 
 (defn insert-o-skip-for-recur
-  ;; TODO: add why this is needed?
+  "Protect `recur` forms from dbgn's normal trace insertion.
+
+   `recur` must remain in tail position relative to its enclosing
+   `loop` / fn target. The normal walker can otherwise insert trace
+   calls around ancestors of a `recur`, moving the `recur` out of tail
+   position and producing invalid code. This pass runs before trace
+   insertion and wraps the path from a found `recur` back up to the
+   enclosing loop target in `o-skip`, telling the later walker to keep
+   those structural forms opaque while still allowing surrounding code
+   to be traced.
+
+   The `upwards` flag is the walker's state machine:
+   - false: scan forward through the zipper looking for a `recur`.
+   - true: ascend from that `recur`, wrapping each ancestor until the
+     enclosing loop/fn target is reached.
+
+   The one-up / two-up zipper checks detect whether the ancestor slot
+   about to be wrapped is already an `o-skip` form. That prevents nested
+   or repeated passes from wrapping the same form again."
   [form & [env]]
   (loop [loc     (ut/sequential-zip form)
          upwards false]
@@ -239,7 +257,10 @@
       (cond
         (z/end? loc) (z/root loc)
 
-        ;; upwards start
+        ;; Found a recur while scanning downward. Wrap its parent form,
+        ;; then move upward so the ancestors back to the loop target are
+        ;; protected too. The two-up/one-down path asks whether the
+        ;; parent slot is already `(o-skip ...)`.
         ;; `some->` guards the z/up chain — for a `recur` at the very
         ;; top of a form (no enclosing loop/wrapper), the upward walk
         ;; runs past the root and z/down on nil would throw NPE. When
@@ -255,7 +276,11 @@
                    z/up)
                true)
 
-        ;; upwards ongoing — same nil-guard rationale as upwards start
+        ;; Still ascending from a recur. Keep wrapping ancestors until
+        ;; `final-target?` says the enclosing loop/fn target has been
+        ;; reached. The one-up/one-down path checks whether this node's
+        ;; own slot is already wrapped.
+        ;; Same nil-guard rationale as upwards start.
         (and upwards
              (symbol? (first node))
              (not (ut/final-target? (ut/ns-symbol (first node) env)
@@ -267,7 +292,9 @@
                    z/up)
                true)
 
-        ;; upwards finish
+        ;; Reached the loop/fn target that owns the recur. Stop
+        ;; ascending; that target is allowed to be seen by the later
+        ;; walker because it defines the tail-position boundary.
         (and upwards
              (symbol? (first node))
              (ut/final-target? (ut/ns-symbol (first node) env)
