@@ -154,6 +154,14 @@
     (not (identical? trace-opts-omitted trace-opts))
     (assoc ::opts trace-opts)))
 
+(defn- traced-form
+  [d-sym loc syntax-order num-seen trace-opts node]
+  `(~d-sym ~(trace-meta (real-depth loc)
+                        syntax-order
+                        num-seen
+                        trace-opts)
+           ~node))
+
 ;;; insert/remove d
 ;;
 ;; `verbose?` (5-arity) is the :verbose / :show-all switch. Default
@@ -208,14 +216,11 @@
         ;; in case of (a-skip ...) — emit ONE trace for the whole form
         ;; with no descent into the args. Used by :skip-all-args-type
         ;; for forms whose internals carry compile-time semantics
-        ;; (reify method bodies, extend-type protocol impls, condp
-        ;; clause pairs, etc.). The (a-skip ~form) wrapper is stripped
-        ;; in remove-skip, leaving (~d-sym {meta} ~form) at runtime.
+         ;; (reify method bodies, extend-type protocol impls, condp
+         ;; clause pairs, etc.). The (a-skip ~form) wrapper is stripped
+         ;; in remove-skip, leaving (~d-sym {meta} ~form) at runtime.
          (and (seq? node) (= `ms/a-skip (first node)))
-         (recur (-> (z/replace loc `(~d-sym ~(trace-meta (real-depth loc)
-                                                         syntax-order
-                                                         num-seen
-                                                         trace-opts) ~node))
+         (recur (-> (z/replace loc (traced-form d-sym loc syntax-order num-seen trace-opts node))
                     ut/right-or-next)
                 indent syntax-order seen)
 
@@ -282,10 +287,7 @@
          
         ;; DC: why not def? where is that handled?
          (and (seq? node) (ifn? (first node)))
-         (recur (-> (z/replace loc  `(~d-sym ~(trace-meta (real-depth loc)
-                                                          syntax-order
-                                                          num-seen
-                                                          trace-opts) ~node))
+         (recur (-> (z/replace loc (traced-form d-sym loc syntax-order num-seen trace-opts node))
                     skip-past-trace 
                     ut/right-or-next)
                 (inc indent) syntax-order seen)
@@ -296,19 +298,13 @@
 
          (vector? node)
          (recur (-> loc
-                    (z/replace `(~d-sym ~(trace-meta (real-depth loc)
-                                                     syntax-order
-                                                     num-seen
-                                                     trace-opts) ~node))
+                    (z/replace (traced-form d-sym loc syntax-order num-seen trace-opts node))
                     skip-past-trace)
                 indent syntax-order seen)
 
          (map? node)
          (recur (-> loc 
-                    (z/replace `(~d-sym ~(trace-meta (real-depth loc)
-                                                     syntax-order
-                                                     num-seen
-                                                     trace-opts) ~node))
+                    (z/replace (traced-form d-sym loc syntax-order num-seen trace-opts node))
                     skip-past-trace)
                 indent syntax-order seen)
 
@@ -321,10 +317,7 @@
         ;; fx-traced/-emit-fx-traces!. Symbols and sets follow the same
         ;; "wrap value, do not zip into children" path.
          (or (symbol? node) (map? node) (set? node))
-         (recur (-> (z/replace loc `(~d-sym ~(trace-meta (real-depth loc)
-                                                         syntax-order
-                                                         num-seen
-                                                         trace-opts) ~node))
+         (recur (-> (z/replace loc (traced-form d-sym loc syntax-order num-seen trace-opts node))
                    ;; We're not zipping down inside the node further, so we don't need to add a
                    ;; second z/right like we do in the case of a vector or ifn? node above.
                     ut/right-or-next)
@@ -337,10 +330,7 @@
          (and verbose?
               (or (number? node) (string? node) (boolean? node)
                   (keyword? node) (char? node) (nil? node)))
-         (recur (-> (z/replace loc `(~d-sym ~(trace-meta (real-depth loc)
-                                                         syntax-order
-                                                         num-seen
-                                                         trace-opts) ~node))
+         (recur (-> (z/replace loc (traced-form d-sym loc syntax-order num-seen trace-opts node))
                     ut/right-or-next)
                 indent syntax-order seen)
 
