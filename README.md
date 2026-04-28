@@ -187,17 +187,19 @@ Convenience wrappers:
 
 ## Configuration
 
-Three runtime knobs live alongside the tracing macros and apply globally:
+Four runtime knobs live alongside the tracing macros and apply globally:
 
 ```clojure
 (require '[day8.re-frame.tracing :as t])
 
-(t/set-tap-output! true)        ; mirror every send-trace! payload through tap> as well
-(t/set-print-seq-length! 50)    ; bound the number of items shown for sequences in trace records
-(t/reset-indent-level!)         ; reset the trace-indenting counter (recovery if a body threw mid-emit)
+(t/set-tap-output! true)          ; mirror every send-trace! payload through tap> as well
+(t/set-trace-frames-output! true) ; opt into :trace-frames entry/exit markers
+(t/set-print-seq-length! 50)      ; bound the number of items shown for sequences in trace records
+(t/reset-indent-level!)           ; reset the trace-indenting counter (recovery if a body threw mid-emit)
 ```
 
 `set-tap-output!` is the toggle for the `tap>` output channel added in v0.7 — see CHANGELOG for the per-call `:tap?` opt that does the same thing on a single `dbg` site without flipping the global.
+`:trace-frames` is off by default; enable `set-trace-frames-output!` only for tools that need function entry/exit boundaries.
 
 ## Option 1: Two libraries
 

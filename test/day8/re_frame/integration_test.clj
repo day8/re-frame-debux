@@ -100,6 +100,8 @@
     ;; dispatch.
     (reset! rft/trace-cbs {})
     (reset! runtime/wrapped-originals {})
+    (util/set-trace-frames-output! false)
+    (util/set-tap-output! false)
     ;; :once dedup state is process-local; reset between deftests so
     ;; one test's last emission doesn't silence the next test.
     (util/-reset-once-state!)
@@ -107,7 +109,9 @@
       (f)
       (finally
         (runtime/unwrap-all!)
-        (reset! rft/trace-cbs {})))))
+        (reset! rft/trace-cbs {})
+        (util/set-trace-frames-output! false)
+        (util/set-tap-output! false)))))
 
 (use-fixtures :each with-trace-capture)
 
@@ -148,8 +152,7 @@
 (defn- frame-entries
   "Flatten the per-test capture stream into a vec of :trace-frames
    entries (entry/exit markers) regardless of which trace carried
-   them. Each marker is {:phase :enter|:exit :frame-id ... :t ...}
-   plus `:result` on :exit."
+   them. Each marker is {:phase :enter|:exit :frame-id ... :t ...}."
   [captured]
   (->> captured
        (mapcat (comp :trace-frames :tags))
@@ -820,8 +823,20 @@
 ;; :trace-frames — function entry/exit markers around fn-traced bodies
 ;; ---------------------------------------------------------------------------
 
+(deftest fn-traced-frame-markers-default-off
+  (testing ":trace-frames markers are opt-in on the trace stream"
+    (re-frame.core/reg-event-db ::frames-default-off (fn [_ _] {}))
+    (re-frame.core/reg-event-db ::frames-default-off
+                                (tracing/fn-traced
+                                  [_ _]
+                                  {:answer 42}))
+    (re-frame.core/dispatch-sync [::frames-default-off])
+    (is (empty? (frame-entries (captured-traces)))
+        "fn-traced does not emit :trace-frames unless explicitly enabled")))
+
 (deftest fn-traced-emits-enter-and-exit-frame-markers
   (testing "every fn-traced'd dispatch emits paired :enter and :exit markers"
+    (util/set-trace-frames-output! true)
     (re-frame.core/reg-event-db ::framed (fn [_ _] {}))
     (re-frame.core/reg-event-db ::framed
                                 (tracing/fn-traced
@@ -846,8 +861,9 @@
         (is (>= (:t exit) (:t enter))
             ":exit timestamp is at or after :enter")))))
 
-(deftest fn-traced-frame-exit-carries-result
-  (testing ":exit marker's :result key holds the handler's return value"
+(deftest fn-traced-frame-exit-omits-result
+  (testing ":exit marker avoids retaining the handler's return value"
+    (util/set-trace-frames-output! true)
     (re-frame.core/reg-event-db ::framed-result (fn [_ _] {}))
     (re-frame.core/reg-event-db ::framed-result
                                 (tracing/fn-traced
@@ -858,11 +874,12 @@
                               (frame-entries (captured-traces))))]
       (is (some? exit)
           ":exit marker is present")
-      (is (= {:answer 42} (:result exit))
-          ":exit :result equals the body's last expression value"))))
+      (is (not (contains? exit :result))
+          ":exit does not duplicate the body's last expression value"))))
 
 (deftest fn-traced-frames-ignore-code-gates-and-carry-msg
   (testing ":if can suppress :code while invocation frame markers still emit with :msg"
+    (util/set-trace-frames-output! true)
     (re-frame.core/reg-event-db ::gated-frames (fn [_ _] {}))
     (re-frame.core/reg-event-db ::gated-frames
                                 (tracing/fn-traced
@@ -883,6 +900,7 @@
 
 (deftest wrap-handler-frames-too
   (testing "wrap-handler! → fn-traced inherits frame markers"
+    (util/set-trace-frames-output! true)
     (re-frame.core/reg-event-db ::wrapped-framed (fn [db _] db))
     (runtime/wrap-handler! :event ::wrapped-framed
                            (fn [db _] (assoc db :touched? true)))
@@ -949,6 +967,7 @@
 
 (deftest fx-traced-also-emits-code-and-frames
   (testing "fx-traced inherits fn-traced's :code and :trace-frames behaviour"
+    (util/set-trace-frames-output! true)
     (re-frame.core/reg-event-fx ::checkout-mixed (fn [_ _] {}))
     (re-frame.core/reg-event-fx ::checkout-mixed
                                 (tracing/fx-traced
@@ -1187,7 +1206,7 @@
         (runtime/wrap-handler! :event ::tapped
                                (fn [db _] (let [n (inc 41)] (assoc db :n n))))
         (re-frame.core/dispatch-sync [::tapped])
-        (wait-for #(seq @received) 1000)
+        (wait-for #(some (fn [entry] (= :code (:debux/kind entry))) @received) 1000)
         (is (seq @received)
             "tap probe received at least one trace record")
         (let [code-tapped (filter #(= :code (:debux/kind %)) @received)
@@ -1331,10 +1350,8 @@
             (is (number? (:t exit))  ":frame-exit carries a numeric :t")
             (is (>= (:t exit) (:t enter))
                 ":frame-exit timestamp is at or after :frame-enter")
-            (is (contains? exit :result)
-                ":frame-exit carries :result")
-            (is (= {:answer 42} (:result exit))
-                ":result is the body's return value")))
+            (is (not (contains? exit :result))
+                ":frame-exit avoids duplicating the body's return value")))
         (runtime/unwrap-handler! :event ::frame-tapped)
         (finally
           (remove-tap probe)

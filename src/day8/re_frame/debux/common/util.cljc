@@ -271,7 +271,6 @@
 ;;;   {:debux/kind :frame-exit
 ;;;    :frame-id    <same id as the paired :enter>
 ;;;    :t           <ms timestamp>
-;;;    :result      <body return value>
 ;;;    :msg         <opt: developer-supplied label>}
 ;;;   ;; one pair per fn-traced/defn-traced invocation, from
 ;;;   ;; `-send-frame-enter!` / `-send-frame-exit!` (mirrors :tags
@@ -290,6 +289,7 @@
 ;;; per-dbg-call-site channel. A consumer can branch on either flag.
 
 (defonce ^:private tap-output? (atom false))
+(defonce ^:private trace-frames-output? (atom false))
 
 (defn set-tap-output!
   "When `enabled?` is truthy, every debux trace emitter (`send-form!`,
@@ -302,6 +302,23 @@
    trace machinery is enabled."
   [enabled?]
   (reset! tap-output? (boolean enabled?)))
+
+(defn set-trace-frames-output!
+  "When `enabled?` is truthy, `fn-traced` / `defn-traced` /
+   `fx-traced` invocations emit paired `:enter` / `:exit` markers onto
+   the active trace's :tags :trace-frames vector. False by default so
+   normal tracing does not pay frame marker timestamp / merge overhead.
+
+   Independent of `set-tap-output!`: tap output still emits frame
+   payloads when tap output is on."
+  [enabled?]
+  (reset! trace-frames-output? (boolean enabled?)))
+
+(defn frame-markers-enabled?
+  "Internal predicate used by macro expansions to avoid calling frame
+   marker emitters unless a trace-frame or tap consumer is enabled."
+  []
+  (or @trace-frames-output? @tap-output?))
 
 (defn send-form! [form]
   (when (or @tap-output? @#'trace/trace-enabled?)
@@ -394,11 +411,12 @@
 ;;; Frame markers — entry/exit bracketing for fn-traced / defn-traced
 ;;; ----------------------------------------------------------------------
 ;;;
-;;; Each fn-traced'd / defn-traced'd handler invocation emits a pair of
-;;; markers onto the active trace's :tags :trace-frames vector:
+;;; When `set-trace-frames-output!` is enabled, each fn-traced'd /
+;;; defn-traced'd handler invocation emits a pair of markers onto the
+;;; active trace's :tags :trace-frames vector:
 ;;;
 ;;;   {:phase :enter :frame-id "frame_42" :t <ms> :msg <opt>}
-;;;   {:phase :exit  :frame-id "frame_42" :t <ms> :result <value> :msg <opt>}
+;;;   {:phase :exit  :frame-id "frame_42" :t <ms> :msg <opt>}
 ;;;
 ;;; The frame-id is a gensym'd string baked into the macroexpansion at
 ;;; the call site; both markers carry the same id so a consumer (10x
@@ -437,14 +455,17 @@
 
 (defn -send-frame-enter!
   "Emit a `:enter` marker on the active trace's :trace-frames vector.
-   No-op on the trace channel when trace-enabled? is off or no trace
-   is in flight. Independently, when `set-tap-output!` is enabled, also
-   emits a `{:debux/kind :frame-enter ...}` payload to tap>. Internal
-   — called by the fn-traced / defn-traced expansion at body-entry."
+   No-op on the trace channel unless `set-trace-frames-output!` is on,
+   trace-enabled? is on, and a trace is in flight. Independently, when
+   `set-tap-output!` is enabled, also emits a
+   `{:debux/kind :frame-enter ...}` payload to tap>. Internal — called
+   by the fn-traced / defn-traced expansion at body-entry."
   ([frame-id]
    (-send-frame-enter! frame-id nil))
   ([frame-id msg]
-   (let [trace? (and (some? trace/*current-trace*) @#'trace/trace-enabled?)
+   (let [trace? (and @trace-frames-output?
+                     (some? trace/*current-trace*)
+                     @#'trace/trace-enabled?)
          tap?   @tap-output?]
      (when (or trace? tap?)
        (let [t     (now-ms)
@@ -464,22 +485,26 @@
    nil))
 
 (defn -send-frame-exit!
-  "Emit an `:exit` marker carrying the body's return value. Mirrors
-   `-send-frame-enter!`: trace-channel emission is no-op-off-trace, and
-   when `set-tap-output!` is enabled an independent `{:debux/kind
-   :frame-exit ...}` payload also lands on tap>. Internal — called by
-   the fn-traced / defn-traced expansion right before returning."
+  "Emit an `:exit` marker. Mirrors `-send-frame-enter!`: trace-channel
+   emission is opt-in via `set-trace-frames-output!` and no-op
+   off-trace, and when `set-tap-output!` is enabled an independent
+   `{:debux/kind :frame-exit ...}` payload also lands on tap>. The
+   `result` arg is accepted for call-site compatibility but is not
+   stored on the marker; consumers that need the return value should
+   read the surrounding :code entry. Internal — called by the
+   fn-traced / defn-traced expansion right before returning."
   ([frame-id result]
    (-send-frame-exit! frame-id result nil))
-  ([frame-id result msg]
-   (let [trace? (and (some? trace/*current-trace*) @#'trace/trace-enabled?)
+  ([frame-id _result msg]
+   (let [trace? (and @trace-frames-output?
+                     (some? trace/*current-trace*)
+                     @#'trace/trace-enabled?)
          tap?   @tap-output?]
      (when (or trace? tap?)
        (let [t     (now-ms)
              entry (cond-> {:phase    :exit
                             :frame-id frame-id
-                            :t        t
-                            :result   result}
+                            :t        t}
                      msg (assoc :msg msg))]
          (when trace?
            (let [frames (get-in trace/*current-trace* [:tags :trace-frames] [])]
@@ -488,8 +513,7 @@
          (when tap?
            (tap> (cond-> {:debux/kind :frame-exit
                           :frame-id   frame-id
-                          :t          t
-                          :result     result}
+                          :t          t}
                    msg (assoc :msg msg)))))))
    nil))
 

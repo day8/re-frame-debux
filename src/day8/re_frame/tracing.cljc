@@ -28,6 +28,7 @@
 (def reset-indent-level! ut/reset-indent-level!)
 (def set-print-seq-length! ut/set-print-seq-length!)
 (def set-tap-output! ut/set-tap-output!)
+(def set-trace-frames-output! ut/set-trace-frames-output!)
 
 
 ;;; debugging APIs
@@ -221,6 +222,7 @@
         ;; id so consumers can pair the markers.
         frame-id        (str (gensym "frame_"))
         r               (gensym "fn-traced-result_")
+        emit-frames?    (gensym "emit-frames?_")
         ;; :fx-trace is the fx-traced opt that asks for per-key
         ;; tracing of the returned effect map. Set by the fx-traced
         ;; macro — bare fn-traced ignores it. Tristate:
@@ -236,19 +238,25 @@
                             `(day8.re-frame.debux.common.util/-emit-fx-traces! ~r)))]
     (if (= :body body-or-prepost)   ;; no pre and post conditions
       `(~args
-        (day8.re-frame.debux.common.util/-send-frame-enter! ~frame-id ~frame-msg)
-        (let [~r (dbgn/dbgn-forms ~body ~send-form ~args-symbols ~opts)]
-          ~@(when emit-fx-form [emit-fx-form])
-          (day8.re-frame.debux.common.util/-send-frame-exit! ~frame-id ~r ~frame-msg)
-          ~r))
+        (let [~emit-frames? (day8.re-frame.debux.common.util/frame-markers-enabled?)]
+          (when ~emit-frames?
+            (day8.re-frame.debux.common.util/-send-frame-enter! ~frame-id ~frame-msg))
+          (let [~r (dbgn/dbgn-forms ~body ~send-form ~args-symbols ~opts)]
+            ~@(when emit-fx-form [emit-fx-form])
+            (when ~emit-frames?
+              (day8.re-frame.debux.common.util/-send-frame-exit! ~frame-id ~r ~frame-msg))
+            ~r)))
     ;; prepost+body
       `(~args
         ~(:prepost body)
-        (day8.re-frame.debux.common.util/-send-frame-enter! ~frame-id ~frame-msg)
-        (let [~r (dbgn/dbgn-forms ~(:body body) ~send-form ~args-symbols ~opts)]
-          ~@(when emit-fx-form [emit-fx-form])
-          (day8.re-frame.debux.common.util/-send-frame-exit! ~frame-id ~r ~frame-msg)
-          ~r)))))
+        (let [~emit-frames? (day8.re-frame.debux.common.util/frame-markers-enabled?)]
+          (when ~emit-frames?
+            (day8.re-frame.debux.common.util/-send-frame-enter! ~frame-id ~frame-msg))
+          (let [~r (dbgn/dbgn-forms ~(:body body) ~send-form ~args-symbols ~opts)]
+            ~@(when emit-fx-form [emit-fx-form])
+            (when ~emit-frames?
+              (day8.re-frame.debux.common.util/-send-frame-exit! ~frame-id ~r ~frame-msg))
+            ~r))))))
 
 ;; Components of a defn
 ;; name

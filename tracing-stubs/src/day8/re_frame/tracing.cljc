@@ -54,15 +54,24 @@
 
 ;; Configuration knobs — re-exported in dev as `(def x ut/x)` from
 ;; debux.common.util. In a release build the underlying state atoms
-;; (tap-output?, indent-level*, print-seq-length*) aren't reached from
-;; any traced path, so the setters become inert. They're stubbed as
-;; no-op defns (not defs) so callers using `(set-tap-output! true)` at
-;; app boot don't 404 against an unbound var.
+;; (tap-output?, trace-frames-output?, indent-level*,
+;; print-seq-length*) aren't reached from any traced path, so the
+;; setters become inert. They're stubbed as no-op defns (not defs) so
+;; callers using `(set-tap-output! true)` at app boot don't 404 against
+;; an unbound var.
 
 (defn set-tap-output!
   "Production stub. No-op — the dev-side setter toggles whether trace
    emitters fan out to tap>; in a release build the emitters don't
    fire, so toggling has no observable effect."
+  [_enabled?]
+  nil)
+
+(defn set-trace-frames-output!
+  "Production stub. No-op — the dev-side setter toggles whether traced
+   functions emit :trace-frames markers; in a release build traced
+   functions compile down to plain functions, so toggling has no
+   observable effect."
   [_enabled?]
   nil)
 

@@ -61,12 +61,14 @@
          (reset! runtime/wrapped-originals {})
          (subs/clear-subscription-cache!)
          (util/-reset-once-state!)
+         (util/set-trace-frames-output! false)
          (util/set-tap-output! false)
          (try
            (f)
            (finally
              (runtime/unwrap-all!)
              (subs/clear-subscription-cache!)
+             (util/set-trace-frames-output! false)
              (util/set-tap-output! false)))))
 
      (use-fixtures :each with-trace-capture)
@@ -159,6 +161,7 @@
 
      (deftest fn-traced-options-flow-through-app-db
        (testing ":locals, :if, :once, :msg, :verbose and frame tags survive dispatch"
+         (util/set-trace-frames-output! true)
          (re-frame/reg-event-db ::optioned (fn [_ _] {}))
          (re-frame/reg-event-db ::optioned
                                 (tracing/fn-traced
@@ -193,8 +196,8 @@
                ":verbose emits leaf literals as standalone forms")
            (is (= [:enter :exit] (mapv :phase frames))
                "frame markers wrap the traced handler")
-           (is (= {:n 42 :literal 42} (:result (second frames)))
-               "the exit frame carries the app-db value returned by the handler"))
+           (is (not (contains? (second frames) :result))
+               "the exit frame avoids duplicating the app-db value returned by the handler"))
          (reset-capture!)
          (dispatch-sync! [::optioned 41])
          (is (empty? (code-entries (captured-traces)))

@@ -194,22 +194,26 @@ advertising availability and won't be renamed in a refactor.
 (require '[day8.re-frame.tracing :as t])
 
 (t/set-tap-output! true)
+(t/set-trace-frames-output! true)
 ```
 
 Routes every internal trace emitter (`:form`, `:code`,
 `:trace-frames`, `:fx-effects`) through `tap>` in addition to the
-in-trace `merge-trace!` sink. Each payload carries a `:debux/kind`
-discriminator (`:form`, `:code`, `:frame-enter`, `:frame-exit`,
-`:fx-effect`) so an `add-tap` consumer (custom 10x panels, REPL
-probes, eval-cljs scripts) can route on it.
+in-trace `merge-trace!` sink. `:trace-frames` emission to the trace
+stream is now opt-in via `set-trace-frames-output!`; tap output still
+receives frame markers when tap output is on. Each payload carries a
+`:debux/kind` discriminator (`:form`, `:code`, `:frame-enter`,
+`:frame-exit`, `:fx-effect`) so an `add-tap` consumer (custom 10x
+panels, REPL probes, eval-cljs scripts) can route on it.
 
 Independent of `re-frame.trace/trace-enabled?` — `tap>` consumers
 still receive entries when tap is enabled even with tracing off.
 Default off; preserves the existing trace-only behaviour.
 
-Two other config knobs sit alongside it on the same ns:
+Three other config knobs sit alongside it on the same ns:
+`set-trace-frames-output!` (opt into trace-stream frame markers),
 `set-print-seq-length!` (bound the per-trace pretty-print of large
-sequences) and `reset-indent-level!` (recovery if a body threw
+sequences), and `reset-indent-level!` (recovery if a body threw
 mid-emit).
 
 ---
@@ -222,13 +226,14 @@ field semantics, ordering, and the append-only payload contract from
 
 | Stream          | Producer                              | Payload shape                                                                       |
 | --------------- | ------------------------------------- | ----------------------------------------------------------------------------------- |
-| `:trace-frames` | `fn-traced` / `defn-traced`           | `{:phase :enter :frame-id <gensym-str> :t <ms>}` paired with `{:phase :exit ... :result <v>}` |
+| `:trace-frames` | `fn-traced` / `defn-traced`           | `{:phase :enter :frame-id <gensym-str> :t <ms>}` paired with `{:phase :exit :frame-id <same> :t <ms>}` |
 | `:fx-effects`   | `fx-traced` / `defn-fx-traced`        | `{:fx-key <k> :value <v> :t <ms>}` — one per key of the returned effect-map          |
 
 Both are append-only vectors under the active trace's `:tags`, mirror
-the `:code` discipline, and are silently dropped off-trace (no `tap>`
-fallback for frames; consumers wanting frames out-of-trace should
-enable `set-tap-output!`).
+the `:code` discipline, and are silently dropped off-trace. Frame
+markers are also off on the trace stream by default; consumers wanting
+them should enable `set-trace-frames-output!`. Consumers wanting frames
+out-of-trace should enable `set-tap-output!`.
 
 `:trace-frames` exception path: only `:enter` is guaranteed — a
 missing `:exit` is the signal that the body threw. Pair on
@@ -253,9 +258,10 @@ v0.7 macro:
   unchanged.
 - `dbg` / `dbgn` / `dbg-last` — value-transparent; expand to the
   bare expression with no trace side effect.
-- `set-tap-output!` / `set-print-seq-length!` /
-  `reset-indent-level!` — no-op `defn`s with matching arities, so app
-  boot code calling them at startup doesn't unbound-var.
+- `set-tap-output!` / `set-trace-frames-output!` /
+  `set-print-seq-length!` / `reset-indent-level!` — no-op `defn`s with
+  matching arities, so app boot code calling them at startup doesn't
+  unbound-var.
 - `day8.re-frame.tracing.runtime/wrap-handler!` /
   `wrap-event-fx!` / `wrap-event-ctx!` / `wrap-sub!` / `wrap-fx!`
   — compile to bare `re-frame.core/reg-*` with no `fn-traced` wrap.
