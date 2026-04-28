@@ -806,6 +806,26 @@
       (is (= {:answer 42} (:result exit))
           ":exit :result equals the body's last expression value"))))
 
+(deftest fn-traced-frames-ignore-code-gates-and-carry-msg
+  (testing ":if can suppress :code while invocation frame markers still emit with :msg"
+    (re-frame.core/reg-event-db ::gated-frames (fn [_ _] {}))
+    (re-frame.core/reg-event-db ::gated-frames
+                                (tracing/fn-traced
+                                  {:if (constantly false)
+                                   :msg "silenced-handler"}
+                                  [db _]
+                                  (assoc db :answer 42)))
+    (re-frame.core/dispatch-sync [::gated-frames])
+    (let [captured (captured-traces)
+          code     (code-entries captured)
+          frames   (frame-entries captured)]
+      (is (empty? code)
+          ":if false suppresses every :code entry")
+      (is (= [:enter :exit] (mapv :phase frames))
+          "frame markers still bracket the invocation")
+      (is (every? #(= "silenced-handler" (:msg %)) frames)
+          ":msg is copied onto both frame markers"))))
+
 (deftest wrap-handler-frames-too
   (testing "wrap-handler! → fn-traced inherits frame markers"
     (re-frame.core/reg-event-db ::wrapped-framed (fn [db _] db))

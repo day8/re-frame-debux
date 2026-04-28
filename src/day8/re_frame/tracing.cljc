@@ -217,24 +217,25 @@
         ;;   :ctx → body return is a context map; effects sit at
         ;;          (:effects ctx) (reg-event-ctx contract)
         fx-trace        (:fx-trace opts)
+        frame-msg       (or (:msg opts) (:m opts))
         emit-fx-form    (when fx-trace
                           (if (= :ctx fx-trace)
                             `(day8.re-frame.debux.common.util/-emit-fx-traces! (:effects ~r))
                             `(day8.re-frame.debux.common.util/-emit-fx-traces! ~r)))]
     (if (= :body body-or-prepost)   ;; no pre and post conditions
       `(~args
-        (day8.re-frame.debux.common.util/-send-frame-enter! ~frame-id)
+        (day8.re-frame.debux.common.util/-send-frame-enter! ~frame-id ~frame-msg)
         (let [~r (dbgn/dbgn-forms ~body ~send-form ~args-symbols ~opts)]
           ~@(when emit-fx-form [emit-fx-form])
-          (day8.re-frame.debux.common.util/-send-frame-exit! ~frame-id ~r)
+          (day8.re-frame.debux.common.util/-send-frame-exit! ~frame-id ~r ~frame-msg)
           ~r))
     ;; prepost+body
       `(~args
         ~(:prepost body)
-        (day8.re-frame.debux.common.util/-send-frame-enter! ~frame-id)
+        (day8.re-frame.debux.common.util/-send-frame-enter! ~frame-id ~frame-msg)
         (let [~r (dbgn/dbgn-forms ~(:body body) ~send-form ~args-symbols ~opts)]
           ~@(when emit-fx-form [emit-fx-form])
-          (day8.re-frame.debux.common.util/-send-frame-exit! ~frame-id ~r)
+          (day8.re-frame.debux.common.util/-send-frame-exit! ~frame-id ~r ~frame-msg)
           ~r)))))
 
 ;; Components of a defn
@@ -288,6 +289,9 @@
                        for noise reduction. Special-form skips (recur,
                        throw, var, quote, etc.) stay honoured because
                        instrumenting them corrupts evaluation semantics.
+     :msg/:m    label copied onto :code entries and fn invocation frame
+                       markers. Frame markers are invocation-boundary
+                       events and are not gated by :if, :once, or :final.
    Example: (defn-traced {:locals true :verbose true} my-handler [db event] ...)"
   {:arglists '([opts? name doc-string? attr-map? [params*] prepost-map? body]
                 [opts? name doc-string? attr-map? ([params*] prepost-map? body) + attr-map?])}
@@ -333,6 +337,9 @@
                        pair matches the previous one. Per call site.
      :verbose   true — also wrap leaf literals that the default mode skips
        (or :show-all)  for noise reduction.
+     :msg/:m    label copied onto :code entries and fn invocation frame
+                       markers. Frame markers are invocation-boundary
+                       events and are not gated by :if, :once, or :final.
    Example: (fn-traced {:locals true :once true} [db event] ...)"
   {:arglists '[(fn-traced opts? name? [params*] exprs*)
                (fn-traced opts? name? ([params*] exprs*) +)]}

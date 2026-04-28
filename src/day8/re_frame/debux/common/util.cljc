@@ -266,11 +266,13 @@
 ;;;
 ;;;   {:debux/kind :frame-enter
 ;;;    :frame-id    <gensym string, paired with the matching :exit>
-;;;    :t           <ms timestamp>}
+;;;    :t           <ms timestamp>
+;;;    :msg         <opt: developer-supplied label>}
 ;;;   {:debux/kind :frame-exit
 ;;;    :frame-id    <same id as the paired :enter>
 ;;;    :t           <ms timestamp>
-;;;    :result      <body return value>}
+;;;    :result      <body return value>
+;;;    :msg         <opt: developer-supplied label>}
 ;;;   ;; one pair per fn-traced/defn-traced invocation, from
 ;;;   ;; `-send-frame-enter!` / `-send-frame-exit!` (mirrors :tags
 ;;;   ;; :trace-frames). Exception path: only :enter fires — same
@@ -395,8 +397,8 @@
 ;;; Each fn-traced'd / defn-traced'd handler invocation emits a pair of
 ;;; markers onto the active trace's :tags :trace-frames vector:
 ;;;
-;;;   {:phase :enter :frame-id "frame_42" :t <ms>}
-;;;   {:phase :exit  :frame-id "frame_42" :t <ms> :result <value>}
+;;;   {:phase :enter :frame-id "frame_42" :t <ms> :msg <opt>}
+;;;   {:phase :exit  :frame-id "frame_42" :t <ms> :result <value> :msg <opt>}
 ;;;
 ;;; The frame-id is a gensym'd string baked into the macroexpansion at
 ;;; the call site; both markers carry the same id so a consumer (10x
@@ -413,6 +415,12 @@
 ;;; tap> payloads, independent of `*current-trace*`. A consumer opting
 ;;; into the tap stream gets the boundary signal needed to pair `:code`
 ;;; entries with their fn-traced/defn-traced invocation.
+;;;
+;;; Frame markers are invocation-boundary events. They intentionally
+;;; ignore :if, :once, and :final, which only gate per-form :code
+;;; emissions. When provided, :msg/:m is copied onto frame markers so
+;;; consumers can correlate the boundary pair with labelled code entries,
+;;; including cases where the code entries are fully suppressed.
 ;;;
 ;;; Exception path: only :enter is guaranteed. If the wrapped body
 ;;; throws, no :exit marker fires — consumers can detect a missing
@@ -433,23 +441,27 @@
    is in flight. Independently, when `set-tap-output!` is enabled, also
    emits a `{:debux/kind :frame-enter ...}` payload to tap>. Internal
    — called by the fn-traced / defn-traced expansion at body-entry."
-  [frame-id]
-  (let [trace? (and (some? trace/*current-trace*) @#'trace/trace-enabled?)
-        tap?   @tap-output?]
-    (when (or trace? tap?)
-      (let [t (now-ms)]
-        (when trace?
-          (let [frames (get-in trace/*current-trace* [:tags :trace-frames] [])]
-            (trace/merge-trace!
-              {:tags {:trace-frames (conj frames
-                                          {:phase    :enter
-                                           :frame-id frame-id
-                                           :t        t})}})))
-        (when tap?
-          (tap> {:debux/kind :frame-enter
-                 :frame-id   frame-id
-                 :t          t})))))
-  nil)
+  ([frame-id]
+   (-send-frame-enter! frame-id nil))
+  ([frame-id msg]
+   (let [trace? (and (some? trace/*current-trace*) @#'trace/trace-enabled?)
+         tap?   @tap-output?]
+     (when (or trace? tap?)
+       (let [t     (now-ms)
+             entry (cond-> {:phase    :enter
+                            :frame-id frame-id
+                            :t        t}
+                     msg (assoc :msg msg))]
+         (when trace?
+           (let [frames (get-in trace/*current-trace* [:tags :trace-frames] [])]
+             (trace/merge-trace!
+               {:tags {:trace-frames (conj frames entry)}})))
+         (when tap?
+           (tap> (cond-> {:debux/kind :frame-enter
+                          :frame-id   frame-id
+                          :t          t}
+                   msg (assoc :msg msg)))))))
+   nil))
 
 (defn -send-frame-exit!
   "Emit an `:exit` marker carrying the body's return value. Mirrors
@@ -457,25 +469,29 @@
    when `set-tap-output!` is enabled an independent `{:debux/kind
    :frame-exit ...}` payload also lands on tap>. Internal — called by
    the fn-traced / defn-traced expansion right before returning."
-  [frame-id result]
-  (let [trace? (and (some? trace/*current-trace*) @#'trace/trace-enabled?)
-        tap?   @tap-output?]
-    (when (or trace? tap?)
-      (let [t (now-ms)]
-        (when trace?
-          (let [frames (get-in trace/*current-trace* [:tags :trace-frames] [])]
-            (trace/merge-trace!
-              {:tags {:trace-frames (conj frames
-                                          {:phase    :exit
-                                           :frame-id frame-id
-                                           :t        t
-                                           :result   result})}})))
-        (when tap?
-          (tap> {:debux/kind :frame-exit
-                 :frame-id   frame-id
-                 :t          t
-                 :result     result})))))
-  nil)
+  ([frame-id result]
+   (-send-frame-exit! frame-id result nil))
+  ([frame-id result msg]
+   (let [trace? (and (some? trace/*current-trace*) @#'trace/trace-enabled?)
+         tap?   @tap-output?]
+     (when (or trace? tap?)
+       (let [t     (now-ms)
+             entry (cond-> {:phase    :exit
+                            :frame-id frame-id
+                            :t        t
+                            :result   result}
+                     msg (assoc :msg msg))]
+         (when trace?
+           (let [frames (get-in trace/*current-trace* [:tags :trace-frames] [])]
+             (trace/merge-trace!
+               {:tags {:trace-frames (conj frames entry)}})))
+         (when tap?
+           (tap> (cond-> {:debux/kind :frame-exit
+                          :frame-id   frame-id
+                          :t          t
+                          :result     result}
+                   msg (assoc :msg msg)))))))
+   nil))
 
 (defn -emit-fx-traces!
   "When a `fx-traced` body returns an effect-map (the standard reg-event-fx
