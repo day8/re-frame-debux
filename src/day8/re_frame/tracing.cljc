@@ -11,8 +11,6 @@
             [clojure.spec.alpha :as s]
             [clojure.zip :as z]))
 
-#?(:cljs (enable-console-print!))
-
 #?(:cljs (goog-define trace-enabled? false)
    :clj  (def ^boolean trace-enabled? false))
 
