@@ -536,6 +536,29 @@
         :else
         (recur (z/next loc))))))
 
+(defn- verbose-trace?
+  [trace-opts]
+  (and (not (identical? trace-opts-omitted trace-opts))
+       (boolean (or (:verbose trace-opts) (:show-all trace-opts)))))
+
+(defn- walk-traced-form
+  "Macroexpansion-time walker shared by dbgn, dbgn-forms, and mini-dbgn.
+   It owns the recur-protection, skip insertion, trace insertion, and
+   skip removal pipeline so option changes flow through one place."
+  ([form env]
+   (walk-traced-form form env [] trace-opts-omitted))
+  ([form env seen trace-opts]
+   (let [form     (if (ut/include-recur? form)
+                    (sk/insert-o-skip-for-recur form env)
+                    form)
+         inserted (insert-skip form env)
+         traced   (if (identical? trace-opts-omitted trace-opts)
+                    (insert-trace inserted 'day8.re-frame.debux.dbgn/trace env seen)
+                    (insert-trace inserted 'day8.re-frame.debux.dbgn/trace env seen
+                                  (verbose-trace? trace-opts)
+                                  trace-opts))]
+     (remove-skip traced))))
+
 
 ;;; dbgn
 (defmacro dbgn
@@ -564,14 +587,7 @@
          ~'+debux-trace-id+   ~(str (gensym "dbgn_"))]
      ;; Send whole form to trace point
      (ut/send-form! '~(-> form (ut/tidy-macroexpanded-form {})))
-     ~(-> (if (ut/include-recur? form)
-            (sk/insert-o-skip-for-recur form &env)
-            form)
-          (insert-skip &env)
-          (insert-trace 'day8.re-frame.debux.dbgn/trace &env []
-                        (boolean (or (:verbose opts) (:show-all opts)))
-                        opts)
-          remove-skip)))
+     ~(walk-traced-form form &env [] opts)))
 
 ;;; dbgn
 (defmacro dbgn-forms
@@ -616,14 +632,7 @@
            ~'+debux-trace-id+   ~(str (gensym "dbgn-forms_"))]
        ;; Send whole form to trace point
        (ut/send-form! '~(-> send-form (ut/tidy-macroexpanded-form {})))
-       ~@(map (fn [form] (-> (if (ut/include-recur? form)
-                               (sk/insert-o-skip-for-recur form &env)
-                               form)
-                             (insert-skip &env)
-                             (insert-trace 'day8.re-frame.debux.dbgn/trace &env args
-                                           (boolean (or (:verbose opts) (:show-all opts)))
-                                           opts)
-                             remove-skip))
+       ~@(map (fn [form] (walk-traced-form form &env args opts))
               forms))))
 
 (defmacro mini-dbgn
@@ -636,12 +645,7 @@
   `(let [~'+debux-dbg-opts+   nil
          ~'+debux-dbg-locals+ []
          ~'+debux-trace-id+   "mini-dbgn"]
-     ~(-> (if (ut/include-recur? form)
-            (sk/insert-o-skip-for-recur form &env)
-            form)
-          (insert-skip &env)
-          (insert-trace 'day8.re-frame.debux.dbgn/trace &env)
-          remove-skip)))
+     ~(walk-traced-form form &env)))
 
 
 ;; Two phase approach
