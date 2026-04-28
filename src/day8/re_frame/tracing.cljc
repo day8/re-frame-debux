@@ -33,7 +33,9 @@
 ;;; debugging APIs
 (defmacro dbgn [form & opts]
   (let [opts' (ut/parse-opts opts)]
-    `(day8.re-frame.debux.dbgn/dbgn ~form ~opts')))
+    `(if (is-trace-enabled?)
+       (day8.re-frame.debux.dbgn/dbgn ~form ~opts')
+       ~form)))
 
 ;; `dbg` is the single-form counterpart to `dbgn`. Wrap any
 ;; expression to emit one trace record per evaluation; inside a
@@ -99,26 +101,28 @@
          ;; across runtime invocations of this compiled call site,
          ;; distinct between separate dbg call sites in the same file.
          trace-id (str (gensym "dbg_"))]
-     `(let [~r ~form
-            ~o ~opts
-            ~p (:if ~o)
-            ;; :msg / :m alias resolution — same convention as
-            ;; emit-trace-body in dbgn.clj. `:msg` wins if both are set.
-            ~m (or (:msg ~o) (:m ~o))]
-        (when (and (or (nil? ~p) (~p ~r))
-                   (or (not (:once ~o))
-                       (day8.re-frame.debux.common.util/-once-emit? ~trace-id 0 ~r)))
-          (day8.re-frame.debux.common.util/send-trace-or-tap!
-           (cond-> {:form         '~form
-                    :result       ~r
-                    :indent-level 0
-                    :syntax-order 0
-                    :num-seen     0}
-             (:name ~o)   (assoc :name (:name ~o))
-             (:locals ~o) (assoc :locals (:locals ~o))
-             ~m           (assoc :msg ~m))
-           (boolean (:tap? ~o))))
-        ~r))))
+     `(if (is-trace-enabled?)
+        (let [~r ~form
+              ~o ~opts
+              ~p (:if ~o)
+              ;; :msg / :m alias resolution — same convention as
+              ;; emit-trace-body in dbgn.clj. `:msg` wins if both are set.
+              ~m (or (:msg ~o) (:m ~o))]
+          (when (and (or (nil? ~p) (~p ~r))
+                     (or (not (:once ~o))
+                         (day8.re-frame.debux.common.util/-once-emit? ~trace-id 0 ~r)))
+            (day8.re-frame.debux.common.util/send-trace-or-tap!
+             (cond-> {:form         '~form
+                      :result       ~r
+                      :indent-level 0
+                      :syntax-order 0
+                      :num-seen     0}
+               (:name ~o)   (assoc :name (:name ~o))
+               (:locals ~o) (assoc :locals (:locals ~o))
+               ~m           (assoc :msg ~m))
+             (boolean (:tap? ~o))))
+          ~r)
+        ~form))))
 
 ;; `dbg-last` is the thread-last-friendly counterpart to `dbg`. The
 ;; usability gap it closes: `dbg` wraps an expression, but `->>`
@@ -392,4 +396,3 @@
   (let [[opts def'] (split-opts definition)
         opts'       (assoc (or opts {}) :fx-trace true)]
     `(day8.re-frame.tracing/defn-traced ~opts' ~@def')))
-

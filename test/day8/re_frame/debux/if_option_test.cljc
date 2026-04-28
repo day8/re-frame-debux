@@ -32,7 +32,8 @@
    the captured vec of trace entries (post `:form` tidy)."
   [body-fn]
   (let [traces (atom [])]
-    (with-redefs [util/send-trace! (fn [code-trace]
+    (with-redefs [tracing/trace-enabled? true
+                  util/send-trace! (fn [code-trace]
                                      (swap! traces conj
                                             (update code-trace :form
                                                     util/tidy-macroexpanded-form {})))

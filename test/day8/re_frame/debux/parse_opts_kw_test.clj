@@ -24,7 +24,8 @@
    the captured vec of trace entries (post `:form` tidy)."
   [body-fn]
   (let [traces (atom [])]
-    (with-redefs [util/send-trace! (fn [code-trace]
+    (with-redefs [tracing/trace-enabled? true
+                  util/send-trace! (fn [code-trace]
                                      (swap! traces conj
                                             (update code-trace :form
                                                     util/tidy-macroexpanded-form {})))
@@ -98,7 +99,8 @@
     (util/-reset-once-state!)
     (let [traces-with-once    (atom [])
           traces-without-once (atom [])]
-      (with-redefs [util/send-trace! (fn [code-trace]
+      (with-redefs [tracing/trace-enabled? true
+                    util/send-trace! (fn [code-trace]
                                        (swap! traces-with-once conj code-trace))
                     util/send-form!  (fn [_])]
         (let [f (eval `(fn [] (tracing/dbgn (inc 1) :once)))]
@@ -109,7 +111,8 @@
                 "first call emits — :once never suppresses the first observation")
             (is (= after-first (count @traces-with-once))
                 "parse-opts mapped :once → :once true; second call's identical emission was suppressed"))))
-      (with-redefs [util/send-trace! (fn [code-trace]
+      (with-redefs [tracing/trace-enabled? true
+                    util/send-trace! (fn [code-trace]
                                        (swap! traces-without-once conj code-trace))
                     util/send-form!  (fn [_])]
         (let [f (eval `(fn [] (tracing/dbgn (inc 1))))]
@@ -123,7 +126,8 @@
   (testing ":o is the shorthand alias for :once through parse-opts"
     (util/-reset-once-state!)
     (let [traces (atom [])]
-      (with-redefs [util/send-trace! (fn [code-trace]
+      (with-redefs [tracing/trace-enabled? true
+                    util/send-trace! (fn [code-trace]
                                        (swap! traces conj code-trace))
                     util/send-form!  (fn [_])]
         (let [f (eval `(fn [] (tracing/dbgn (inc 1) :o)))]

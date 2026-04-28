@@ -21,8 +21,8 @@
    `(binding [trace/*current-trace* ...] ...)` per test."
   (:require [clojure.test :refer [deftest is testing]]
             [day8.re-frame.tracing :as tracing
-             #?@(:clj  [:refer [dbg dbg-last]]
-                 :cljs [:refer-macros [dbg dbg-last]])]
+             #?@(:clj  [:refer [dbg dbgn dbg-last]]
+                 :cljs [:refer-macros [dbg dbgn dbg-last]])]
             [day8.re-frame.debux.common.util :as util]
             ;; Required for the dbg-stub-is-no-op test: macroexpand-1
             ;; only recognises a fully-qualified macro reference when
@@ -39,6 +39,12 @@
   #?(:clj  (Thread/sleep 50)
      :cljs nil))
 
+(defn- with-tracing-enabled
+  "Run `body-fn` with the day8 tracing macro gate enabled."
+  [body-fn]
+  (with-redefs [tracing/trace-enabled? true]
+    (body-fn)))
+
 ;; ---------------------------------------------------------------------------
 ;; Helpers — capture the in-trace and out-of-trace sinks
 ;; ---------------------------------------------------------------------------
@@ -52,11 +58,11 @@
 
    `set!` on a dynamic var only works inside a `binding`, which is
    exactly what merge-trace!'s implementation needs to write to
-   *current-trace*. The trace.cljc ns gates the whole machinery on
-   `is-trace-enabled?` (a CLJ atom that defaults false), so we flip
-   it on for the duration of the body too."
+   *current-trace*. The tracing macro gate and re-frame's trace sink
+   gate both need to be on for the in-trace path."
   [body-fn]
-  (with-redefs [rft/trace-enabled? true]
+  (with-redefs [tracing/trace-enabled? true
+                rft/trace-enabled? true]
     (let [captured (atom nil)]
       (binding [rft/*current-trace* {:tags {}}]
         (body-fn)
@@ -91,6 +97,57 @@
       (fn [] (is (= 42 (dbg (* 6 7))))))
     (with-fresh-current-trace
       (fn [] (is (= [:a :b] (dbg [:a :b])))))))
+
+(deftest dbg-disabled-evaluates-form-only
+  (testing "trace-enabled? false leaves dbg as the bare form and skips opts/sinks"
+    (let [form-evals (atom 0)
+          opts-evals (atom 0)
+          taps       (atom [])
+          tapper     #(swap! taps conj %)]
+      (add-tap tapper)
+      (try
+        (with-redefs [tracing/trace-enabled? false
+                      rft/trace-enabled? true]
+          (is (= 1 (dbg (swap! form-evals inc)
+                        (do
+                          (swap! opts-evals inc)
+                          {:if   (fn [_]
+                                   (swap! opts-evals inc)
+                                   true)
+                           :tap? true})))))
+        (wait-for-tap)
+        (is (= 1 @form-evals)
+            "the wrapped form still evaluates exactly once")
+        (is (zero? @opts-evals)
+            "the opts expression and predicate are never evaluated")
+        (is (empty? @taps)
+            "disabled dbg does not fall back to tap>")
+        (finally
+          (remove-tap tapper))))))
+
+(deftest dbgn-disabled-evaluates-form-only
+  (testing "trace-enabled? false leaves dbgn as the bare form"
+    (let [form-evals (atom 0)
+          pred-calls (atom 0)
+          taps       (atom [])
+          tapper     #(swap! taps conj %)]
+      (add-tap tapper)
+      (try
+        (with-redefs [tracing/trace-enabled? false
+                      rft/trace-enabled? true]
+          (is (= 1 (dbgn (swap! form-evals inc)
+                         :if (fn [_]
+                               (swap! pred-calls inc)
+                               true)))))
+        (wait-for-tap)
+        (is (= 1 @form-evals)
+            "the wrapped form still evaluates exactly once")
+        (is (zero? @pred-calls)
+            "dbgn opts are not consulted when tracing is disabled")
+        (is (empty? @taps)
+            "disabled dbgn emits no tap output")
+        (finally
+          (remove-tap tapper))))))
 
 (deftest dbg-name-flows-into-payload
   (testing "the :name opt is whitelisted onto the :code entry payload"
@@ -194,15 +251,17 @@
       (add-tap tapper)
       (try
         ;; *current-trace* is nil at top-level — no `binding` here.
-        (let [r (dbg (str "result-" 42))]
-          (is (= "result-42" r)
-              "still value-transparent out of trace"))
-        (wait-for-tap)
-        (is (= 1 (count @taps)))
-        (let [t (first @taps)]
-          (is (= "result-42" (:result t)))
-          (is (= '(str "result-" 42) (:form t)))
-          (is (= true (:debux/dbg t))))
+        (with-tracing-enabled
+          (fn []
+            (let [r (dbg (str "result-" 42))]
+              (is (= "result-42" r)
+                  "still value-transparent out of trace"))
+            (wait-for-tap)
+            (is (= 1 (count @taps)))
+            (let [t (first @taps)]
+              (is (= "result-42" (:result t)))
+              (is (= '(str "result-" 42) (:form t)))
+              (is (= true (:debux/dbg t))))))
         (finally
           (remove-tap tapper))))))
 
@@ -212,10 +271,12 @@
           tapper #(swap! taps conj %)]
       (add-tap tapper)
       (try
-        (dbg 4 {:if odd?})  ; suppressed
-        (dbg 5 {:if odd?})  ; emits
-        (wait-for-tap)
-        (is (= [5] (mapv :result @taps)))
+        (with-tracing-enabled
+          (fn []
+            (dbg 4 {:if odd?})  ; suppressed
+            (dbg 5 {:if odd?})  ; emits
+            (wait-for-tap)
+            (is (= [5] (mapv :result @taps)))))
         (finally
           (remove-tap tapper))))))
 
@@ -348,6 +409,29 @@
           (is (= [3] traced))
           (is (= control traced)))))))
 
+(deftest dbg-last-disabled-evaluates-value-only
+  (testing "trace-enabled? false leaves dbg-last as the bare threaded value"
+    (let [opts-evals (atom 0)
+          taps       (atom [])
+          tapper     #(swap! taps conj %)]
+      (add-tap tapper)
+      (try
+        (with-redefs [tracing/trace-enabled? false
+                      rft/trace-enabled? true]
+          (is (= [2 3] (->> [1 2]
+                            (map inc)
+                            (dbg-last (do
+                                        (swap! opts-evals inc)
+                                        {:tap? true}))
+                            doall))))
+        (wait-for-tap)
+        (is (zero? @opts-evals)
+            "dbg-last opts are not evaluated when tracing is disabled")
+        (is (empty? @taps)
+            "disabled dbg-last emits no tap output")
+        (finally
+          (remove-tap tapper))))))
+
 (deftest dbg-last-with-opts-flows-name-into-payload
   (testing "(dbg-last opts) in ->> position — opts lead, threaded value trails — opts reach the payload"
     (let [captured (with-fresh-current-trace
@@ -424,18 +508,20 @@
           tapper #(swap! taps conj %)]
       (add-tap tapper)
       (try
-        (let [r (->> [1 2 3]
-                     (map inc)
-                     dbg-last
-                     (reduce +))]
-          (is (= 9 r)
-              "value-transparent out of trace; pipeline yields (+ 2 3 4) = 9"))
-        (wait-for-tap)
-        (is (= 1 (count @taps)))
-        (let [t (first @taps)]
-          (is (= [2 3 4] (:result t)))
-          (is (= '(map inc [1 2 3]) (:form t)))
-          (is (= true (:debux/dbg t))))
+        (with-tracing-enabled
+          (fn []
+            (let [r (->> [1 2 3]
+                         (map inc)
+                         dbg-last
+                         (reduce +))]
+              (is (= 9 r)
+                  "value-transparent out of trace; pipeline yields (+ 2 3 4) = 9"))
+            (wait-for-tap)
+            (is (= 1 (count @taps)))
+            (let [t (first @taps)]
+              (is (= [2 3 4] (:result t)))
+              (is (= '(map inc [1 2 3]) (:form t)))
+              (is (= true (:debux/dbg t))))))
         (finally
           (remove-tap tapper))))))
 
