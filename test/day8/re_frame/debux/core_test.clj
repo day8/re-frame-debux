@@ -387,6 +387,43 @@
                @traces))
         (is (= @form f))))
              
+(deftest doc-comment-test
+    ;; comment is :skip-all-args-type: emit ONE trace for the whole
+    ;; form, preserve comment's nil result, and do not instrument the
+    ;; body that the macro intentionally discards.
+    (let [f  '(comment do-thing)
+          f1 (with-redefs [gensym symbol]
+                          (dbgn/insert-skip
+                             f
+                             {}))
+          f2 (dbgn/insert-trace f1 `trace {})
+          f3 (dbgn/remove-skip f2)
+          f4 `(dbgn ~f)]
+        (is (= f1 '(day8.re-frame.debux.common.macro-specs/a-skip
+                     (comment do-thing))))
+        (is (= '(day8.re-frame.debux.core-test/trace
+                  {:day8.re-frame.debux.dbgn/indent 0
+                   :day8.re-frame.debux.dbgn/num-seen 1
+                   :day8.re-frame.debux.dbgn/syntax-order 1}
+                  (day8.re-frame.debux.common.macro-specs/a-skip
+                    (comment do-thing)))
+               f2))
+        (is (= '(day8.re-frame.debux.core-test/trace
+                  {:day8.re-frame.debux.dbgn/indent 0
+                   :day8.re-frame.debux.dbgn/num-seen 1
+                   :day8.re-frame.debux.dbgn/syntax-order 1}
+                  (comment do-thing))
+               f3))
+        (is (nil? (eval f3)))
+        (is (nil? (eval f4)))
+        (is (= [{:form '(comment do-thing)
+                 :indent-level 0
+                 :num-seen 1
+                 :result nil
+                 :syntax-order 1}]
+               @traces))
+        (is (= @form f))))
+
 (deftest doc-thread-first-test
     (let [f  '(-> 5 inc)
           f1 (dbgn/insert-skip f {})

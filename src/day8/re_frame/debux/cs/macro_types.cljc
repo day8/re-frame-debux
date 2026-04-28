@@ -84,12 +84,12 @@
              :skip-arg-1-3-type `#{defmethod}
              :skip-arg-2-3-type `#{amap areduce}
              :skip-all-args-type
-             `#{condp declare defmacro defmulti defstruct extend
+             `#{comment condp declare defmacro defmulti defstruct extend
                 extend-protocol extend-type import memfn new ns
                 proxy proxy-super quote refer-clojure reify
                 sync use var}
              :skip-form-itself-type
-             `#{catch comment definline definterface defprotocol
+             `#{catch definline definterface defprotocol
                 defrecord deftype finally gen-class gen-interface
                 ;; recur is a special form whose arguments must be in tail
                 ;; position of the enclosing loop / fn; instrumenting it
@@ -122,4 +122,3 @@
   ([macro-type] (-> @macro-types*
                     (select-keys [macro-type])
                     ut/quote-vals)))
-
