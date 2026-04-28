@@ -32,12 +32,21 @@
             [re-frame.trace :as rft]))
 
 (defn- wait-for-tap
-  "tap> is async on CLJ (agent-pool-backed); sync on CLJS. Sleep on CLJ
-   to give the tap loop a chance to drain; no-op on CLJS where the
-   probe sees the value before the next form runs."
+  "tap> is async on CLJ (agent-pool-backed). Sleep on CLJ to give the
+   tap loop a chance to drain; CLJS tap assertions use with-sync-taps
+   to avoid racing tap>'s default setTimeout dispatch."
   []
   #?(:clj  (Thread/sleep 50)
      :cljs nil))
+
+(defn- with-sync-taps
+  "Run `body-fn` with CLJS tap> delivery made immediate for synchronous assertions."
+  [body-fn]
+  #?(:cljs (with-redefs [cljs.core/*exec-tap-fn* (fn [f]
+                                                   (f)
+                                                   true)]
+             (body-fn))
+     :clj  (body-fn)))
 
 (defn- with-tracing-enabled
   "Run `body-fn` with the day8 tracing macro gate enabled."
@@ -209,22 +218,24 @@
 
 (deftest dbg-tap-also-fires-tap-when-in-trace
   (testing ":tap? true → both send-trace! AND tap> fire"
-    (let [taps (atom [])
-          tapper #(swap! taps conj %)]
-      (add-tap tapper)
-      (try
-        (let [captured (with-fresh-current-trace
-                         (fn [] (dbg :hello {:name "lbl" :tap? true})))
-              entries  (code-entries captured)]
-          (is (= 1 (count entries))
-              "the in-trace send-trace! fired")
-          (wait-for-tap)
-          (is (= 1 (count @taps))
-              ":tap? true also fires tap>")
-          (is (= true (:debux/dbg (first @taps)))
-              "tap> payloads carry the :debux/dbg sentinel"))
-        (finally
-          (remove-tap tapper))))))
+    (with-sync-taps
+      (fn []
+        (let [taps (atom [])
+              tapper #(swap! taps conj %)]
+          (add-tap tapper)
+          (try
+            (let [captured (with-fresh-current-trace
+                             (fn [] (dbg :hello {:name "lbl" :tap? true})))
+                  entries  (code-entries captured)]
+              (is (= 1 (count entries))
+                  "the in-trace send-trace! fired")
+              (wait-for-tap)
+              (is (= 1 (count @taps))
+                  ":tap? true also fires tap>")
+              (is (= true (:debux/dbg (first @taps)))
+                  "tap> payloads carry the :debux/dbg sentinel"))
+            (finally
+              (remove-tap tapper))))))))
 
 (deftest dbg-tap-not-set-no-tap-when-in-trace
   (testing "default :tap? unset → tap> stays silent in-trace"
@@ -246,39 +257,43 @@
 
 (deftest dbg-out-of-trace-falls-back-to-tap
   (testing "outside any re-frame trace event, tap> fires regardless of :tap?"
-    (let [taps   (atom [])
-          tapper #(swap! taps conj %)]
-      (add-tap tapper)
-      (try
-        ;; *current-trace* is nil at top-level — no `binding` here.
-        (with-tracing-enabled
-          (fn []
-            (let [r (dbg (str "result-" 42))]
-              (is (= "result-42" r)
-                  "still value-transparent out of trace"))
-            (wait-for-tap)
-            (is (= 1 (count @taps)))
-            (let [t (first @taps)]
-              (is (= "result-42" (:result t)))
-              (is (= '(str "result-" 42) (:form t)))
-              (is (= true (:debux/dbg t))))))
-        (finally
-          (remove-tap tapper))))))
+    (with-sync-taps
+      (fn []
+        (let [taps   (atom [])
+              tapper #(swap! taps conj %)]
+          (add-tap tapper)
+          (try
+            ;; *current-trace* is nil at top-level — no `binding` here.
+            (with-tracing-enabled
+              (fn []
+                (let [r (dbg (str "result-" 42))]
+                  (is (= "result-42" r)
+                      "still value-transparent out of trace"))
+                (wait-for-tap)
+                (is (= 1 (count @taps)))
+                (let [t (first @taps)]
+                  (is (= "result-42" (:result t)))
+                  (is (= '(str "result-" 42) (:form t)))
+                  (is (= true (:debux/dbg t))))))
+            (finally
+              (remove-tap tapper))))))))
 
 (deftest dbg-out-of-trace-respects-if
   (testing ":if pred suppresses tap> in the out-of-trace path too"
-    (let [taps   (atom [])
-          tapper #(swap! taps conj %)]
-      (add-tap tapper)
-      (try
-        (with-tracing-enabled
-          (fn []
-            (dbg 4 {:if odd?})  ; suppressed
-            (dbg 5 {:if odd?})  ; emits
-            (wait-for-tap)
-            (is (= [5] (mapv :result @taps)))))
-        (finally
-          (remove-tap tapper))))))
+    (with-sync-taps
+      (fn []
+        (let [taps   (atom [])
+              tapper #(swap! taps conj %)]
+          (add-tap tapper)
+          (try
+            (with-tracing-enabled
+              (fn []
+                (dbg 4 {:if odd?})  ; suppressed
+                (dbg 5 {:if odd?})  ; emits
+                (wait-for-tap)
+                (is (= [5] (mapv :result @taps)))))
+            (finally
+              (remove-tap tapper))))))))
 
 ;; ---------------------------------------------------------------------------
 ;; tracing-stubs no-op — `dbg` from the stubs must be value-transparent
@@ -504,26 +519,28 @@
 
 (deftest dbg-last-out-of-trace-falls-back-to-tap
   (testing "outside any re-frame trace event, dbg-last taps the threaded value with :debux/dbg true"
-    (let [taps   (atom [])
-          tapper #(swap! taps conj %)]
-      (add-tap tapper)
-      (try
-        (with-tracing-enabled
-          (fn []
-            (let [r (->> [1 2 3]
-                         (map inc)
-                         dbg-last
-                         (reduce +))]
-              (is (= 9 r)
-                  "value-transparent out of trace; pipeline yields (+ 2 3 4) = 9"))
-            (wait-for-tap)
-            (is (= 1 (count @taps)))
-            (let [t (first @taps)]
-              (is (= [2 3 4] (:result t)))
-              (is (= '(map inc [1 2 3]) (:form t)))
-              (is (= true (:debux/dbg t))))))
-        (finally
-          (remove-tap tapper))))))
+    (with-sync-taps
+      (fn []
+        (let [taps   (atom [])
+              tapper #(swap! taps conj %)]
+          (add-tap tapper)
+          (try
+            (with-tracing-enabled
+              (fn []
+                (let [r (->> [1 2 3]
+                             (map inc)
+                             dbg-last
+                             (reduce +))]
+                  (is (= 9 r)
+                      "value-transparent out of trace; pipeline yields (+ 2 3 4) = 9"))
+                (wait-for-tap)
+                (is (= 1 (count @taps)))
+                (let [t (first @taps)]
+                  (is (= [2 3 4] (:result t)))
+                  (is (= '(map inc [1 2 3]) (:form t)))
+                  (is (= true (:debux/dbg t))))))
+            (finally
+              (remove-tap tapper))))))))
 
 ;; CLJ-only for the same reason as dbg-stub-is-no-op above.
 #?(:clj

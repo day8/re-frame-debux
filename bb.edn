@@ -8,6 +8,20 @@
                             :git/sha "f7617846597f411fd646a46b283777584a1a02bb"}}
  :tasks
  {:requires    ([day8.dev :as dev])
+  :init        (do
+                 (require '[babashka.fs :as fs])
+                 (defn detect-chrome-path []
+                   (or (not-empty (System/getenv "CHROME_PATH"))
+                       (some (fn [cmd]
+                               (some-> (fs/which cmd) str))
+                             ["chromium"
+                              "chromium-browser"
+                              "google-chrome"
+                              "google-chrome-stable"])
+                       (let [windows-chrome "/mnt/c/Program Files/Google/Chrome/Application/chrome.exe"]
+                         (when (fs/executable? windows-chrome)
+                           windows-chrome))
+                       "chromium")))
 
   ;; ---------------------------------------------------------------
   ;; Tests
@@ -27,7 +41,7 @@
   test         (clojure "-M:test-clj")
 
   test-browser (do (clojure "-M:test" "compile" "browser-test")
-                   (clojure "-X:test"))
+                   (clojure "-X:test" ":chrome-path" (pr-str (detect-chrome-path))))
 
   watch-test   (clojure "-M:test" "watch" "browser-test")
 
