@@ -241,35 +241,72 @@
 ;;; tap> output channel — set-tap-output!
 ;;; ----------------------------------------------------------------------
 ;;;
-;;; When enabled, send-trace! ALSO routes its processed :code entry to
-;;; tap>, so any add-tap consumer (re-frame-10x, an ad-hoc REPL probe,
-;;; scripts/eval-cljs.sh) sees the trace alongside the existing
-;;; trace/merge-trace! sink. Default off — preserves the trace-only
-;;; behaviour. Independent of trace state: even out-of-trace, a
-;;; send-trace! call (e.g. via spy-first/last/comp at the REPL) will
-;;; emit to tap> when this flag is true.
+;;; When enabled, every internal trace emitter ALSO routes its payload
+;;; to `tap>`, so any `add-tap` consumer (re-frame-10x, an ad-hoc REPL
+;;; probe, scripts/eval-cljs.sh) sees the FULL trace stream alongside
+;;; the existing `trace/merge-trace!` sink. Default off — preserves
+;;; the trace-only behaviour. Independent of trace state: even
+;;; out-of-trace, an emitter call (e.g. `send-trace!` via
+;;; `spy-first`/`last`/`comp` at the REPL) will emit to `tap>` when
+;;; this flag is true.
 ;;;
-;;; The tap> payload is the same processed entry that lands on :tags
-;;; :code (form tidied via tidy-macroexpanded-form, whitelisted keys).
+;;; Each tap> payload carries a `:debux/kind` discriminator so
+;;; consumers can route on it. The kinds and shapes:
+;;;
+;;;   {:debux/kind :form
+;;;    :form        <tidied whole-form>}
+;;;   ;; one per traced fn-call, from `send-form!` (mirrors :tags :form)
+;;;
+;;;   {:debux/kind :code
+;;;    :form ... :result ... :indent-level ... :syntax-order ...
+;;;    :num-seen ... [optional :locals :name :msg]}
+;;;   ;; one per instrumented sub-form, from `send-trace!` (mirrors
+;;;   ;; the :tags :code entry; see the contract block above
+;;;   ;; send-trace! for field semantics)
+;;;
+;;;   {:debux/kind :frame-enter
+;;;    :frame-id    <gensym string, paired with the matching :exit>
+;;;    :t           <ms timestamp>}
+;;;   {:debux/kind :frame-exit
+;;;    :frame-id    <same id as the paired :enter>
+;;;    :t           <ms timestamp>
+;;;    :result      <body return value>}
+;;;   ;; one pair per fn-traced/defn-traced invocation, from
+;;;   ;; `-send-frame-enter!` / `-send-frame-exit!` (mirrors :tags
+;;;   ;; :trace-frames). Exception path: only :enter fires — same
+;;;   ;; missing-:exit signal as on the trace channel.
+;;;
+;;;   {:debux/kind :fx-effect
+;;;    :fx-key      <key from the effect-map>
+;;;    :value       <value at that key>
+;;;    :t           <ms timestamp; shared across all keys of one return>}
+;;;   ;; one per key of an `fx-traced` body's effect-map return, from
+;;;   ;; `-emit-fx-traces!` (mirrors :tags :fx-effects).
+;;;
 ;;; Distinct from `send-trace-or-tap!`'s out-of-trace fallback, which
-;;; tags its payload with :debux/dbg true — this channel is the full
-;;; in-trace stream, not just dbg call-sites.
+;;; tags its payload with `:debux/dbg true` — that's a separate
+;;; per-dbg-call-site channel. A consumer can branch on either flag.
 
 (defonce ^:private tap-output? (atom false))
 
 (defn set-tap-output!
-  "When `enabled?` is truthy, debux's `send-trace!` also calls `(tap>
-   entry)` for every emission so any `add-tap` consumer sees the
-   trace. False by default — preserves the existing trace-only
-   behaviour. Independent of whether re-frame's trace machinery is
-   enabled."
+  "When `enabled?` is truthy, every debux trace emitter (`send-form!`,
+   `send-trace!`, `-send-frame-enter!`, `-send-frame-exit!`,
+   `-emit-fx-traces!`) also calls `tap>` so any `add-tap` consumer
+   sees the trace alongside `trace/merge-trace!`. Each payload carries
+   a `:debux/kind` discriminator (`:form`, `:code`, `:frame-enter`,
+   `:frame-exit`, `:fx-effect`). False by default — preserves the
+   existing trace-only behaviour. Independent of whether re-frame's
+   trace machinery is enabled."
   [enabled?]
   (reset! tap-output? (boolean enabled?)))
 
 (defn send-form! [form]
-  (when trace/trace-enabled?
+  (when (or @tap-output? @#'trace/trace-enabled?)
     (maybe-warn-production-mode!)
-    (trace/merge-trace! {:tags {:form form}})))
+    (when @#'trace/trace-enabled?
+      (trace/merge-trace! {:tags {:form form}}))
+    (when @tap-output? (tap> {:debux/kind :form :form form}))))
 
 (defn send-trace! [code-trace]
   ;; Gate on tap-output? OR trace-enabled? before any payload work
@@ -319,8 +356,11 @@
           (trace/merge-trace! {:tags {:code (conj code entry)}})))
       ;; Optional tap> sink — see set-tap-output! above. Independent of
       ;; the re-frame trace channel so add-tap consumers (10x, ad-hoc REPL
-      ;; probes) see entries even when trace-enabled? is off.
-      (when @tap-output? (tap> entry)))))
+      ;; probes) see entries even when trace-enabled? is off. The
+      ;; `:debux/kind :code` discriminator lets consumers route the
+      ;; payload alongside :form / :frame-enter / :frame-exit /
+      ;; :fx-effect emissions on the same tap stream.
+      (when @tap-output? (tap> (assoc entry :debux/kind :code))))))
 
 ;; Sink dispatch for the dbg macro. Inside a re-frame trace
 ;; event (`*current-trace*` bound non-nil during with-trace) accumulate
@@ -363,9 +403,16 @@
 ;;; Code panel, custom inspector) can pair them and bracket the
 ;;; intermediate :code entries that landed between them.
 ;;;
-;;; Off-trace (no `*current-trace*`) — markers are silently dropped.
-;;; Frame markers are framework-level boundary info, not user-visible
-;;; data, so unlike `send-trace-or-tap!` there's no tap> fallback.
+;;; Trace channel: off-trace (no `*current-trace*`) — markers are
+;;; silently dropped. Frame markers are framework-level boundary info,
+;;; not user-visible data, so unlike `send-trace-or-tap!` there's no
+;;; automatic tap> fallback.
+;;;
+;;; Opt-in tap channel: when `set-tap-output!` is enabled, both
+;;; markers ALSO surface as `{:debux/kind :frame-enter|:frame-exit ...}`
+;;; tap> payloads, independent of `*current-trace*`. A consumer opting
+;;; into the tap stream gets the boundary signal needed to pair `:code`
+;;; entries with their fn-traced/defn-traced invocation.
 ;;;
 ;;; Exception path: only :enter is guaranteed. If the wrapped body
 ;;; throws, no :exit marker fires — consumers can detect a missing
@@ -373,7 +420,8 @@
 ;;; invocation. Wrapping in try/finally to always emit :exit was
 ;;; considered and rejected: an exception with no result is a
 ;;; meaningfully different signal than a successful return, and the
-;;; missing-exit pattern preserves that signal.
+;;; missing-exit pattern preserves that signal. The same missing-exit
+;;; signal carries through to the tap> stream.
 
 (defn- now-ms []
   #?(:cljs (.now js/Date)
@@ -381,56 +429,89 @@
 
 (defn -send-frame-enter!
   "Emit a `:enter` marker on the active trace's :trace-frames vector.
-   No-op when trace-enabled? is off or no trace is in flight. Internal
+   No-op on the trace channel when trace-enabled? is off or no trace
+   is in flight. Independently, when `set-tap-output!` is enabled, also
+   emits a `{:debux/kind :frame-enter ...}` payload to tap>. Internal
    — called by the fn-traced / defn-traced expansion at body-entry."
   [frame-id]
-  (when (and (some? trace/*current-trace*) @#'trace/trace-enabled?)
-    (let [frames (get-in trace/*current-trace* [:tags :trace-frames] [])]
-      (trace/merge-trace!
-        {:tags {:trace-frames (conj frames
-                                    {:phase    :enter
-                                     :frame-id frame-id
-                                     :t        (now-ms)})}})))
+  (let [trace? (and (some? trace/*current-trace*) @#'trace/trace-enabled?)
+        tap?   @tap-output?]
+    (when (or trace? tap?)
+      (let [t (now-ms)]
+        (when trace?
+          (let [frames (get-in trace/*current-trace* [:tags :trace-frames] [])]
+            (trace/merge-trace!
+              {:tags {:trace-frames (conj frames
+                                          {:phase    :enter
+                                           :frame-id frame-id
+                                           :t        t})}})))
+        (when tap?
+          (tap> {:debux/kind :frame-enter
+                 :frame-id   frame-id
+                 :t          t})))))
   nil)
 
 (defn -send-frame-exit!
-  "Emit an `:exit` marker carrying the body's return value. Same
-   no-op-off-trace policy as -send-frame-enter!. Internal — called by
+  "Emit an `:exit` marker carrying the body's return value. Mirrors
+   `-send-frame-enter!`: trace-channel emission is no-op-off-trace, and
+   when `set-tap-output!` is enabled an independent `{:debux/kind
+   :frame-exit ...}` payload also lands on tap>. Internal — called by
    the fn-traced / defn-traced expansion right before returning."
   [frame-id result]
-  (when (and (some? trace/*current-trace*) @#'trace/trace-enabled?)
-    (let [frames (get-in trace/*current-trace* [:tags :trace-frames] [])]
-      (trace/merge-trace!
-        {:tags {:trace-frames (conj frames
-                                    {:phase    :exit
-                                     :frame-id frame-id
-                                     :t        (now-ms)
-                                     :result   result})}})))
+  (let [trace? (and (some? trace/*current-trace*) @#'trace/trace-enabled?)
+        tap?   @tap-output?]
+    (when (or trace? tap?)
+      (let [t (now-ms)]
+        (when trace?
+          (let [frames (get-in trace/*current-trace* [:tags :trace-frames] [])]
+            (trace/merge-trace!
+              {:tags {:trace-frames (conj frames
+                                          {:phase    :exit
+                                           :frame-id frame-id
+                                           :t        t
+                                           :result   result})}})))
+        (when tap?
+          (tap> {:debux/kind :frame-exit
+                 :frame-id   frame-id
+                 :t          t
+                 :result     result})))))
   nil)
 
 (defn -emit-fx-traces!
   "When a `fx-traced` body returns an effect-map (the standard reg-event-fx
    contract: `{:db ... :http {...} :dispatch [...]}`), emit one entry
    per key onto the active trace's :tags :fx-effects vector. Each entry
-   is `{:fx-key <k> :value <v> :t <ms>}`. No-op when trace-enabled? is
-   off, no trace is in flight, or the return isn't a map (a malformed
-   handler — the misuse is reported via re-frame's normal error path,
-   not here).
+   is `{:fx-key <k> :value <v> :t <ms>}`. No-op on the trace channel
+   when trace-enabled? is off or no trace is in flight; no-op entirely
+   when the return isn't a map (a malformed handler — the misuse is
+   reported via re-frame's normal error path, not here).
+
+   When `set-tap-output!` is enabled, ALSO emits one
+   `{:debux/kind :fx-effect ...}` payload per effect-key to tap>,
+   independent of trace state. All keys of one return share a single
+   timestamp so consumers can group them.
 
    :fx-effects is a separate :tags key from :code so consumers reading
    the :code panel don't see fx entries inflating the form-by-form
    trace."
   [effect-map]
-  (when (and (some? trace/*current-trace*) @#'trace/trace-enabled? (map? effect-map))
-    (let [existing (get-in trace/*current-trace* [:tags :fx-effects] [])
-          t        (now-ms)
-          ;; Stable iteration order so consumers see effects in
-          ;; key-order; the underlying re-frame fx executor doesn't
-          ;; rely on this, but the trace stream is more readable.
-          new      (mapv (fn [[k v]]
-                           {:fx-key k :value v :t t})
-                         effect-map)]
-      (trace/merge-trace! {:tags {:fx-effects (into existing new)}})))
+  (when (map? effect-map)
+    (let [trace? (and (some? trace/*current-trace*) @#'trace/trace-enabled?)
+          tap?   @tap-output?]
+      (when (or trace? tap?)
+        (let [t   (now-ms)
+              ;; Stable iteration order so consumers see effects in
+              ;; key-order; the underlying re-frame fx executor doesn't
+              ;; rely on this, but the trace stream is more readable.
+              new (mapv (fn [[k v]]
+                          {:fx-key k :value v :t t})
+                        effect-map)]
+          (when trace?
+            (let [existing (get-in trace/*current-trace* [:tags :fx-effects] [])]
+              (trace/merge-trace! {:tags {:fx-effects (into existing new)}})))
+          (when tap?
+            (doseq [entry new]
+              (tap> (assoc entry :debux/kind :fx-effect))))))))
   nil)
 
 ;;; ----------------------------------------------------------------------

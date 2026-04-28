@@ -960,14 +960,17 @@
         (wait-for #(seq @received) 1000)
         (is (seq @received)
             "tap probe received at least one trace record")
-        (let [results (set (map :result @received))
-              forms   (set (map (comp pr-str :form) @received))]
+        (let [code-tapped (filter #(= :code (:debux/kind %)) @received)
+              results     (set (map :result code-tapped))
+              forms       (set (map (comp pr-str :form) code-tapped))]
+          (is (seq code-tapped)
+              "at least one :debux/kind :code entry reached the tap")
           (is (contains? results 42)
               "tap probe got the (inc 41) → 42 entry")
           (is (some #(re-find #"inc" %) forms)
               "tap probe entries include the inc form (tidied)")
-          (is (every? #(contains? % :indent-level) @received)
-              "every tapped entry carries the :code payload contract"))
+          (is (every? #(contains? % :indent-level) code-tapped)
+              "every :code-kind tapped entry carries the :code payload contract"))
         (runtime/unwrap-handler! :event ::tapped)
         (finally
           (remove-tap probe)
@@ -1046,6 +1049,118 @@
             (is (= 42 (:result entry)))
             (is (= '(inc 41) (:form entry))
                 ":form is tidied (clojure.core/inc → inc) in the tapped entry"))
+          (finally
+            (remove-tap probe)
+            (util/set-tap-output! false)))))))
+
+(deftest set-tap-output-emits-form-kind
+  (testing "set-tap-output! routes the once-per-fn :form marker to tap with :debux/kind :form"
+    (let [received (atom [])
+          probe    (fn [x] (swap! received conj x))]
+      (try
+        (add-tap probe)
+        (util/set-tap-output! true)
+        (re-frame.core/reg-event-db ::form-tapped (fn [db _] db))
+        (runtime/wrap-handler! :event ::form-tapped
+                               (fn [db _] (let [n (inc 41)] (assoc db :n n))))
+        (re-frame.core/dispatch-sync [::form-tapped])
+        (wait-for (fn [] (some #(= :form (:debux/kind %)) @received)) 1000)
+        (let [forms (filter #(= :form (:debux/kind %)) @received)]
+          (is (= 1 (count forms))
+              "exactly one :debux/kind :form payload per fn-traced dispatch")
+          (is (contains? (first forms) :form)
+              ":form key carries the whole-form marker"))
+        (runtime/unwrap-handler! :event ::form-tapped)
+        (finally
+          (remove-tap probe)
+          (util/set-tap-output! false))))))
+
+(deftest set-tap-output-emits-paired-frame-markers
+  (testing "set-tap-output! surfaces :frame-enter and :frame-exit on the tap stream"
+    (reset! re-frame.db/app-db {})
+    (let [received (atom [])
+          probe    (fn [x] (swap! received conj x))]
+      (try
+        (add-tap probe)
+        (util/set-tap-output! true)
+        (re-frame.core/reg-event-db ::frame-tapped (fn [db _] db))
+        (runtime/wrap-handler! :event ::frame-tapped
+                               (fn [db _] (assoc db :answer 42)))
+        (re-frame.core/dispatch-sync [::frame-tapped])
+        (wait-for (fn [] (some #(= :frame-exit (:debux/kind %)) @received)) 1000)
+        (let [enters (filter #(= :frame-enter (:debux/kind %)) @received)
+              exits  (filter #(= :frame-exit  (:debux/kind %)) @received)]
+          (is (= 1 (count enters)) "one :frame-enter per dispatch")
+          (is (= 1 (count exits))  "one :frame-exit per dispatch")
+          (let [enter (first enters)
+                exit  (first exits)]
+            (is (= (:frame-id enter) (:frame-id exit))
+                "tap :frame-enter / :frame-exit share a frame-id (paired)")
+            (is (string? (:frame-id enter)) ":frame-id is a gensym string")
+            (is (number? (:t enter)) ":frame-enter carries a numeric :t")
+            (is (number? (:t exit))  ":frame-exit carries a numeric :t")
+            (is (>= (:t exit) (:t enter))
+                ":frame-exit timestamp is at or after :frame-enter")
+            (is (contains? exit :result)
+                ":frame-exit carries :result")
+            (is (= {:answer 42} (:result exit))
+                ":result is the body's return value")))
+        (runtime/unwrap-handler! :event ::frame-tapped)
+        (finally
+          (remove-tap probe)
+          (util/set-tap-output! false))))))
+
+(deftest set-tap-output-emits-fx-effect-per-key
+  (testing "set-tap-output! emits one :debux/kind :fx-effect tap per effect-map key"
+    (let [received (atom [])
+          probe    (fn [x] (swap! received conj x))]
+      (try
+        (add-tap probe)
+        (util/set-tap-output! true)
+        (re-frame.core/reg-event-fx ::fx-tapped (fn [_ _] {}))
+        (re-frame.core/reg-event-fx ::fx-tapped
+                                    (tracing/fx-traced
+                                      [_ _]
+                                      {:db        {:answer 42}
+                                       :http      {:method :post}
+                                       :dispatch  [:notify]}))
+        (re-frame.core/dispatch-sync [::fx-tapped])
+        (wait-for (fn [] (<= 3 (count (filter #(= :fx-effect (:debux/kind %)) @received))))
+                  1000)
+        (let [fx-tapped (filter #(= :fx-effect (:debux/kind %)) @received)
+              by-key    (into {} (map (juxt :fx-key :value)) fx-tapped)]
+          (is (= #{:db :http :dispatch} (set (keys by-key)))
+              "every fx-key surfaces as a :debux/kind :fx-effect entry on tap")
+          (is (= {:answer 42} (get by-key :db))
+              ":db value preserved on the tap entry")
+          (is (every? :t fx-tapped)
+              "every fx tap entry carries a :t timestamp")
+          (is (apply = (map :t fx-tapped))
+              "all keys from one return share one :t (mirrors the trace-channel guarantee)"))
+        (finally
+          (remove-tap probe)
+          (util/set-tap-output! false))))))
+
+(deftest set-tap-output-frame-and-fx-fire-out-of-trace
+  (testing "frame markers and fx-effect taps fire when tap-output is on but no trace is in flight"
+    (with-redefs [rft/trace-enabled?     false
+                  tracing/trace-enabled? false]
+      (let [received (atom [])
+            probe    (fn [x] (swap! received conj x))]
+        (try
+          (add-tap probe)
+          (util/set-tap-output! true)
+          (util/-send-frame-enter! "frame_oot")
+          (util/-send-frame-exit!  "frame_oot" {:n 1})
+          (util/-emit-fx-traces!   {:db {:n 1} :dispatch [:notify]})
+          (wait-for #(<= 4 (count @received)) 1000)
+          (let [kinds (frequencies (map :debux/kind @received))]
+            (is (= 1 (get kinds :frame-enter))
+                "frame-enter taps even with trace-enabled? false")
+            (is (= 1 (get kinds :frame-exit))
+                "frame-exit taps even with trace-enabled? false")
+            (is (= 2 (get kinds :fx-effect))
+                "fx-effect taps once per key even with trace-enabled? false"))
           (finally
             (remove-tap probe)
             (util/set-tap-output! false)))))))

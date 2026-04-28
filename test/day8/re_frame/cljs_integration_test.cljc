@@ -246,13 +246,16 @@
                                         (let [n (inc 41)]
                                           (assoc db :n n))))
                (dispatch-sync! [::tapped])
-               (let [results (set (map :result @received))
-                     fs      (set (map :form @received))]
+               (let [code-tapped (filter #(= :code (:debux/kind %)) @received)
+                     results     (set (map :result code-tapped))
+                     fs          (set (map :form code-tapped))]
+                 (is (seq code-tapped)
+                     "at least one :debux/kind :code entry reached tap>")
                  (is (contains? results 42)
                      "tap> received the traced inc result")
                  (is (some #(re-find #"inc" (pr-str %)) fs)
                      "tap> entries include the traced form")
-                 (is (every? #(contains? % :indent-level) @received)
-                     "tap payloads carry the :code entry contract"))
+                 (is (every? #(contains? % :indent-level) code-tapped)
+                     ":code-kind tap payloads carry the :code entry contract"))
                (finally
                  (util/set-tap-output! false)))))))))
