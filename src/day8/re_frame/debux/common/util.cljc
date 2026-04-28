@@ -827,6 +827,12 @@
      :style/:s val -> {:style val}
      :clog         -> {:clog true}
 
+   Unrecognized options (typos, or options from a future debux version
+   this fork hasn't picked up yet) are logged via console.warn (cljs)
+   or *err* (clj) and skipped — the loop continues so prior and later
+   recognized options are preserved instead of being silently dropped
+   when the cond falls through.
+
    Callers that already accept an opts map, such as fn-traced and
    dbgn-forms, pass those maps through directly instead of using this
    trailing-token parser."
@@ -868,7 +874,18 @@
         (recur (nnext opts) (assoc acc :style s))
 
         (= f :clog)
-        (recur (next opts) (assoc acc :clog true))))))
+        (recur (next opts) (assoc acc :clog true))
+
+        :else
+        (do
+          #?(:cljs (js/console.warn
+                    (str "[debux] parse-opts: ignoring unrecognized option "
+                         (pr-str f)))
+             :clj  (binding [*out* *err*]
+                     (println
+                      (str "[debux] parse-opts: ignoring unrecognized option "
+                           (pr-str f)))))
+          (recur (next opts) acc))))))
 
 
 ;;; quote the value parts of a map
