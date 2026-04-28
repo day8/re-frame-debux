@@ -103,6 +103,15 @@
                               (= 'cljs.analyzer.api (first %)))
                         (rest require-clause))))))))
 
+(deftest o-skip?-detects-fork-fqn-test
+  (testing "o-skip? recognises the fork's o-skip macro symbol"
+    (is (true? (ut/o-skip? 'day8.re-frame.debux.common.macro-specs/o-skip))
+        "the only fqn emitted by this fork's macro-specs/o-skip must match")
+    (is (false? (ut/o-skip? 'debux.common.macro-specs/o-skip))
+        "the upstream fqn must stay rejected")
+    (is (false? (ut/o-skip? 'some-other-symbol))
+        "arbitrary symbols do not match")))
+
 ;; ---------------------------------------------------------------------------
 ;; parse-opts — keyword-style opts sequence → opts map.
 ;;
