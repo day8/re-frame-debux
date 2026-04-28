@@ -322,8 +322,10 @@
         ;; TODO: does this real-depth need an inc/dec to bring it into line with the d?
          (recur (z/replace loc (real-depth loc)) indent  syntax-order seen)
 
-        ;; DC: We might also want to trace inside maps, especially for fx
-        ;; in case of symbol, or set
+        ;; Map nodes are traced as whole values, not descended into here.
+        ;; Per-key fx-map tracing lives at the runtime emit layer via
+        ;; fx-traced/-emit-fx-traces!. Symbols and sets follow the same
+        ;; "wrap value, do not zip into children" path.
          (or (symbol? node) (map? node) (set? node))
          (recur (-> (z/replace loc `(~d-sym ~(trace-meta (real-depth loc)
                                                          syntax-order
