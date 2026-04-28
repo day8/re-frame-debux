@@ -310,8 +310,10 @@
                        for noise reduction. Special-form skips (recur,
                        throw, var, quote, etc.) stay honoured because
                        instrumenting them corrupts evaluation semantics.
-     :msg/:m    label copied onto :code entries and fn invocation frame
-                       markers. Frame markers are invocation-boundary
+     :msg/:m    label copied onto every body :code entry and fn
+                       invocation frame marker. All emissions from one
+                       body invocation share the same label. Frame
+                       markers are invocation-boundary
                        events and are not gated by :if, :once, or :final.
    Example: (defn-traced {:locals true :verbose true} my-handler [db event] ...)"
   {:arglists '([opts? name doc-string? attr-map? [params*] prepost-map? body]
@@ -358,8 +360,10 @@
                        pair matches the previous one. Per call site.
      :verbose   true — also wrap leaf literals that the default mode skips
        (or :show-all)  for noise reduction.
-     :msg/:m    label copied onto :code entries and fn invocation frame
-                       markers. Frame markers are invocation-boundary
+     :msg/:m    label copied onto every body :code entry and fn
+                       invocation frame marker. All emissions from one
+                       body invocation share the same label. Frame
+                       markers are invocation-boundary
                        events and are not gated by :if, :once, or :final.
    Example: (fn-traced {:locals true :once true} [db event] ...)"
   {:arglists '[(fn-traced opts? name? [params*] exprs*)
@@ -404,7 +408,8 @@
    map is emitted as its own :fx-effects trace entry alongside the
    usual per-form :code entries.
 
-   Same opts as fn-traced (:locals, :if, :once, :verbose), plus:
+   Same opts as fn-traced (:locals, :if, :once, :verbose, :msg/:m),
+   plus:
      :ctx-mode  true — handler returns a re-frame *context* (the
                        reg-event-ctx contract) instead of a bare
                        effect-map. Effects are extracted from
@@ -416,7 +421,7 @@
 
    Example:
      (re-frame.core/reg-event-fx :checkout
-       (fx-traced [_ [_ amount]]
+       (fx-traced {:msg \"checkout-fx\"} [_ [_ amount]]
          (let [taxed (* 1.1 amount)]
            {:db {:total taxed}
             :http {:method :post :body taxed}
@@ -432,12 +437,14 @@
     `(day8.re-frame.tracing/fn-traced ~opts' ~@def')))
 
 (defmacro defn-fx-traced
-  "defn variant of fx-traced. Same surface as defn-traced plus the
-   per-effect-key tracing on the returned map. Accepts the same
-   `:ctx-mode true` opt as fx-traced for reg-event-ctx handlers.
+  "defn variant of fx-traced. Same surface as defn-traced, including
+   `:msg` / `:m` labels copied to every body :code entry and invocation
+   frame marker, plus the per-effect-key tracing on the returned map.
+   Accepts the same `:ctx-mode true` opt as fx-traced for reg-event-ctx
+   handlers.
 
    Example:
-     (defn-fx-traced checkout-handler [_ [_ amount]]
+     (defn-fx-traced {:msg \"checkout-fx\"} checkout-handler [_ [_ amount]]
        {:db {:total amount} :http {:method :post}})"
   {:arglists '([opts? name doc-string? attr-map? [params*] prepost-map? body]
                 [opts? name doc-string? attr-map? ([params*] prepost-map? body) + attr-map?])}
