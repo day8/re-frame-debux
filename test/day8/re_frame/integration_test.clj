@@ -33,6 +33,7 @@
    should live in a separate browser-test fixture rather than
    ride this file via reader conditionals; tracked separately."
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
+            [clojure.set :as set]
             [day8.re-frame.tracing :as tracing]
             [day8.re-frame.tracing.runtime :as runtime]
             [day8.re-frame.debux.common.util :as util]
@@ -1300,6 +1301,36 @@
                 ":form is tidied (clojure.core/inc → inc) in the tapped entry"))
           (finally
             (remove-tap probe)
+            (util/set-tap-output! false)))))))
+
+(deftest set-date-time-fn-stamps-tap-payloads
+  (testing "tap payloads carry both stable numeric :t and configured :date-time"
+    (with-redefs [rft/trace-enabled?     false
+                  tracing/trace-enabled? false]
+      (let [received (atom [])
+            probe    (fn [x] (swap! received conj x))]
+        (try
+          (add-tap probe)
+          (util/set-date-time-fn! (constantly [:fixed :instant]))
+          (util/set-tap-output! true)
+          (util/send-form! '(inc 1))
+          (util/send-trace! {:form         '(inc 41)
+                             :result       42
+                             :indent-level 0
+                             :syntax-order 0
+                             :num-seen     0})
+          (util/-send-frame-enter! "frame_1")
+          (util/-emit-fx-traces! {:db {:answer 42}})
+          (wait-for #(<= 4 (count @received)) 1000)
+          (let [kinds (set (map :debux/kind @received))]
+            (is (set/subset? #{:form :code :frame-enter :fx-effect} kinds))
+            (is (every? number? (map :t @received))
+                "every tap payload keeps a numeric millisecond :t")
+            (is (every? #(= [:fixed :instant] (:date-time %)) @received)
+                "every tap payload uses the configured date/time value"))
+          (finally
+            (remove-tap probe)
+            (util/set-date-time-fn! nil)
             (util/set-tap-output! false)))))))
 
 (deftest set-tap-output-emits-form-kind

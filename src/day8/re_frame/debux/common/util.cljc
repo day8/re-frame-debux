@@ -253,12 +253,15 @@
 ;;; consumers can route on it. The kinds and shapes:
 ;;;
 ;;;   {:debux/kind :form
-;;;    :form        <tidied whole-form>}
+;;;    :form        <tidied whole-form>
+;;;    :t           <ms timestamp>
+;;;    :date-time   <configured timestamp value, or same as :t>}
 ;;;   ;; one per traced fn-call, from `send-form!` (mirrors :tags :form)
 ;;;
 ;;;   {:debux/kind :code
 ;;;    :form ... :result ... :indent-level ... :syntax-order ...
-;;;    :num-seen ... [optional :locals :name :msg]}
+;;;    :num-seen ... :t ... :date-time ...
+;;;    [optional :locals :name :msg]}
 ;;;   ;; one per instrumented sub-form, from `send-trace!` (mirrors
 ;;;   ;; the :tags :code entry; see the contract block above
 ;;;   ;; send-trace! for field semantics)
@@ -266,10 +269,12 @@
 ;;;   {:debux/kind :frame-enter
 ;;;    :frame-id    <gensym string, paired with the matching :exit>
 ;;;    :t           <ms timestamp>
+;;;    :date-time   <configured timestamp value, or same as :t>
 ;;;    :msg         <opt: developer-supplied label>}
 ;;;   {:debux/kind :frame-exit
 ;;;    :frame-id    <same id as the paired :enter>
 ;;;    :t           <ms timestamp>
+;;;    :date-time   <configured timestamp value, or same as :t>
 ;;;    :msg         <opt: developer-supplied label>}
 ;;;   ;; one pair per fn-traced/defn-traced invocation, from
 ;;;   ;; `-send-frame-enter!` / `-send-frame-exit!` (mirrors :tags
@@ -279,7 +284,8 @@
 ;;;   {:debux/kind :fx-effect
 ;;;    :fx-key      <key from the effect-map>
 ;;;    :value       <value at that key>
-;;;    :t           <ms timestamp; shared across all keys of one return>}
+;;;    :t           <ms timestamp; shared across all keys of one return>
+;;;    :date-time   <configured timestamp value, or same as :t>}
 ;;;   ;; one per key of an `fx-traced` body's effect-map return, from
 ;;;   ;; `-emit-fx-traces!` (mirrors :tags :fx-effects).
 ;;;
@@ -289,6 +295,21 @@
 
 (defonce ^:private tap-output? (atom false))
 (defonce ^:private trace-frames-output? (atom false))
+(defonce ^:private date-time-fn* (atom nil))
+
+(defn- now-ms []
+  #?(:cljs (.now js/Date)
+     :clj  (System/currentTimeMillis)))
+
+(defn- stamp-tap-payload
+  ([payload]
+   (stamp-tap-payload payload (now-ms)))
+  ([payload t]
+   (assoc payload
+          :t t
+          :date-time (if-let [date-time-fn @date-time-fn*]
+                       (date-time-fn)
+                       t))))
 
 (defn set-tap-output!
   "When `enabled?` is truthy, every debux trace emitter (`send-form!`,
@@ -301,6 +322,14 @@
    trace machinery is enabled."
   [enabled?]
   (reset! tap-output? (boolean enabled?)))
+
+(defn set-date-time-fn!
+  "Set the zero-arg function used to stamp tap> payloads with a
+   caller-controlled `:date-time` value. Pass nil to restore the
+   default, where `:date-time` is the same millisecond value as `:t`.
+   The numeric `:t` field is always retained for existing consumers."
+  [f]
+  (reset! date-time-fn* f))
 
 (defn set-trace-frames-output!
   "When `enabled?` is truthy, `fn-traced` / `defn-traced` /
@@ -324,7 +353,8 @@
     (maybe-warn-production-mode!)
     (when @#'trace/trace-enabled?
       (trace/merge-trace! {:tags {:form form}}))
-    (when @tap-output? (tap> {:debux/kind :form :form form}))))
+    (when @tap-output?
+      (tap> (stamp-tap-payload {:debux/kind :form :form form})))))
 
 (defn send-trace! [code-trace]
   ;; Gate on tap-output? OR trace-enabled? before any payload work
@@ -378,7 +408,8 @@
       ;; `:debux/kind :code` discriminator lets consumers route the
       ;; payload alongside :form / :frame-enter / :frame-exit /
       ;; :fx-effect emissions on the same tap stream.
-      (when @tap-output? (tap> (assoc entry :debux/kind :code))))))
+      (when @tap-output?
+        (tap> (stamp-tap-payload (assoc entry :debux/kind :code)))))))
 
 ;; Sink dispatch for the dbg macro. Inside a re-frame trace
 ;; event (`*current-trace*` bound non-nil during with-trace) accumulate
@@ -402,8 +433,9 @@
   [payload tap-also?]
   (if (some? trace/*current-trace*)
     (do (send-trace! payload)
-        (when tap-also? (tap> (assoc payload :debux/dbg true))))
-    (tap> (assoc payload :debux/dbg true)))
+        (when tap-also?
+          (tap> (stamp-tap-payload (assoc payload :debux/dbg true)))))
+    (tap> (stamp-tap-payload (assoc payload :debux/dbg true))))
   nil)
 
 ;;; ----------------------------------------------------------------------
@@ -448,10 +480,6 @@
 ;;; missing-exit pattern preserves that signal. The same missing-exit
 ;;; signal carries through to the tap> stream.
 
-(defn- now-ms []
-  #?(:cljs (.now js/Date)
-     :clj  (System/currentTimeMillis)))
-
 (defn -send-frame-enter!
   "Emit a `:enter` marker on the active trace's :trace-frames vector.
    No-op on the trace channel unless `set-trace-frames-output!` is on,
@@ -477,10 +505,11 @@
              (trace/merge-trace!
                {:tags {:trace-frames (conj frames entry)}})))
          (when tap?
-           (tap> (cond-> {:debux/kind :frame-enter
-                          :frame-id   frame-id
-                          :t          t}
-                   msg (assoc :msg msg)))))))
+           (tap> (stamp-tap-payload
+                   (cond-> {:debux/kind :frame-enter
+                            :frame-id   frame-id}
+                     msg (assoc :msg msg))
+                   t))))))
    nil))
 
 (defn -send-frame-exit!
@@ -509,11 +538,12 @@
            (let [frames (get-in trace/*current-trace* [:tags :trace-frames] [])]
              (trace/merge-trace!
                {:tags {:trace-frames (conj frames entry)}})))
-         (when tap?
-           (tap> (cond-> {:debux/kind :frame-exit
-                          :frame-id   frame-id
-                          :t          t}
-                   msg (assoc :msg msg)))))))
+        (when tap?
+          (tap> (stamp-tap-payload
+                  (cond-> {:debux/kind :frame-exit
+                           :frame-id   frame-id}
+                    msg (assoc :msg msg))
+                  t))))))
    nil))
 
 (defn -emit-fx-traces!
@@ -550,7 +580,9 @@
               (trace/merge-trace! {:tags {:fx-effects (into existing new)}})))
           (when tap?
             (doseq [entry new]
-              (tap> (assoc entry :debux/kind :fx-effect))))))))
+              (tap> (stamp-tap-payload
+                      (assoc entry :debux/kind :fx-effect)
+                      t))))))))
   nil)
 
 ;;; ----------------------------------------------------------------------
@@ -691,11 +723,16 @@
   (reset! indent-level* 1))
 
 
-;;; print-seq-length
+;;; print-length
 (def print-seq-length* (atom 100))
 
-(defn set-print-seq-length! [num]
+(def print-length* print-seq-length*)
+
+(defn set-print-length! [num]
   (reset! print-seq-length* num))
+
+(defn set-print-seq-length! [num]
+  (set-print-length! num))
 
 
 ;;; general
@@ -764,7 +801,8 @@
 
 ;;; print
 (defn take-n-if-seq [n result]
-  (if (seq? result)
+  (if (#?(:clj clojure.core/coll?
+          :cljs cljs.core/coll?) result)
     (take (or n @print-seq-length*) result)
     result))
 
@@ -803,7 +841,9 @@
   [result indent-level]
   ;; TODO: trace this information somehow
   (let [res    result
-        result (with-out-str (pp/pprint res))
+        result (binding [*print-length* (or @print-seq-length*
+                                            *print-length*)]
+                 (with-out-str (pp/pprint res)))
         pprint (str/trim result)]
     (println (->> (str/split pprint #"\n")
                   prepend-blanks

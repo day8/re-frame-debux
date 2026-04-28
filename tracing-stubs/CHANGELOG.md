@@ -24,10 +24,11 @@ This change log follows the conventions of
   threaded value, in `dbg-last`'s case) so release builds incur zero
   runtime cost.
 - `set-tap-output!`, `set-trace-frames-output!`,
-  `set-print-seq-length!`, `reset-indent-level!` — no-op `defn`s for
-  the runtime configuration knobs the dev-side ns re-exports from
-  `debux.common.util`. App-boot wiring of `(set-tap-output! true)` now
-  compiles cleanly against the stubs ns instead of failing with an
+  `set-date-time-fn!`, `set-print-length!`, `set-print-seq-length!`,
+  `reset-indent-level!` — no-op `defn`s for the runtime configuration
+  knobs the dev-side ns re-exports from `debux.common.util`. App-boot wiring of
+  `(set-tap-output! true)` now compiles cleanly against the stubs ns
+  instead of failing with an
   unbound-var error.
 - Runtime API stub namespace — `day8.re-frame.tracing.runtime` is now
   available in the stub package. `wrap-handler!` / `wrap-event-fx!` /

@@ -194,7 +194,9 @@ Four runtime knobs live alongside the tracing macros and apply globally:
 
 (t/set-tap-output! true)          ; mirror every send-trace! payload through tap> as well
 (t/set-trace-frames-output! true) ; opt into :trace-frames entry/exit markers
-(t/set-print-seq-length! 50)      ; bound the number of items shown for sequences in trace records
+(t/set-date-time-fn! #(.toString (js/Date.))) ; add caller-controlled :date-time values to tap payloads
+(t/set-print-length! 50)          ; bound printed collection items in trace records
+(t/set-print-seq-length! 50)      ; backward-compatible alias for set-print-length!
 (t/reset-indent-level!)           ; reset the trace-indenting counter (recovery if a body threw mid-emit)
 ```
 

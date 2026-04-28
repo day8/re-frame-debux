@@ -195,6 +195,7 @@ advertising availability and won't be renamed in a refactor.
 
 (t/set-tap-output! true)
 (t/set-trace-frames-output! true)
+(t/set-date-time-fn! #(java.time.Instant/now))
 ```
 
 Routes every internal trace emitter (`:form`, `:code`,
@@ -210,11 +211,16 @@ Independent of `re-frame.trace/trace-enabled?` — `tap>` consumers
 still receive entries when tap is enabled even with tracing off.
 Default off; preserves the existing trace-only behaviour.
 
+`set-date-time-fn!` installs a zero-arg formatter for tap payloads.
+Every tap payload keeps numeric millisecond `:t` and also carries
+`:date-time`; by default `:date-time` is the same value as `:t`.
+
 Three other config knobs sit alongside it on the same ns:
 `set-trace-frames-output!` (opt into trace-stream frame markers),
-`set-print-seq-length!` (bound the per-trace pretty-print of large
-sequences), and `reset-indent-level!` (recovery if a body threw
-mid-emit).
+`set-date-time-fn!` (custom `:date-time` values on tap payloads),
+`set-print-length!` (bound the per-trace pretty-print of large
+collections), `set-print-seq-length!` (backward-compatible alias), and
+`reset-indent-level!` (recovery if a body threw mid-emit).
 
 ---
 
@@ -234,6 +240,10 @@ the `:code` discipline, and are silently dropped off-trace. Frame
 markers are also off on the trace stream by default; consumers wanting
 them should enable `set-trace-frames-output!`. Consumers wanting frames
 out-of-trace should enable `set-tap-output!`.
+
+Tap payloads mirror these shapes with `:debux/kind`, `:t`, and
+`:date-time`; `set-date-time-fn!` controls only `:date-time`, preserving
+numeric `:t` for consumers that group or sort by milliseconds.
 
 `:trace-frames` exception path: only `:enter` is guaranteed — a
 missing `:exit` is the signal that the body threw. Pair on
@@ -259,9 +269,9 @@ v0.7 macro:
 - `dbg` / `dbgn` / `dbg-last` — value-transparent; expand to the
   bare expression with no trace side effect.
 - `set-tap-output!` / `set-trace-frames-output!` /
-  `set-print-seq-length!` / `reset-indent-level!` — no-op `defn`s with
-  matching arities, so app boot code calling them at startup doesn't
-  unbound-var.
+  `set-date-time-fn!` / `set-print-length!` / `set-print-seq-length!` /
+  `reset-indent-level!` — no-op `defn`s with matching arities, so app
+  boot code calling them at startup doesn't unbound-var.
 - `day8.re-frame.tracing.runtime/wrap-handler!` /
   `wrap-event-fx!` / `wrap-event-ctx!` / `wrap-sub!` / `wrap-fx!`
   — compile to bare `re-frame.core/reg-*` with no `fn-traced` wrap.

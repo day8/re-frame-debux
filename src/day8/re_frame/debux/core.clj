@@ -6,6 +6,8 @@
             [day8.re-frame.debux.common.macro-specs :as ms]))
 
 (def reset-indent-level! ut/reset-indent-level!)
+(def set-date-time-fn! ut/set-date-time-fn!)
+(def set-print-length! ut/set-print-length!)
 (def set-print-seq-length! ut/set-print-seq-length!)
 
 (def ^boolean trace-enabled? true)
