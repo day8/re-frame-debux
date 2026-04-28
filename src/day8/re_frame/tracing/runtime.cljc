@@ -346,8 +346,8 @@
       computations on the value before the side-effect fires.
 
       Per docs/improvement-plan.md §5, wrap-fx! is the path to
-      surfacing fx-map traces (the dbgn.clj:341 'trace inside maps'
-      TODO) without modifying the zipper walker."
+      surfacing fx-map traces without modifying the zipper walker's
+      map-handling branch in dbgn.clj."
      [id & registration-args]
      `(wrap-handler! :fx ~id ~@registration-args)))
 
