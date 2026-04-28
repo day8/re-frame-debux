@@ -75,7 +75,7 @@
       :indent-level 0   ; single form — no nesting
       :syntax-order 0
       :num-seen     0
-      :locals?      <opt> :name? <opt>}
+      :locals       <opt> :name <opt>}
 
    Sink: `re-frame.trace/*current-trace*` non-nil → merge into the
    active event's :tags :code (re-frame-pair surfaces it
