@@ -74,8 +74,10 @@ re-frame-debux retains debux's zipper engine (`dbgn`) but exposes ~20% of the up
 | **`:once` / `:o`** — duplicate suppression | partial | ~80 LOC | Low–medium. Needs a per-form ID (gensym at macro time) plus a runtime atom of `{id → last-result}`. Doable but adds a runtime cache that needs lifecycle thought. |
 | **`:final` / `:f`** | partial | small | Low. Could filter the payload to only the outermost form, but the existing two-step (`send-form!` for outer + `send-trace!` for inner) effectively already provides this with a different framing. |
 | `:style`, `:js`, `:print`, `:ns` | NO | — | Console-only. re-frame-debux deliberately routes to edn trace tags; styling has no consumer in 10x. |
-| `dbg`, `dbgt`, `clog`, `clogn`, `clogt` | NO | — | These are alternate macros (single-form, transducer-aware, console-output). `fn-traced` covers re-frame's needs; the rest are debux's separate use-cases. |
-| `tap>` integration | maybe | small | If a user wants traces to *also* fan out to `tap>`, `send-trace!` could grow a side-channel. Low demand; defer. |
+| `dbg`, `dbg-last` | yes | shipped | `dbg` (commit `992fd28`) and `dbg-last` (commit `304ef11`) ship single-form tracing onto the same `:code` surface as `fn-traced`. |
+| `dbgt`, `clogt` (transducer-aware) | NO | — | Out of scope — see §6 "Deliberately out of scope". Per-element step tracing is a poor fit for the `:code` payload (firing N records per `transduce` call) and the userland `(comp xf (map #(do (tap> ...) %)))` recipe covers the rare case without macro surface. |
+| `clog`, `clogn` (console variants) | NO | — | Console-only formatting; `dbg`/`dbgn` already cover the re-frame-trace path with the same call shape. |
+| `tap>` integration | yes | shipped | `set-tap-output!` (commit `18b06dc`) plus tap parity for forms, frames, and fx effects (`d207b45`); `dbg`/`dbg-last` accept `:tap?` for in-trace tap fan-out. |
 | `break` / DevTools breakpoints | NO | — | Halts the runtime; conflicts with re-frame-pair's hot-swap workflow. |
 
 **The single most valuable port is `:locals`.** Locals capture turns `fn-traced` from "what value did this expression produce?" into "what values did this expression produce, given which bindings were in scope?". For a typical re-frame handler that walks `(let [user-id ... cart ...] ...)`, the trace is currently opaque about which inputs produced which intermediate values; `:locals` fixes that.
@@ -143,6 +145,12 @@ This section is now an implementation ledger for the original roadmap. "Operator
 
 - **Self-hosted ClojureScript support (#35)** — declined 2026-04-27. Architectural cost too high for the demand. Close #35 with this context.
 - **Exception tracing (#34)** — declined 2026-04-27. Design tension with browser break-on-exception not worth resolving. Close #34 with this context.
+- **Transducer-aware tracing macros (`dbgt` / `clogt`)** — declined 2026-04-28. Upstream debux v0.8 ships `dbgt` to instrument transducers so each step of a `comp` chain emits a console record per element. Three reasons it doesn't earn a slot in `day8.re-frame.tracing`:
+  1. **Sink mismatch.** `:code` and the 10x Code panel are designed around per-form records (one trace per evaluated subexpression). A transducer that runs across a 10k-element collection would emit tens of thousands of records per dispatch, swamping the panel and the `:tags` vector. `:if` / `:once` filters help but don't change the shape — the surface is wrong for high-frequency per-element data.
+  2. **Demand is unproven.** Transducer-heavy re-frame handlers exist but are not the common case; subscriptions return single values, and most event/fx handlers manipulate maps imperatively. Existing `dbgn` already shows the input collection, the composed transducer value, and the final reduction result for `(transduce xf rf init coll)` — the gap is per-element step inspection, which is a niche debugging need.
+  3. **Userland recipe is short.** A user wanting per-step visibility today can drop `(map #(do (tap> [::label %]) %))` between transducers in a `comp`, or write a 3-line `tap-xf` helper. `tap>` already routes through the configured tap output (`set-tap-output!`), so the same downstream consumers (REPL, custom panels) see the data with no library change. Adding a macro, production stub, and CLJC walker integration to wrap that recipe would be more surface than the demand justifies.
+
+  If demand surfaces later (e.g. a re-frame app that genuinely needs step-level transducer inspection in 10x), the right shape is a runtime helper in `day8.re-frame.tracing.runtime` — `(wrap-xf "label" xf)` returning a step-instrumented transducer that emits compact `:debux/xf-step` tap payloads — not a `dbgn`-style macro that re-implements the zipper walker for transducer composition. That would be ~30 LOC, no compile-time analyzer, and zero impact on the `:code` panel's existing per-form contract.
 
 ---
 

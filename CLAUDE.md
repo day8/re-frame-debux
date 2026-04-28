@@ -70,10 +70,9 @@ working through `gascity` or any local automation:
 - **DO NOT `bd dolt push`.** The bead store is local-only too.
 - **DO NOT open or push to upstream PRs.** The operator opens PRs to
   `day8/re-frame-debux` after reviewing the local commits.
-- **DO write commits.** Each commit should be cleanly self-describing,
-  carry a Claude co-author trailer, and reference the bead id it
-  satisfies — so the operator can rebase, squash, or re-author
-  trivially when preparing a PR.
+- **DO write commits.** Each commit should be cleanly self-describing
+  and reference the bead id it satisfies — so the operator can rebase,
+  squash, or re-author trivially when preparing a PR.
 
 In short: complete the work, commit it, **stop**. The operator does
 the rest.
@@ -98,4 +97,23 @@ _Add a brief overview of your project architecture_
 
 ## Conventions & Patterns
 
-_Add your project-specific conventions here_
+### For agent contributors
+
+(Local-only commits are already covered in detail in the
+"Publish-on-completion policy" section above — this block is the
+shorter day-to-day reminder list.)
+
+- **Local-only commits.** Do NOT `git push`, `git tag`, `bd dolt push`,
+  or open upstream PRs. Each commit references the bead id.
+- **No bead-ID prefixes in code comments.** Don't write
+  `;; rfd-XXX item N — ...` or similar. Comments should explain the
+  WHY only — the commit message carries the bead-id linkage.
+- **Verify APIs and paths before relying on them.** Cross-repo
+  references in bead descriptions can drift; `grep` first.
+- **Tests before close.** `bb test` for the macroexpansion suite.
+  `bb test-browser` is operator-pending (requires chromium binary).
+- **`bb` is on PATH; `lein` is NOT installed** in agent envs — flag
+  any lein-only validation as operator-owned.
+- **Cross-rig coordination via mayor.** If a bead's work touches
+  multiple rigs, refuse the bead (release the claim) and message
+  mayor with the split needed.
