@@ -15,6 +15,8 @@ All notable changes to this project will be documented in this file. This change
 
 The v0.7 line closes the remaining feature gaps relative to philoskim/debux's option surface and adds two re-frame-shaped extensions on top — function entry/exit markers and per-effect tracing for `reg-event-fx` handlers. Nine additive items, no breaking changes.
 
+Consumers upgrading from 0.6.x: see [docs/upgrading-to-v0.7.md](docs/upgrading-to-v0.7.md) for a per-feature recipe walkthrough and trace-stream contract notes.
+
 #### Added
 
 * `:once` / `:o` option on `fn-traced` / `defn-traced` / `dbg` / `dbgn` (commit 33225e8). Suppresses consecutive emissions whose `(form, result)` pair matches the previous one. Per call-site identity (gensym'd at expansion); state survives across handler invocations until the result actually changes. Useful for high-frequency dispatches where you only want to see what's NEW. Composes with `:if` cleanly. Public reset via `day8.re-frame.debux.common.util/-reset-once-state!`.
