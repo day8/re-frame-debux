@@ -38,12 +38,12 @@
   ;; `lein ci` karma invocation. Requires a Chrome binary on PATH
   ;; (or pass :chrome-path '"<path>"' as a CLI kwarg).
 
-  test         (clojure "-M:test-clj")
+  test         (clojure "-M:provided:test-clj")
 
-  test-browser (do (clojure "-M:test" "compile" "browser-test")
-                   (clojure "-X:test" ":chrome-path" (pr-str (detect-chrome-path))))
+  test-browser (do (clojure "-M:provided:test" "compile" "browser-test")
+                   (clojure "-X:provided:test" ":chrome-path" (pr-str (detect-chrome-path))))
 
-  watch-test   (clojure "-M:test" "watch" "browser-test")
+  watch-test   (clojure "-M:provided:test" "watch" "browser-test")
 
   ;; ---------------------------------------------------------------
   ;; Release
