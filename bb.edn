@@ -10,12 +10,16 @@
  {:requires    ([day8.dev :as dev])
   :init        (do
                  (require '[babashka.fs :as fs])
+                 ;; CHROME_BIN is the karma/shadow-cljs convention; CHROME_PATH
+                 ;; is honoured as an alias so a sticky local export keeps working.
                  (defn detect-chrome-path []
-                   (or (not-empty (System/getenv "CHROME_PATH"))
+                   (or (not-empty (System/getenv "CHROME_BIN"))
+                       (not-empty (System/getenv "CHROME_PATH"))
                        (some (fn [cmd]
                                (some-> (fs/which cmd) str))
                              ["chromium"
                               "chromium-browser"
+                              "chrome"
                               "google-chrome"
                               "google-chrome-stable"])
                        (let [windows-chrome "/mnt/c/Program Files/Google/Chrome/Application/chrome.exe"]
