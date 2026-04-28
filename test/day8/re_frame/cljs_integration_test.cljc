@@ -261,4 +261,36 @@
                  (is (every? #(contains? % :indent-level) code-tapped)
                      ":code-kind tap payloads carry the :code entry contract"))
                (finally
+                 (util/set-tap-output! false)))))))
+
+     (deftest set-date-time-fn-stamps-tap-payloads-cljs
+       (testing "tap payloads carry stable numeric :t and configured :date-time"
+         (let [received (atom [])]
+           (with-redefs [cljs.core/tap>         (fn [x]
+                                                  (swap! received conj x)
+                                                  true)
+                         rft/trace-enabled?     false
+                         tracing/trace-enabled? false]
+             (try
+               (util/set-date-time-fn! (constantly [:fixed :instant]))
+               (util/set-tap-output! true)
+               (util/send-form! '(inc 1))
+               (util/send-trace! {:form         '(inc 41)
+                                  :result       42
+                                  :indent-level 0
+                                  :syntax-order 0
+                                  :num-seen     0})
+               (util/-send-frame-enter! "frame_1")
+               (util/-emit-fx-traces! {:db {:answer 42}})
+               (let [kinds (set (map :debux/kind @received))]
+                 (is (contains? kinds :form))
+                 (is (contains? kinds :code))
+                 (is (contains? kinds :frame-enter))
+                 (is (contains? kinds :fx-effect))
+                 (is (every? number? (map :t @received))
+                     "every tap payload keeps a numeric millisecond :t")
+                 (is (every? #(= [:fixed :instant] (:date-time %)) @received)
+                     "every tap payload uses the configured date/time value"))
+               (finally
+                 (util/set-date-time-fn! nil)
                  (util/set-tap-output! false)))))))))
