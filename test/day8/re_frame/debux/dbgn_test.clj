@@ -169,8 +169,8 @@
            "three"))
     (is (= (eval f3)
            "unexpected value, 4"))
-    (is (= (eval f4))
-           "three")))
+    (is (= (eval f4)
+           "three"))))
 
 (deftest thread-first-test
     (is
