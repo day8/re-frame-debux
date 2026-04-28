@@ -360,6 +360,31 @@
       (is (= "after-inc" (:name e)))
       (is (= [11 21] (:result e))))))
 
+(deftest dbg-last-msg-flows-into-payload
+  (testing "the :msg opt survives dbg-last's thread-last arg swap"
+    (let [captured (with-fresh-current-trace
+                     (fn []
+                       (->> [1 2 3]
+                            (filter odd?)
+                            (dbg-last {:msg "after-filter"})
+                            doall)))
+          [e]      (code-entries captured)]
+      (is (= "after-filter" (:msg e)))
+      (is (= [1 3] (:result e))))))
+
+(deftest dbg-last-locals-flow-into-payload
+  (testing ":locals is forwarded through dbg-last to the emitted payload"
+    (let [n        2
+          captured (with-fresh-current-trace
+                     (fn []
+                       (->> [1 2 3]
+                            (map #(* n %))
+                            (dbg-last {:locals [['n n]]})
+                            doall)))
+          [e]      (code-entries captured)]
+      (is (= [['n 2]] (:locals e)))
+      (is (= [2 4 6] (:result e))))))
+
 (deftest dbg-last-if-predicate-gates-emission
   (testing ":if pred — trace fires only when (pred result) is truthy"
     (let [captured (with-fresh-current-trace
@@ -378,6 +403,20 @@
       (is (= 1 (count entries))
           "non-empty seq emits, empty seq suppresses")
       (is (= [1 3 5] (:result (first entries)))))))
+
+(deftest dbg-last-once-suppresses-second-identical-emit
+  (testing ":once true dedups repeated identical results from the same dbg-last call site"
+    (util/-reset-once-state!)
+    (let [f        (fn []
+                     (->> [1 2 3]
+                          (filter odd?)
+                          (dbg-last {:once true})
+                          doall))
+          captured (with-fresh-current-trace (fn [] (f) (f)))
+          entries  (code-entries captured)]
+      (is (= 1 (count entries))
+          "only the first identical dbg-last invocation emits")
+      (is (= [1 3] (:result (first entries)))))))
 
 (deftest dbg-last-out-of-trace-falls-back-to-tap
   (testing "outside any re-frame trace event, dbg-last taps the threaded value with :debux/dbg true"
