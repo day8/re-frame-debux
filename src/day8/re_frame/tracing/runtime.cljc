@@ -63,7 +63,7 @@
 ;; Unwrap — pure runtime, no macro magic
 ;; ---------------------------------------------------------------------------
 
-(defn unwrap-handler!
+(defn ^boolean unwrap-handler!
   "Restore the handler at [kind id] to whatever was there before
    `wrap-handler!` ran. Returns true if a wrap was found and undone,
    false if [kind id] wasn't wrapped (no-op).
@@ -80,12 +80,12 @@
       true)
     false))
 
-(defn unwrap-sub!
+(defn ^boolean unwrap-sub!
   "Convenience: (unwrap-handler! :sub id)."
   [id]
   (unwrap-handler! :sub id))
 
-(defn unwrap-fx!
+(defn ^boolean unwrap-fx!
   "Convenience: (unwrap-handler! :fx id)."
   [id]
   (unwrap-handler! :fx id))
@@ -384,7 +384,7 @@
   []
   true)
 
-(defn wrapped?
+(defn ^boolean wrapped?
   "True iff [kind id] is currently wrapped (i.e. the side-table has
    an entry for it). Useful for re-frame-pair / custom panels that
    want to badge the wrapped state in their UI."
