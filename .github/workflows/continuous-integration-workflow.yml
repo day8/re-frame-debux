@@ -64,12 +64,13 @@ jobs:
           cli: 'latest'
           bb:  'latest'
 
-      - run: bb test
-        # bb test runs the CLJ-side macroexpansion suite via cognitect
-        # test-runner — no Chrome dependency. The CLJS browser-test
-        # path lives under bb test-browser; once the indenting_test.cljc
-        # CLJS-compatibility issue is resolved, add a second step here
-        # invoking `bb test-browser :chrome-path '"<path>"'`.
+      - name: Run Clojure tests
+        run: bb test
+
+      - name: Run ClojureScript browser tests
+        run: bb test-browser
+        env:
+          CHROME_BIN: ${{ steps.setup-chrome.outputs.chrome-path }}
 
       - name: Slack notification
         uses: homoluctus/slatify@61c6b12d2ae226db04062ff9b43d9679e2d53236 # v2.0.1
