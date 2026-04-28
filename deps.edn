@@ -68,8 +68,7 @@
                 ;; populated the integration tests with a real
                 ;; trace-capture fixture, they ride the default suite.
                 :main-opts   ["-m" "cognitect.test-runner"
-                              "-e" ":failing"]
-                :exec-fn     cognitect.test-runner.api/test}
+                              "-e" ":failing"]}
 
   ;; CLJS browser-test — runs the CLJC tests under shadow-cljs's
   ;; :browser-test target via day8.chrome-shadow-test-runner. Note:
