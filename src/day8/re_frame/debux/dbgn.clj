@@ -332,17 +332,28 @@
           literal? (or (nil? opts) (map? opts))
           has-opt? (fn [k]
                      (and (map? opts) (contains? opts k)))
+          final-key? (has-opt? :final)
+          final-alias? (has-opt? :f)
+          once-key? (has-opt? :once)
+          once-alias? (has-opt? :o)
+          final? (or final-key? final-alias?)
+          once? (or once-key? once-alias?)
           msg? (or (has-opt? :msg) (has-opt? :m))]
       (if literal?
-        {:final?  (has-opt? :final)
+        {:final?  final?
+         :final-expr (if final-alias?
+                       `(ut/final-opt? ~'+debux-dbg-opts+)
+                       `(:final ~'+debux-dbg-opts+))
          :if?     (has-opt? :if)
-         :once?   (has-opt? :once)
+         :once?   once?
+         :once-expr (if once-alias?
+                      `(ut/once-opt? ~'+debux-dbg-opts+)
+                      `(:once ~'+debux-dbg-opts+))
          :locals? (has-opt? :locals)
          :msg?    msg?
          :msg-expr (cond
                      (and (has-opt? :msg) (has-opt? :m))
-                     `(or (:msg ~'+debux-dbg-opts+)
-                          (:m ~'+debux-dbg-opts+))
+                     `(ut/msg-opt ~'+debux-dbg-opts+)
 
                      (has-opt? :msg)
                      `(:msg ~'+debux-dbg-opts+)
@@ -350,19 +361,21 @@
                      (has-opt? :m)
                      `(:m ~'+debux-dbg-opts+))}
         {:final?  true
+         :final-expr `(ut/final-opt? ~'+debux-dbg-opts+)
          :if?     true
          :once?   true
+         :once-expr `(ut/once-opt? ~'+debux-dbg-opts+)
          :locals? true
          :msg?    true
-         :msg-expr `(or (:msg ~'+debux-dbg-opts+)
-                        (:m ~'+debux-dbg-opts+))}))
+         :msg-expr `(ut/msg-opt ~'+debux-dbg-opts+)}))
     {:final?  true
+     :final-expr `(ut/final-opt? ~'+debux-dbg-opts+)
      :if?     true
      :once?   true
+     :once-expr `(ut/once-opt? ~'+debux-dbg-opts+)
      :locals? true
      :msg?    true
-     :msg-expr `(or (:msg ~'+debux-dbg-opts+)
-                    (:m ~'+debux-dbg-opts+))}))
+     :msg-expr `(ut/msg-opt ~'+debux-dbg-opts+)}))
 
 (defn- emit-trace-body
   "Emits the `(let [r ...] (when ... (send-trace! ...)) r)` shape
@@ -374,21 +387,21 @@
   (let [r            (gensym "trace-result_")
         m            (gensym "trace-msg_")
         trace-form   (ut/tidy-macroexpanded-form org-form {})
-        {:keys [final? if? once? locals? msg? msg-expr]}
+        {:keys [final? final-expr if? once? once-expr locals? msg? msg-expr]}
         (trace-option-flags trace-meta)
         final?       (and final? (not (zero? indent)))
         bind-pairs   (cond-> [r bind-form]
                        msg? (conj m msg-expr))
         gate-forms   (cond-> []
                        final?
-                       (conj `(not (:final ~'+debux-dbg-opts+)))
+                       (conj `(not ~final-expr))
 
                        if?
                        (conj `(or (not (:if ~'+debux-dbg-opts+))
                                   ((:if ~'+debux-dbg-opts+) ~r)))
 
                        once?
-                       (conj `(or (not (:once ~'+debux-dbg-opts+))
+                       (conj `(or (not ~once-expr)
                                   (ut/-once-emit? ~'+debux-trace-id+
                                                   ~syntax-order
                                                   ~r))))

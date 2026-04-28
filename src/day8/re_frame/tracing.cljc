@@ -89,7 +89,7 @@
                pattern: `(dbg form {:locals [['db db] ['x x]]})`)
      :if     — runtime predicate; the trace fires only when (pred
                result) is truthy
-     :once   — suppress consecutive identical emissions from this
+     :once/:o — suppress consecutive identical emissions from this
                specific call site. The first invocation emits; the
                next runs that produce the same result are skipped.
                Cleared when the result changes, OR explicitly via
@@ -121,9 +121,9 @@
               ~p (:if ~o)
               ;; :msg / :m alias resolution — same convention as
               ;; emit-trace-body in dbgn.clj. `:msg` wins if both are set.
-              ~m (or (:msg ~o) (:m ~o))]
+              ~m (ut/msg-opt ~o)]
           (when (and (or (nil? ~p) (~p ~r))
-                     (or (not (:once ~o))
+                     (or (not (ut/once-opt? ~o))
                          (ut/-once-emit? ~trace-id 0 ~r)))
             (ut/send-trace-or-tap!
              (cond-> {:form         '~form
@@ -171,7 +171,7 @@
 
    Value-transparent — the threaded value flows through unchanged.
    Same payload schema and opts as `dbg` (:name, :locals, :if,
-   :once, :tap?). See `dbg`'s docstring for details.
+   :once/:o, :tap?). See `dbg`'s docstring for details.
 
    Expands to `(dbg <value> <opts>)`, so the trace record captures
    the upstream thread chain (everything between the head of the
@@ -237,7 +237,7 @@
         ;;   :ctx → body return is a context map; effects sit at
         ;;          (:effects ctx) (reg-event-ctx contract)
         fx-trace        (:fx-trace opts)
-        frame-msg       (or (:msg opts) (:m opts))
+        frame-msg       (ut/msg-opt opts)
         emit-fx-form    (when fx-trace
                           (if (= :ctx fx-trace)
                             `(day8.re-frame.debux.common.util/-emit-fx-traces! (:effects ~r))
@@ -304,7 +304,7 @@
                        :code trace entry.
      :if        pred — runtime predicate called with the per-form result;
                        send-trace! fires only when pred returns truthy.
-     :once      true — suppress consecutive emissions whose (form, result)
+     :once/:o   true — suppress consecutive emissions whose (form, result)
                        pair matches the previous one. Per call site;
                        dedup state is process-local and survives across
                        handler invocations until the result actually
@@ -361,7 +361,7 @@
                        :code trace entry.
      :if        pred — runtime predicate called with the per-form result;
                        send-trace! fires only when pred returns truthy.
-     :once      true — suppress consecutive emissions whose (form, result)
+     :once/:o   true — suppress consecutive emissions whose (form, result)
                        pair matches the previous one. Per call site.
      :verbose   true — also wrap leaf literals that the default mode skips
        (or :show-all)  for noise reduction.
@@ -391,7 +391,7 @@
 ;; each computation that fed into a value), but doesn't flag the
 ;; per-key entries of the RETURNED map. fx-traced does both — it
 ;; inherits all of fn-traced's per-form :code emission, frame markers,
-;; :locals / :if / :once / :verbose opts, and adds one :fx-effects
+;; :locals / :if / :once/:o / :verbose opts, and adds one :fx-effects
 ;; entry per key in the returned map. Consumers (10x panels, custom
 ;; inspectors) can render the effect-map breakdown alongside the
 ;; form-level trace.
@@ -413,7 +413,7 @@
    map is emitted as its own :fx-effects trace entry alongside the
    usual per-form :code entries.
 
-   Same opts as fn-traced (:locals, :if, :once, :verbose, :msg/:m),
+   Same opts as fn-traced (:locals, :if, :once/:o, :verbose, :msg/:m),
    plus:
      :ctx-mode  true — handler returns a re-frame *context* (the
                        reg-event-ctx contract) instead of a bare
