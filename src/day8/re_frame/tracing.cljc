@@ -126,8 +126,8 @@
               ~m (or (:msg ~o) (:m ~o))]
           (when (and (or (nil? ~p) (~p ~r))
                      (or (not (:once ~o))
-                         (day8.re-frame.debux.common.util/-once-emit? ~trace-id 0 ~r)))
-            (day8.re-frame.debux.common.util/send-trace-or-tap!
+                         (ut/-once-emit? ~trace-id 0 ~r)))
+            (ut/send-trace-or-tap!
              (cond-> {:form         '~form
                       :result       ~r
                       :indent-level 0
