@@ -26,7 +26,10 @@
    from the parent test classpath because it collides with the live
    `day8.re-frame.tracing` ns at src/. The textual sync between the
    two files is the safety net there."
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.set :as set]
+            [clojure.test :refer [deftest is testing]]
+            [day8.re-frame.tracing]
+            [day8.re-frame.tracing.runtime]
             [day8.re-frame.tracing-stubs]
             [day8.re-frame.tracing-stubs.runtime]))
 
@@ -141,13 +144,15 @@
           "opts arg discarded, value returned"))))
 
 (deftest stub-files-have-identical-macro-bodies
-  (testing "the in-src and subproject stub files keep all shared macros in sync"
+  (testing "the in-src and subproject stub files keep all shared macros and
+            no-op configuration defns in sync"
     (let [in-src    (slurp "src/day8/re_frame/tracing_stubs.cljc")
           subproj   (slurp "tracing-stubs/src/day8/re_frame/tracing.cljc")
-          extract   (fn [src macro-name]
-                      (let [start (.indexOf ^String src (str "(defmacro " macro-name))]
+          extract   (fn [src kind name]
+                      (let [marker (str "(" kind " " name)
+                            start  (.indexOf ^String src marker)]
                         (when (neg? start)
-                          (throw (ex-info (str "macro not found: " macro-name) {:src-len (count src)})))
+                          (throw (ex-info (str kind " not found: " name) {:src-len (count src)})))
                         (loop [i     (inc start)
                                depth 1]
                           (cond
@@ -157,8 +162,11 @@
                             :else (recur (inc i) depth)))))]
       (doseq [m ["defn-traced" "fn-traced" "fx-traced" "defn-fx-traced"
                  "dbg" "dbgn" "dbg-last"]]
-        (is (= (extract in-src m) (extract subproj m))
-            (str m " stub diverges between the two stub files — they must be byte-identical"))))))
+        (is (= (extract in-src "defmacro" m) (extract subproj "defmacro" m))
+            (str m " stub diverges between the two stub files — they must be byte-identical")))
+      (doseq [f ["set-tap-output!" "set-print-seq-length!" "reset-indent-level!"]]
+        (is (= (extract in-src "defn" f) (extract subproj "defn" f))
+            (str f " stub diverges between the two stub files — they must be byte-identical"))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Runtime API stubs — wrap-handler! / wrap-event-fx! / wrap-event-ctx! /
@@ -219,3 +227,30 @@
                              (subs src (+ i (count require-marker)))))]
       (is (= (after-require in-src) (after-require subproj))
           "runtime stub bodies must be byte-identical between the two files"))))
+
+(deftest stub-runtime-ns-has-every-public-var
+  (testing "the production stub at day8.re-frame.tracing-stubs.runtime
+            advertises every public var that the dev-side
+            day8.re-frame.tracing.runtime advertises. Under the production
+            two-jar swap (or :ns-aliases swap) any caller that name-resolves
+            against the dev ns must keep resolving against the stub. A
+            missing stub var would surface as an unbound-var error at
+            release-build compile / load time — exactly the silent
+            dev/prod divergence this stub jar exists to prevent."
+    (let [dev-vars  (set (keys (ns-publics 'day8.re-frame.tracing.runtime)))
+          stub-vars (set (keys (ns-publics 'day8.re-frame.tracing-stubs.runtime)))
+          missing   (set/difference dev-vars stub-vars)]
+      (is (empty? missing)
+          (str "stub ns is missing public vars present in the dev ns: "
+               (sort missing))))))
+
+(deftest stub-tracing-ns-has-runtime-config-knobs
+  (testing "the production stub at day8.re-frame.tracing-stubs advertises the
+            three runtime configuration knobs that consumers wire at app
+            boot — set-tap-output!, set-print-seq-length!, reset-indent-level!.
+            Without the stubs, a release build with these calls in the boot
+            path would fail to load against an unbound-var error."
+    (let [stub-vars (set (keys (ns-publics 'day8.re-frame.tracing-stubs)))]
+      (doseq [v '[set-tap-output! set-print-seq-length! reset-indent-level!]]
+        (is (contains? stub-vars v)
+            (str v " missing from day8.re-frame.tracing-stubs — release builds will 404"))))))

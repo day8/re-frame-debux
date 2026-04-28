@@ -51,3 +51,30 @@
    the threaded value with no trace side effect."
   ([value] value)
   ([_opts value] value))
+
+;; Configuration knobs — re-exported in dev as `(def x ut/x)` from
+;; debux.common.util. In a release build the underlying state atoms
+;; (tap-output?, indent-level*, print-seq-length*) aren't reached from
+;; any traced path, so the setters become inert. They're stubbed as
+;; no-op defns (not defs) so callers using `(set-tap-output! true)` at
+;; app boot don't 404 against an unbound var.
+
+(defn set-tap-output!
+  "Production stub. No-op — the dev-side setter toggles whether trace
+   emitters fan out to tap>; in a release build the emitters don't
+   fire, so toggling has no observable effect."
+  [_enabled?]
+  nil)
+
+(defn set-print-seq-length!
+  "Production stub. No-op — the dev-side setter bounds collection
+   pretty-printing inside trace payloads; in a release build no
+   payloads are produced so the bound is moot."
+  [_num]
+  nil)
+
+(defn reset-indent-level!
+  "Production stub. No-op — indent-level state isn't tracked in a
+   release build (no per-form trace machinery to indent)."
+  []
+  nil)
