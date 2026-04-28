@@ -242,14 +242,19 @@
 ;;; A live trace path running with goog.DEBUG=false is the smoking
 ;;; gun for "release build, tracing not stubbed".
 
-(defonce ^:private prod-mode-warned? (atom false))
+#?(:cljs (def ^:private production-mode-warning-enabled? true)
+   :clj  (def ^:private production-mode-warning-enabled? false))
+
+(defn ^:private reset-production-mode-warning! []
+  #?(:cljs (set! production-mode-warning-enabled? true)
+     :clj nil))
 
 (defn ^:private maybe-warn-production-mode! []
   #?(:cljs
-     (when-not @prod-mode-warned?
+     (when production-mode-warning-enabled?
+       (set! production-mode-warning-enabled? false)
        (try
          (when (false? js/goog.DEBUG)
-           (reset! prod-mode-warned? true)
            (js/console.warn
             (str "re-frame-debux: send-trace! is firing in a build with "
                  "goog.DEBUG=false. The day8.re-frame.tracing namespace "
@@ -263,10 +268,7 @@
                  "in the production profile instead of day8.re-frame/tracing. "
                  "See https://github.com/day8/re-frame-debux#two-libraries "
                  "for details. (This warning fires once per session.)")))
-         (catch :default _
-           ;; If goog.DEBUG isn't accessible (bare CLJS without Closure?),
-           ;; mark as warned so we don't keep retrying.
-           (reset! prod-mode-warned? true))))
+         (catch :default _ nil)))
      :clj nil))
 
 ;;; ----------------------------------------------------------------------
