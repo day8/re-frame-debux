@@ -89,6 +89,20 @@
                                     :name  sym})]
          (is (= 'x (#'ut/ns-symbol-for-cljs 'x {:ns {:name 'example.core}})))))))
 
+#?(:clj
+   (deftest util-ns-does-not-directly-require-cljs-analyzer-test
+     (testing "CLJ-side loading stays decoupled from cljs.analyzer.api"
+       (let [ns-form (with-open [r (java.io.PushbackReader.
+                                     (java.io.StringReader.
+                                       (slurp "src/day8/re_frame/debux/common/util.cljc")))]
+                       (read {:read-cond :preserve} r))
+             require-clause (some #(when (and (seq? %) (= :require (first %)))
+                                     %)
+                                  ns-form)]
+         (is (not (some #(and (vector? %)
+                              (= 'cljs.analyzer.api (first %)))
+                        (rest require-clause))))))))
+
 ;; ---------------------------------------------------------------------------
 ;; parse-opts — keyword-style opts sequence → opts map.
 ;;
