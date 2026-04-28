@@ -73,7 +73,6 @@
   [form env]
   (loop [loc (ut/sequential-zip form)]
     (let [node (z/node loc)]
-      ; (ut/d node)
       (cond
         (z/end? loc) (z/root loc)
 
@@ -83,25 +82,11 @@
 
         (and (seq? node) (symbol? (first node)))
         (let [sym (ut/ns-symbol (first node) env)]
-          ;; (println "NODE" node "SYM" sym)
           (if-let [[skip-fn nav] (skip-handler sym)]
             (recur (nav (z/replace loc (skip-fn node))))
             (recur (z/next loc))))
 
         :else (recur (z/next loc))))))
-
-(defn depth
-  "Calculate how far we are inside the zipper, by ascending straight up
-  until we can't get any higher."
-  ;;  There is probably a smarter way to do
-  ;; this than checking for nil, but I'm not sure what it is.
-  [loc]
-  (loop [loc loc
-         depth -1]
-    (if (nil? loc)
-      depth
-      (recur (z/up loc)
-             (inc depth)))))
 
 (defn debux-symbol? [sym]
   (contains? #{'day8.re-frame.debux.dbgn/trace
@@ -188,17 +173,9 @@
            syntax-order (inc syntax-order)
            num-seen     (-> #{node}
                             (keep seen)
-                            count)
-           #_ #_ indent (real-depth loc)]
-    ;;  (println "node" node syntax-order num-seen)
+                            count)]
        (cond
          (z/end? loc) (z/root loc)
-
-        ;;; in case of (spy-first ...) (and more to come)
-        ;(and (seq? node) (= `ms/skip (first node)))
-        ;(recur (-> (z/down node)
-        ;           z/right
-        ;           z/down))
          
         ;; TODO: is it more efficient to remove the skips here
         ;; rather than taking another pass through the form?
@@ -267,13 +244,6 @@
 
              :else
              (recur (-> inner-loc ut/right-or-next) indent syntax-order seen)
-
-
-            ;true (throw (ex-info "Pause" {}))
-            ;; vector
-            ;; map
-            ;; form
-             
              ))
 
 
@@ -339,7 +309,6 @@
 
 (defmulti trace*
   (fn [& args]
-    ;; (println "TRACE*" args)
     (cond
       (= 2 (count args))  :trace
       (and (-> args
@@ -470,15 +439,10 @@
   (apply trace* args))
 
 
-(defn spy [x]
-  ;(zprint.core/czprint x)
-  x)
-
 ;;; remove skip
 (defn remove-skip [form]
   (loop [loc (ut/sequential-zip form)]
     (let [node (z/node loc)]
-      ;(ut/d node)
       (cond
         (z/end? loc) (z/root loc)
 
@@ -646,39 +610,5 @@
 ;; we want to output forms and form values at particular points, but not the rest of the stuff injected by the macros
 ;; Difficulty in two phase adding is that we do macroexpansion in first phase, so we have to annotate all macro code with skips.
 
-
-;(conj :d)
-;(conj [:a :b] :d)
-
 ;; We handle use of macros within macros then we macro-expand them before returning them out.
 ;; pre-emptive macroexpansion
-
-
-
-
-;(dbgn (-> {:a 1}
-;          (assoc :a 3)
-;          frequencies))
-;
-;(dbgn (-> :a (cons '(1 2 3))))
-
-;(defn c-kw []
-;  :c)
-;
-;(dbgn (some-> [:a :b (c-kw)]
-;              (conj :d)
-;              (distinct)))
-;
-;(dbgn (->> [:a :b (c-kw)]
-;             (cons :d)
-;             (distinct)))
-
-#_(defn my-fun [a b c]
-    (dbgn (+ a b c
-             (->> (range a b)
-                  (map (fn [x] (* x x)))
-                  (filter even?)
-                  (take a)
-                  (reduce +)))))
-
-;(reduce + (take a (filter even? (map (fn [x] (* x x)) (range a b)))))
