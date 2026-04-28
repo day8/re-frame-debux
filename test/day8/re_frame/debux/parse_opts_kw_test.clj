@@ -7,10 +7,10 @@
 
    Companion to:
      - common/util_test.cljc — pins the parse itself.
-     - if_option_test.clj    — kw-style `:if` (regression of rfd-7cb).
+     - if_option_test.clj    — kw-style `:if` regression coverage.
      - final_option_test.clj — kw-style `:final` / `:f`.
 
-   This file fills in the remaining branches the bead description
+   This file fills in the remaining branches the review
    listed as uncovered through parse-opts: `:once`/`:o`, `:msg`/`:m`,
    `:verbose`/`:show-all`. Together with the unit tests, every
    non-cljs-only branch is now pinned at both layers."

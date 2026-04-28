@@ -96,7 +96,8 @@
 ;; defn-traced must propagate the leading docstring + attr-map onto the var
 ;; ---------------------------------------------------------------------------
 ;;
-;; Spotted while fixing rfd-543. The ::ms/defn-args spec conforms
+;; Spotted while fixing the leading-docstring/attr-map regression.
+;; The ::ms/defn-args spec conforms
 ;; :docstring and :meta but defn-traced* in core.clj / tracing.cljc
 ;; only read :name and :bs, silently discarding both. The
 ;; defn-traced-test cases above include forms with leading docstrings
