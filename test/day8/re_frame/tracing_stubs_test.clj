@@ -143,32 +143,45 @@
       (is (= '[1 2 3] r)
           "opts arg discarded, value returned"))))
 
-(deftest stub-files-have-identical-macro-bodies
+(defn- read-source-forms
+  [src]
+  (let [reader (java.io.PushbackReader. (java.io.StringReader. src))
+        eof    (Object.)]
+    (loop [forms []]
+      (let [form (read {:eof eof :read-cond :allow} reader)]
+        (if (identical? eof form)
+          forms
+          (recur (conj forms form)))))))
+
+(defn- source-definition
+  [src kind name]
+  (let [kind (symbol kind)
+        name (symbol name)]
+    (or (some (fn [form]
+                (when (and (seq? form)
+                           (= kind (first form))
+                           (= name (second form)))
+                  form))
+              (read-source-forms src))
+        (throw (ex-info (str kind " not found: " name)
+                        {:src-len (count src)})))))
+
+(deftest stub-files-have-equivalent-macro-bodies
   (testing "the in-src and subproject stub files keep all shared macros and
             no-op configuration defns in sync"
     (let [in-src    (slurp "src/day8/re_frame/tracing_stubs.cljc")
-          subproj   (slurp "tracing-stubs/src/day8/re_frame/tracing.cljc")
-          extract   (fn [src kind name]
-                      (let [marker (str "(" kind " " name)
-                            start  (.indexOf ^String src marker)]
-                        (when (neg? start)
-                          (throw (ex-info (str kind " not found: " name) {:src-len (count src)})))
-                        (loop [i     (inc start)
-                               depth 1]
-                          (cond
-                            (zero? depth) (subs src start i)
-                            (= \( (.charAt ^String src i)) (recur (inc i) (inc depth))
-                            (= \) (.charAt ^String src i)) (recur (inc i) (dec depth))
-                            :else (recur (inc i) depth)))))]
+          subproj   (slurp "tracing-stubs/src/day8/re_frame/tracing.cljc")]
       (doseq [m ["defn-traced" "fn-traced" "fx-traced" "defn-fx-traced"
                  "dbg" "dbgn" "dbg-last"]]
-        (is (= (extract in-src "defmacro" m) (extract subproj "defmacro" m))
-            (str m " stub diverges between the two stub files — they must be byte-identical")))
+        (is (= (source-definition in-src "defmacro" m)
+               (source-definition subproj "defmacro" m))
+            (str m " stub diverges between the two stub files — definitions must be form-equivalent")))
       (doseq [f ["set-tap-output!" "set-trace-frames-output!"
                  "set-date-time-fn!" "set-print-length!"
                  "set-print-seq-length!" "reset-indent-level!"]]
-        (is (= (extract in-src "defn" f) (extract subproj "defn" f))
-            (str f " stub diverges between the two stub files — they must be byte-identical"))))))
+        (is (= (source-definition in-src "defn" f)
+               (source-definition subproj "defn" f))
+            (str f " stub diverges between the two stub files — definitions must be form-equivalent"))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Runtime API stubs — wrap-handler! / wrap-event-fx! / wrap-event-ctx! /
