@@ -14,7 +14,7 @@
    This namespace makes the wrap → dispatch → unwrap cycle a
    first-class API:
 
-     (wrap-handler! :event :foo/bar (fn [db [_ x]] ...))
+     (wrap-handler! :event :foo/bar {:locals true :once true} (fn [db [_ x]] ...))
      ;; <dispatch / observe / etc.>
      (unwrap-handler! :event :foo/bar)
 
@@ -95,12 +95,84 @@
 ;; ---------------------------------------------------------------------------
 
 #?(:clj
-   (defmacro wrap-handler!
-     "Capture the current handler at [kind id] into the side-table,
-      then re-register a `fn-traced`-wrapped version of `replacement`.
+   (do
+     (defn- fn-form?
+       [form]
+       (and (seq? form)
+            (contains? '#{fn clojure.core/fn cljs.core/fn}
+                       (first form))))
 
-      `replacement` MUST be a literal `(fn [args] body...)` form so
-      fn-traced can walk its AST at expansion time.
+     (defn- traced-call
+       [trace-macro opts args+body]
+       (if (nil? opts)
+         `(~trace-macro ~@args+body)
+         `(~trace-macro ~opts ~@args+body)))
+
+     (defn- traced-fn-form
+       [context opts form]
+       (when-not (fn-form? form)
+         (throw (IllegalArgumentException.
+                 (str context " requires a literal (fn ...) form to trace, got: "
+                      (pr-str form)))))
+       (traced-call `tracing/fn-traced opts (rest form)))
+
+     (defn- traced-fx-form
+       [context opts form]
+       (when-not (fn-form? form)
+         (throw (IllegalArgumentException.
+                 (str context " requires a literal (fn ...) form to trace, got: "
+                      (pr-str form)))))
+       (traced-call `tracing/fx-traced opts (rest form)))
+
+     (defn- split-wrap-opts
+       [registration-args]
+       (if (map? (first registration-args))
+         [(first registration-args) (rest registration-args)]
+         [nil registration-args]))
+
+     (defn- sub-registration-args
+       [opts registration-args]
+       (let [computation-fn (last registration-args)]
+         (when-not (seq registration-args)
+           (throw (IllegalArgumentException.
+                   "wrap-sub! requires reg-sub args ending in a literal (fn ...) computation function")))
+         (concat (butlast registration-args)
+                 [(traced-fn-form "wrap-sub!" opts computation-fn)])))
+
+     (defn- single-handler-registration
+       [context opts registration-args register-form]
+       (if (= 1 (count registration-args))
+         (register-form (traced-fn-form context opts (first registration-args)))
+         `(throw (ex-info ~(str context " expects exactly one literal (fn ...) replacement")
+                          {}))))
+
+     (defn- single-fx-registration
+       [context opts registration-args register-form]
+       (if (= 1 (count registration-args))
+         (register-form (traced-fx-form context opts (first registration-args)))
+         `(throw (ex-info ~(str context " expects exactly one literal (fn ...) replacement")
+                          {}))))
+
+     (defmacro wrap-handler!
+     "Capture the current handler at [kind id] into the side-table,
+      then re-register a `fn-traced`-wrapped version of the replacement
+      handler.
+
+      For `:event` and `:fx`, pass exactly one literal
+      `(fn [args] body...)` replacement form.
+      Optionally pass a literal opts map before the replacement fn; it
+      is forwarded to `fn-traced`.
+
+      For `:sub`, pass the full `reg-sub` argument tail:
+
+        (wrap-handler! :sub id (fn [db q] ...))
+        (wrap-handler! :sub id {:locals true} (fn [db q] ...))
+        (wrap-handler! :sub id signal-fn (fn [inputs q] ...))
+        (wrap-handler! :sub id :<- [:other] (fn [input q] ...))
+
+      The final subscription computation function MUST be a literal
+      `(fn ...)` form so fn-traced can walk its AST at expansion time;
+      signal fns and :<- sugar are preserved untraced.
 
       Returns `[kind id]` on success — thread-friendly for let-bindings.
       Refuses to wrap and returns a failure map in two cases:
@@ -128,29 +200,43 @@
 
       Use wrap-event-fx! / wrap-event-ctx! for events that need
       the matching reg-event-fx / reg-event-ctx interceptor chain."
-     [kind id replacement]
-     (let [args+body (rest replacement)]
-       `(let [k#    ~kind
-              id#   ~id
-              orig# (registrar/get-handler k# id#)]
+     [kind id & registration-args]
+     (let [[opts registration-args] (split-wrap-opts registration-args)
+           k-sym     (gensym "k__")
+           id-sym    (gensym "id__")
+           orig-sym  (gensym "orig__")
+           sub-args   (sub-registration-args opts registration-args)
+           event-form (single-handler-registration
+                        "wrap-handler! :event"
+                        opts
+                        registration-args
+                        (fn [traced]
+                          `(rf/reg-event-db ~id-sym ~traced)))
+           fx-form    (single-handler-registration
+                        "wrap-handler! :fx"
+                        opts
+                        registration-args
+                        (fn [traced]
+                          `(rf/reg-fx ~id-sym ~traced)))]
+       `(let [~k-sym    ~kind
+              ~id-sym   ~id
+              ~orig-sym (registrar/get-handler ~k-sym ~id-sym)]
           (cond
-            (contains? @wrapped-originals [k# id#])
-            {:ok? false :reason :already-wrapped :kind k# :id id#}
+            (contains? @wrapped-originals [~k-sym ~id-sym])
+            {:ok? false :reason :already-wrapped :kind ~k-sym :id ~id-sym}
 
-            (nil? orig#)
-            {:ok? false :reason :no-handler :kind k# :id id#}
+            (nil? ~orig-sym)
+            {:ok? false :reason :no-handler :kind ~k-sym :id ~id-sym}
 
             :else
             (do
-              (swap! wrapped-originals assoc [k# id#] orig#)
-              (case k#
-                :event (rf/reg-event-db id#
-                                        (tracing/fn-traced ~@args+body))
-                :sub   (rf/reg-sub id#
-                                   (tracing/fn-traced ~@args+body))
-                :fx    (rf/reg-fx id#
-                                  (tracing/fn-traced ~@args+body)))
-              [k# id#]))))))
+              (swap! wrapped-originals assoc [~k-sym ~id-sym] ~orig-sym)
+              (case ~k-sym
+                :event ~event-form
+                :sub   (rf/reg-sub ~id-sym ~@sub-args)
+                :fx    ~fx-form)
+              [~k-sym ~id-sym])))))
+     ))
 
 #?(:clj
    (defmacro wrap-event-fx!
@@ -169,24 +255,32 @@
       Returns `[:event id]` on success; refuses with the same
       `{:ok? false :reason :already-wrapped|:no-handler …}` shape
       as wrap-handler! when [:event id] is already wrapped or has
-      no registered handler."
-     [id replacement]
-     (let [args+body (rest replacement)]
-       `(let [id#   ~id
-              orig# (registrar/get-handler :event id#)]
+      no registered handler. Optionally pass a literal opts map before
+      the replacement fn; it is forwarded to `fx-traced`."
+     [id & registration-args]
+     (let [[opts registration-args] (split-wrap-opts registration-args)
+           id-sym    (gensym "id__")
+           orig-sym  (gensym "orig__")
+           event-form (single-fx-registration
+                        "wrap-event-fx!"
+                        opts
+                        registration-args
+                        (fn [traced]
+                          `(rf/reg-event-fx ~id-sym ~traced)))]
+       `(let [~id-sym   ~id
+              ~orig-sym (registrar/get-handler :event ~id-sym)]
           (cond
-            (contains? @wrapped-originals [:event id#])
-            {:ok? false :reason :already-wrapped :kind :event :id id#}
+            (contains? @wrapped-originals [:event ~id-sym])
+            {:ok? false :reason :already-wrapped :kind :event :id ~id-sym}
 
-            (nil? orig#)
-            {:ok? false :reason :no-handler :kind :event :id id#}
+            (nil? ~orig-sym)
+            {:ok? false :reason :no-handler :kind :event :id ~id-sym}
 
             :else
             (do
-              (swap! wrapped-originals assoc [:event id#] orig#)
-              (rf/reg-event-fx id#
-                               (tracing/fx-traced ~@args+body))
-              [:event id#]))))))
+              (swap! wrapped-originals assoc [:event ~id-sym] ~orig-sym)
+              ~event-form
+              [:event ~id-sym]))))))
 
 #?(:clj
    (defmacro wrap-event-ctx!
@@ -202,32 +296,44 @@
       Returns `[:event id]` on success; refuses with the same
       `{:ok? false :reason :already-wrapped|:no-handler …}` shape
       as wrap-handler! when [:event id] is already wrapped or has
-      no registered handler."
-     [id replacement]
-     (let [args+body (rest replacement)]
-       `(let [id#   ~id
-              orig# (registrar/get-handler :event id#)]
+      no registered handler. Optionally pass a literal opts map before
+      the replacement fn; it is forwarded to `fx-traced` alongside
+      `:ctx-mode true`."
+     [id & registration-args]
+     (let [[opts registration-args] (split-wrap-opts registration-args)
+           id-sym    (gensym "id__")
+           orig-sym  (gensym "orig__")
+           ctx-opts  (assoc (or opts {}) :ctx-mode true)
+           event-form (single-fx-registration
+                        "wrap-event-ctx!"
+                        ctx-opts
+                        registration-args
+                        (fn [traced]
+                          `(rf/reg-event-ctx ~id-sym ~traced)))]
+       `(let [~id-sym   ~id
+              ~orig-sym (registrar/get-handler :event ~id-sym)]
           (cond
-            (contains? @wrapped-originals [:event id#])
-            {:ok? false :reason :already-wrapped :kind :event :id id#}
+            (contains? @wrapped-originals [:event ~id-sym])
+            {:ok? false :reason :already-wrapped :kind :event :id ~id-sym}
 
-            (nil? orig#)
-            {:ok? false :reason :no-handler :kind :event :id id#}
+            (nil? ~orig-sym)
+            {:ok? false :reason :no-handler :kind :event :id ~id-sym}
 
             :else
             (do
-              (swap! wrapped-originals assoc [:event id#] orig#)
-              (rf/reg-event-ctx id#
-                                (tracing/fx-traced
-                                  {:ctx-mode true}
-                                  ~@args+body))
-              [:event id#]))))))
+              (swap! wrapped-originals assoc [:event ~id-sym] ~orig-sym)
+              ~event-form
+              [:event ~id-sym]))))))
 
 #?(:clj
    (defmacro wrap-sub!
-     "Convenience: (wrap-handler! :sub id replacement)."
-     [id replacement]
-     `(wrap-handler! :sub ~id ~replacement)))
+     "Convenience: (wrap-handler! :sub id & reg-sub-args).
+
+      Accepts layer-2, explicit signal-fn, and :<- sugar subscription
+      registration shapes. Only the final computation fn is wrapped
+      with fn-traced; input-signal wiring is preserved."
+     [id & registration-args]
+     `(wrap-handler! :sub ~id ~@registration-args)))
 
 #?(:clj
    (defmacro wrap-fx!
@@ -242,8 +348,8 @@
       Per docs/improvement-plan.md §5, wrap-fx! is the path to
       surfacing fx-map traces (the dbgn.clj:341 'trace inside maps'
       TODO) without modifying the zipper walker."
-     [id replacement]
-     `(wrap-handler! :fx ~id ~replacement)))
+     [id & registration-args]
+     `(wrap-handler! :fx ~id ~@registration-args)))
 
 ;; ---------------------------------------------------------------------------
 ;; Inspect — for tools that want to know what's wrapped

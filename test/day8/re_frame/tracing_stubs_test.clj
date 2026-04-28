@@ -191,17 +191,35 @@
             [["wrap-handler! :event"
               '(day8.re-frame.tracing-stubs.runtime/wrap-handler! :event :foo (fn [db ev] db))
               "reg-event-db"]
+             ["wrap-handler! :event opts"
+              '(day8.re-frame.tracing-stubs.runtime/wrap-handler! :event :foo {:locals true} (fn [db ev] db))
+              "reg-event-db"]
              ["wrap-event-fx!"
               '(day8.re-frame.tracing-stubs.runtime/wrap-event-fx! :foo (fn [_ _] {}))
+              "reg-event-fx"]
+             ["wrap-event-fx! opts"
+              '(day8.re-frame.tracing-stubs.runtime/wrap-event-fx! :foo {:msg "stub"} (fn [_ _] {}))
               "reg-event-fx"]
              ["wrap-event-ctx!"
               '(day8.re-frame.tracing-stubs.runtime/wrap-event-ctx! :foo (fn [ctx] ctx))
               "reg-event-ctx"]
+             ["wrap-event-ctx! opts"
+              '(day8.re-frame.tracing-stubs.runtime/wrap-event-ctx! :foo {:once true} (fn [ctx] ctx))
+              "reg-event-ctx"]
              ["wrap-sub!"
               '(day8.re-frame.tracing-stubs.runtime/wrap-sub! :foo (fn [_ q] q))
               "reg-sub"]
+             ["wrap-sub! opts"
+              '(day8.re-frame.tracing-stubs.runtime/wrap-sub! :foo {:verbose true} (fn [_ q] q))
+              "reg-sub"]
+             ["wrap-sub! :<-"
+              '(day8.re-frame.tracing-stubs.runtime/wrap-sub! :foo :<- [:bar] (fn [bar _] bar))
+              "reg-sub"]
              ["wrap-fx!"
               '(day8.re-frame.tracing-stubs.runtime/wrap-fx! :foo (fn [v] v))
+              "reg-fx"]
+             ["wrap-fx! opts"
+              '(day8.re-frame.tracing-stubs.runtime/wrap-fx! :foo {:if some?} (fn [v] v))
               "reg-fx"]]]
       (testing label
         (let [r-str (pr-str (macroexpand form))]

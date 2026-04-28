@@ -13,6 +13,10 @@
 
 (def captured-traces (atom []))
 
+(defn- code-entries
+  []
+  (filterv #(contains? % :form) @captured-traces))
+
 (use-fixtures :each
   (fn [f]
     ;; fn-traced gates on (is-trace-enabled?) at runtime; force it
@@ -26,6 +30,7 @@
                                           (update t :form ut/tidy-macroexpanded-form {})))]
       (reset! captured-traces [])
       (reset! runtime/wrapped-originals {})
+      (ut/-reset-once-state!)
       (f)
       ;; Belt-and-suspenders cleanup: any wrap that escaped a test
       ;; gets undone here so the next test starts clean.
@@ -119,6 +124,39 @@
           "captured trace forms include sub-forms of the wrapped body")
       (is (some #(re-find #"let" (pr-str (:form %))) @captured-traces)
           "captured trace forms include the let binding"))))
+
+(deftest wrap-fx-threads-fn-traced-options
+  (testing "wrap-fx! accepts a fn-traced opts map and forwards every option"
+    (registrar/register-handler :fx :test/options (fn [_v] :original))
+    (wrap-fx! :test/options
+              {:locals true
+               :if      number?
+               :once    true
+               :verbose true
+               :msg     "runtime-fx"}
+              (fn [v]
+                (let [n (inc v)]
+                  (+ n 10))))
+    (let [wrapped-fx (registrar/get-handler :fx :test/options)]
+      (is (= 15 (wrapped-fx 4)))
+      (let [first-code (code-entries)]
+        (is (seq first-code)
+            "first call emits code traces")
+        (is (every? #(= "runtime-fx" (:msg %)) first-code)
+            ":msg labels every emitted code entry")
+        (is (every? #(number? (:result %)) first-code)
+            ":if number? filters out non-numeric entries")
+        (is (some #(some (fn [[sym value]]
+                           (and (= 'v sym) (= 4 value)))
+                         (:locals %))
+                  first-code)
+            ":locals captures the wrapped fx argument")
+        (is (some #(= 10 (:form %)) first-code)
+            ":verbose traces leaf literals that default mode skips"))
+      (reset! captured-traces [])
+      (is (= 15 (wrapped-fx 4)))
+      (is (empty? (code-entries))
+          ":once suppresses the second call with identical form/results"))))
 
 (deftest unwrap-stops-trace-emission
   (testing "after unwrap, calling the original handler fires NO traces"
@@ -297,11 +335,77 @@
             the subscription cache and reagent-id machinery — same
             pattern as wrap-fx-emits-code-traces-when-called above."
     (re-frame.core/reg-sub :test/calc (fn [db _] (:n db)))
-    (wrap-sub! :test/calc (fn [_db _v] (let [n (inc 41)] {:n n})))
+    (wrap-sub! :test/calc {:msg "runtime-sub"} (fn [_db _v] (let [n (inc 41)] {:n n})))
     (let [subs-handler-fn (registrar/get-handler :sub :test/calc)
           reaction        (subs-handler-fn re-frame.db/app-db [:test/calc])]
       @reaction
       (is (seq @captured-traces)
           "deref of the wrapped sub's reaction fired send-trace! at least once")
+      (is (every? #(= "runtime-sub" (:msg %)) (code-entries))
+          ":msg option flowed through wrap-sub!")
       (is (some #(re-find #"inc" (pr-str (:form %))) @captured-traces)
           "captured trace forms include the (inc 41) sub-form"))))
+
+(deftest wrap-sub-preserves-explicit-signal-fn
+  (testing "wrap-sub! accepts the layer-3 reg-sub shape:
+            id, signal-fn, computation-fn. The signal-fn wiring is
+            preserved and only the computation fn is fn-traced."
+    (reset! re-frame.db/app-db {:items [1 2 3]})
+    (re-frame.core/reg-sub :test/layer3-total
+                           (fn [_query _dyn]
+                             re-frame.db/app-db)
+                           (fn [db _query]
+                             (count (:items db))))
+    (wrap-sub! :test/layer3-total
+               (fn [_query _dyn]
+                 re-frame.db/app-db)
+               (fn [db _query]
+                 (let [total (count (:items db))]
+                   total)))
+    (let [subs-handler-fn (registrar/get-handler :sub :test/layer3-total)
+          reaction        (subs-handler-fn re-frame.db/app-db [:test/layer3-total])]
+      (is (= 3 @reaction)
+          "the wrapped layer-3 sub still computes from the signal-fn input")
+      (is (some #(re-find #"count" (pr-str (:form %))) @captured-traces)
+          "the traced payload comes from the computation fn body"))))
+
+(deftest wrap-sub-preserves-arrow-input-sugar
+  (testing "wrap-sub! accepts reg-sub's :<- sugar and traces the final
+            computation fn without losing the input subscription."
+    (reset! re-frame.db/app-db {:items [1 2 3 4]})
+    (re-frame.core/reg-sub :test/items-for-arrow
+                           (fn [db _query]
+                             (:items db)))
+    (re-frame.core/reg-sub :test/arrow-total
+                           :<- [:test/items-for-arrow]
+                           (fn [items _query]
+                             (count items)))
+    (wrap-sub! :test/arrow-total
+               :<- [:test/items-for-arrow]
+               (fn [items _query]
+                 (let [total (count items)]
+                   total)))
+    (let [subs-handler-fn (registrar/get-handler :sub :test/arrow-total)
+          reaction        (subs-handler-fn re-frame.db/app-db [:test/arrow-total])]
+      (is (= 4 @reaction)
+          "the wrapped :<- sub still receives its input subscription value")
+      (is (some #(re-find #"count" (pr-str (:form %))) @captured-traces)
+          "the traced payload comes from the computation fn body"))))
+
+(deftest wrap-sub-preserves-three-arity-computation-fn
+  (testing "wrap-sub! keeps the reg-sub computation fn's dynamic-vector
+            arity when the registered handler is invoked with dyn-vec."
+    (reset! re-frame.db/app-db {:n 7})
+    (re-frame.core/reg-sub :test/dyn-total
+                           (fn [db _query dyn-vec]
+                             (+ (:n db) (first dyn-vec))))
+    (wrap-sub! :test/dyn-total
+               (fn [db _query dyn-vec]
+                 (let [total (+ (:n db) (first dyn-vec))]
+                   total)))
+    (let [subs-handler-fn (registrar/get-handler :sub :test/dyn-total)
+          reaction        (subs-handler-fn re-frame.db/app-db [:test/dyn-total] [35])]
+      (is (= 42 @reaction)
+          "the wrapped sub computes with the dyn-vec arity")
+      (is (some #(re-find #"\+ \(:n db\)" (pr-str (:form %))) @captured-traces)
+          "the traced payload includes the 3-arity computation body"))))

@@ -20,51 +20,103 @@
 (defonce wrapped-originals (atom {}))
 
 #?(:clj
-   (defmacro wrap-handler!
+   (do
+     (defn- fn-form?
+       [form]
+       (and (seq? form)
+            (contains? '#{fn clojure.core/fn cljs.core/fn}
+                       (first form))))
+
+     (defn- bare-fn-form
+       [context form]
+       (when-not (fn-form? form)
+         (throw (IllegalArgumentException.
+                 (str context " requires a literal (fn ...) form, got: "
+                      (pr-str form)))))
+       `(fn ~@(rest form)))
+
+     (defn- single-handler-registration
+       [context registration-args register-form]
+       (if (= 1 (count registration-args))
+         (register-form (bare-fn-form context (first registration-args)))
+         `(throw (ex-info ~(str context " expects exactly one literal (fn ...) replacement")
+                          {}))))
+
+     (defn- split-wrap-opts
+       [registration-args]
+       (if (map? (first registration-args))
+         [(first registration-args) (rest registration-args)]
+         [nil registration-args]))
+
+     (defmacro wrap-handler!
      "Production stub. Routes to bare `reg-event-db` / `reg-sub` /
       `reg-fx` by kind — no `fn-traced` wrap, no side-table
-      mutation. Returns [kind id]."
-     [kind id replacement]
-     (let [args+body (rest replacement)]
-       `(let [k#  ~kind
-              id# ~id]
-          (case k#
-            :event (re-frame.core/reg-event-db id# (fn ~@args+body))
-            :sub   (re-frame.core/reg-sub      id# (fn ~@args+body))
-            :fx    (re-frame.core/reg-fx       id# (fn ~@args+body)))
-          [k# id#]))))
+      mutation. Accepts, but ignores, a leading opts map. Returns [kind id]."
+     [kind id & registration-args]
+     (let [[_opts registration-args] (split-wrap-opts registration-args)
+           k-sym     (gensym "k__")
+           id-sym    (gensym "id__")
+           event-form (single-handler-registration
+                        "wrap-handler! :event"
+                        registration-args
+                        (fn [bare-fn]
+                          `(re-frame.core/reg-event-db ~id-sym ~bare-fn)))
+           fx-form    (single-handler-registration
+                        "wrap-handler! :fx"
+                        registration-args
+                        (fn [bare-fn]
+                          `(re-frame.core/reg-fx ~id-sym ~bare-fn)))]
+       `(let [~k-sym  ~kind
+              ~id-sym ~id]
+          (case ~k-sym
+            :event ~event-form
+            :sub   (re-frame.core/reg-sub ~id-sym ~@registration-args)
+            :fx    ~fx-form)
+          [~k-sym ~id-sym])))))
 
 #?(:clj
    (defmacro wrap-event-fx!
      "Production stub. Routes to bare `reg-event-fx` — no `fn-traced`
-      wrap. Returns [:event id]."
-     [id replacement]
-     (let [args+body (rest replacement)]
-       `(let [id# ~id]
-          (re-frame.core/reg-event-fx id# (fn ~@args+body))
-          [:event id#]))))
+      wrap. Accepts, but ignores, a leading opts map. Returns [:event id]."
+     [id & registration-args]
+     (let [[_opts registration-args] (split-wrap-opts registration-args)
+           id-sym    (gensym "id__")
+           event-form (single-handler-registration
+                        "wrap-event-fx!"
+                        registration-args
+                        (fn [bare-fn]
+                          `(re-frame.core/reg-event-fx ~id-sym ~bare-fn)))]
+       `(let [~id-sym ~id]
+          ~event-form
+          [:event ~id-sym]))))
 
 #?(:clj
    (defmacro wrap-event-ctx!
      "Production stub. Routes to bare `reg-event-ctx` — no `fn-traced`
-      wrap. Returns [:event id]."
-     [id replacement]
-     (let [args+body (rest replacement)]
-       `(let [id# ~id]
-          (re-frame.core/reg-event-ctx id# (fn ~@args+body))
-          [:event id#]))))
+      wrap. Accepts, but ignores, a leading opts map. Returns [:event id]."
+     [id & registration-args]
+     (let [[_opts registration-args] (split-wrap-opts registration-args)
+           id-sym    (gensym "id__")
+           event-form (single-handler-registration
+                        "wrap-event-ctx!"
+                        registration-args
+                        (fn [bare-fn]
+                          `(re-frame.core/reg-event-ctx ~id-sym ~bare-fn)))]
+       `(let [~id-sym ~id]
+          ~event-form
+          [:event ~id-sym]))))
 
 #?(:clj
    (defmacro wrap-sub!
-     "Production stub. Convenience: (wrap-handler! :sub id replacement)."
-     [id replacement]
-     `(wrap-handler! :sub ~id ~replacement)))
+     "Production stub. Convenience: (wrap-handler! :sub id & reg-sub-args)."
+     [id & registration-args]
+     `(wrap-handler! :sub ~id ~@registration-args)))
 
 #?(:clj
    (defmacro wrap-fx!
      "Production stub. Convenience: (wrap-handler! :fx id replacement)."
-     [id replacement]
-     `(wrap-handler! :fx ~id ~replacement)))
+     [id & registration-args]
+     `(wrap-handler! :fx ~id ~@registration-args)))
 
 (defn unwrap-handler!
   "Production stub. No-op — always returns false (the stub side-table

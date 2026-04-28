@@ -431,6 +431,61 @@
           "captured trace forms include the wrapped body's str call")
       (runtime/unwrap-fx! ::log))))
 
+(deftest runtime-wrap-options-thread-through-dispatch
+  (testing "wrap-handler! forwards fn-traced options through a real dispatch"
+    (reset! re-frame.db/app-db {})
+    (re-frame.core/reg-event-db ::runtime-db-options (fn [db _] db))
+    (runtime/wrap-handler! :event
+                           ::runtime-db-options
+                           {:locals true :msg "runtime-db"}
+                           (fn [db [_ x]]
+                             (assoc db :n (inc x))))
+    (re-frame.core/dispatch-sync [::runtime-db-options 7])
+    (let [code (code-entries (captured-traces))]
+      (is (= 8 (:n @re-frame.db/app-db))
+          "wrapped reg-event-db handler still updates app-db")
+      (is (seq code)
+          "dispatch emitted code traces")
+      (is (every? #(= "runtime-db" (:msg %)) code)
+          ":msg flowed through wrap-handler!")
+      (is (some #(some (fn [[sym value]]
+                         (and (= 'x sym) (= 7 value)))
+                       (:locals %))
+                code)
+          ":locals captured the event arg destructured by the wrapped handler")))
+  (testing "wrap-event-fx! forwards fx-traced options"
+    (reset! rft/traces [])
+    (reset! re-frame.db/app-db {})
+    (re-frame.core/reg-event-fx ::runtime-event-fx-options (fn [_ _] {}))
+    (runtime/wrap-event-fx! ::runtime-event-fx-options
+                            {:msg "runtime-event-fx"}
+                            (fn [_ [_ x]]
+                              {:db {:n (inc x)}}))
+    (re-frame.core/dispatch-sync [::runtime-event-fx-options 10])
+    (let [code (code-entries (captured-traces))]
+      (is (= 11 (:n @re-frame.db/app-db))
+          "wrapped reg-event-fx handler still returns effects")
+      (is (seq code)
+          "dispatch emitted code traces")
+      (is (every? #(= "runtime-event-fx" (:msg %)) code)
+          ":msg flowed through wrap-event-fx!")))
+  (testing "wrap-event-ctx! forwards fx-traced options and preserves ctx-mode"
+    (reset! rft/traces [])
+    (reset! re-frame.db/app-db {})
+    (re-frame.core/reg-event-ctx ::runtime-event-ctx-options (fn [ctx] ctx))
+    (runtime/wrap-event-ctx! ::runtime-event-ctx-options
+                             {:msg "runtime-event-ctx"}
+                             (fn [ctx]
+                               (assoc-in ctx [:effects :db] {:from-ctx true})))
+    (re-frame.core/dispatch-sync [::runtime-event-ctx-options])
+    (let [code (code-entries (captured-traces))]
+      (is (true? (:from-ctx @re-frame.db/app-db))
+          "wrapped reg-event-ctx handler still returns a context with db effects")
+      (is (seq code)
+          "dispatch emitted code traces")
+      (is (every? #(= "runtime-event-ctx" (:msg %)) code)
+          ":msg flowed through wrap-event-ctx!"))))
+
 ;; ---------------------------------------------------------------------------
 ;; :locals and :if options for fn-traced
 ;; ---------------------------------------------------------------------------
