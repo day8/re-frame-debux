@@ -180,9 +180,9 @@
 ;;;   same handler. Used for tie-breaking when `:indent-level` matches.
 ;;;
 ;;; - **`:num-seen`** counts how many times this exact form has been
-;;;   emitted previously in the SAME trace event. Always 0 today; the
-;;;   field is reserved for a future `:once` / dedup option (debux has
-;;;   it; we don't yet — see docs/improvement-plan.md §4).
+;;;   emitted previously in the SAME trace event. Always 0 today;
+;;;   cross-event `:once` duplicate suppression is tracked separately
+;;;   in a process-local side table keyed by trace id and syntax order.
 ;;;
 ;;; Example payload shape after one traced dispatch through a handler
 ;;; defined as `(fn-traced [db [_ x]] (let [n (* 2 x)] (assoc db :n n)))`:
@@ -560,11 +560,10 @@
 ;;;
 ;;; When `:once` is set on `fn-traced` / `defn-traced` / `dbg` / `dbgn`,
 ;;; emission is gated on whether the (form, result) pair has been seen
-;;; before. The atom below holds the per-form last-result so that
-;;; consecutive identical emissions get suppressed across handler
-;;; invocations — i.e. dispatching the same event twice with unchanged
-;;; inputs produces a `:code` payload on the FIRST dispatch and an
-;;; empty (or smaller) one on the SECOND.
+;;; before. The atom below holds a per-form hash of the last result, not
+;;; the live result value, so consecutive identical emissions get
+;;; suppressed across handler invocations without retaining large user
+;;; values such as app-db maps.
 ;;;
 ;;; Form identity is `[trace-id syntax-order]`:
 ;;;
@@ -580,10 +579,45 @@
 ;;; Lifecycle: process-local atom; resets only on explicit
 ;;; `-reset-once-state!`. Hot-reload of a macro-call site produces a
 ;;; fresh `trace-id` (the gensym is re-generated), so old keys for
-;;; that site become orphaned but harmless. Tests reset the atom in
-;;; the trace-capture fixture so dedup state doesn't leak across
-;;; deftests.
-(defonce ^:private once-state (atom {}))
+;;; that site become orphaned. To keep long-running sessions bounded,
+;;; the state prunes the oldest half of entries when it grows past
+;;; `once-state-limit`. Tests reset the atom in the trace-capture
+;;; fixture so dedup state doesn't leak across deftests.
+(def ^:private once-state-limit 10000)
+(def ^:private once-state-prune-to (quot once-state-limit 2))
+
+(defonce ^:private once-state (atom {:next-order 0
+                                     :entries    {}}))
+
+(defn- result-fingerprint [result]
+  (hash result))
+
+(defn- normalize-once-state
+  "Accept the current state shape and the pre-fingerprint map shape
+   that may survive across a REPL hot-reload because `once-state` is a
+   defonce. The migration hashes old retained values once, then drops
+   those references when the caller CASes the normalized state back in."
+  [state]
+  (if (and (map? state) (contains? state :entries))
+    state
+    (let [entries (into {}
+                        (map-indexed
+                          (fn [idx [k result]]
+                            [k {:fingerprint (result-fingerprint result)
+                                :seen-order  (inc idx)}])
+                          state))]
+      {:next-order (count entries)
+       :entries    entries})))
+
+(defn- prune-once-entries [entries]
+  (if (<= (count entries) once-state-limit)
+    entries
+    (let [keep-keys (->> entries
+                         (sort-by (comp :seen-order val) >)
+                         (take once-state-prune-to)
+                         (map key)
+                         set)]
+      (select-keys entries keep-keys))))
 
 (defn -reset-once-state!
   "Drop all `:once` dedup state. Used by the integration-test fixture
@@ -592,7 +626,23 @@
    running a long live-debug session can clear the slate without
    waiting for a hot-reload to invalidate keys."
   []
-  (reset! once-state {}))
+  (reset! once-state {:next-order 0
+                      :entries    {}}))
+
+(defn- next-once-state [state k fingerprint]
+  (let [{:keys [entries next-order]} (normalize-once-state state)
+        prev                        (get entries k ::unseen)]
+    (if (and (not= prev ::unseen)
+             (= (:fingerprint prev) fingerprint))
+      [state false]
+      (let [order    (inc next-order)
+            entries' (-> entries
+                         (assoc k {:fingerprint fingerprint
+                                   :seen-order  order})
+                         prune-once-entries)]
+        [{:next-order order
+          :entries    entries'}
+         true]))))
 
 (defn -once-emit?
   "Returns true if a `:once`-gated form should emit its trace right
@@ -600,19 +650,24 @@
    emission and should be suppressed.
 
    Side effect: when emit-allowed (returns true), the new result is
-   recorded as the latest for `[trace-id syntax-order]`, so the next
-   call with the same result returns false.
+   hashed and recorded as the latest fingerprint for
+   `[trace-id syntax-order]`, so the next call with the same result
+   returns false without retaining the live result value.
 
    `nil` and `false` are distinguishable from `::unseen` (the sentinel
    for 'never emitted'), so a form that legitimately produces a stable
    `nil` result emits ONCE (on first sighting) and then dedupes."
   [trace-id syntax-order new-result]
-  (let [k    [trace-id syntax-order]
-        prev (get @once-state k ::unseen)]
-    (if (and (not= prev ::unseen) (= prev new-result))
-      false
-      (do (swap! once-state assoc k new-result)
-          true))))
+  (let [k           [trace-id syntax-order]
+        fingerprint (result-fingerprint new-result)]
+    (loop []
+      (let [state               @once-state
+            [state' emit?]      (next-once-state state k fingerprint)]
+        (if (identical? state state')
+          emit?
+          (if (compare-and-set! once-state state state')
+            emit?
+            (recur)))))))
 
 ;;; For internal debugging
 (defmacro d

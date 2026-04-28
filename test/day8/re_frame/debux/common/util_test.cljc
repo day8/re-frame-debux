@@ -153,3 +153,34 @@
     (is (= {:if even? :final true :msg "x" :n 7}
            (ut/parse-opts [:if even? :final :msg "x" 7]))
         ":if (value-arg) followed by :final (flag) followed by :msg (value-arg) followed by a number (flag) — every advance shape exercised in one parse")))
+
+(defn- once-state-entries []
+  (:entries (deref @#'ut/once-state)))
+
+(deftest once-emit-stores-fingerprints-not-results
+  (testing ":once dedupes a large result without retaining the live value"
+    (ut/-reset-once-state!)
+    (let [large-result (vec (repeat 10000 {:payload :x}))]
+      (is (true? (ut/-once-emit? "large-trace" 0 large-result)))
+      (is (false? (ut/-once-emit? "large-trace" 0 (vec (repeat 10000 {:payload :x}))))
+          "same value still dedupes when compared by fingerprint")
+      (let [entry (get (once-state-entries) ["large-trace" 0])]
+        (is (= (hash large-result) (:fingerprint entry)))
+        (is (integer? (:seen-order entry)))
+        (is (not (contains? entry :result))
+            "state stores the fingerprint metadata, not the user result")
+        (is (not= large-result entry)
+            "the large value is not retained as the state value")))))
+
+(deftest once-emit-prunes-old-entries
+  (testing ":once state stays bounded as hot-reload-like trace ids accumulate"
+    (ut/-reset-once-state!)
+    (let [limit @#'ut/once-state-limit]
+      (dotimes [i (inc limit)]
+        (ut/-once-emit? (str "trace-" i) 0 i))
+      (let [entries (once-state-entries)]
+        (is (<= (count entries) limit))
+        (is (contains? entries [(str "trace-" limit) 0])
+            "the newest entry survives pruning")
+        (is (not (contains? entries ["trace-0" 0]))
+            "old orphaned entries are pruned")))))
