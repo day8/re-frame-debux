@@ -26,7 +26,13 @@
 
 ;; defn-traced and fn-traced macros
 
-(defn fn-body [args+body]
+(defn legacy-fn-body
+  "Build the body for the legacy day8.re-frame.debux.core
+   fn-traced/defn-traced macros. This predates the richer
+   day8.re-frame.tracing/fn-body helper, so it only wraps each body
+   form in dbgn and does not handle opts, frame markers, locals, or
+   fx-effect tracing."
+  [args+body]
   (if (= :body (nth (:body args+body) 0))
     `(~(or (:args (:args args+body)) [])
        ~@(map (fn [body] `(dbgn ~body)) (nth (:body args+body) 1)))
@@ -61,12 +67,12 @@
       `(defn ~name
          ~@(when docstring [docstring])
          ~@(when meta-map [meta-map])
-         ~@(fn-body args+body))
+         ~@(legacy-fn-body args+body))
       (let [trailing-attr (:attr args+body)]
         `(defn ~name
            ~@(when docstring [docstring])
            ~@(when meta-map [meta-map])
-           ~@(map fn-body (:bodies args+body))
+           ~@(map legacy-fn-body (:bodies args+body))
            ~@(when trailing-attr [trailing-attr]))))))
 
 (defmacro defn-traced
@@ -97,11 +103,11 @@
     (if arity-1?
       ;; If name is nil, then the empty vector is removed by the unquote
       `(fn ~@(when name [name])
-         ~@(fn-body args+body))
+         ~@(legacy-fn-body args+body))
       ;; arity-n
       (let [bodies (:bodies args+body)]
         `(fn ~@(when name [name])
-           ~@(map fn-body bodies))))))
+           ~@(map legacy-fn-body bodies))))))
 
 (defmacro fn-traced
   "Defines a traced fn"
