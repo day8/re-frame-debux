@@ -45,9 +45,9 @@
      cljs hot-reload of this ns) drops it; that's the same as
      re-frame's own registrar and is generally what callers want."
   #?(:cljs (:require-macros [day8.re-frame.tracing.runtime]))
-  (:require [re-frame.core]
-            [re-frame.registrar]
-            #?(:clj [day8.re-frame.tracing])))
+  (:require [re-frame.core :as rf]
+            [re-frame.registrar :as registrar]
+            #?(:clj [day8.re-frame.tracing :as tracing])))
 
 ;; ---------------------------------------------------------------------------
 ;; Side-table — [kind id] → original handler value
@@ -75,7 +75,7 @@
   [kind id]
   (if-let [orig (get @wrapped-originals [kind id])]
     (do
-      (re-frame.registrar/register-handler kind id orig)
+      (registrar/register-handler kind id orig)
       (swap! wrapped-originals dissoc [kind id])
       true)
     false))
@@ -132,7 +132,7 @@
      (let [args+body (rest replacement)]
        `(let [k#    ~kind
               id#   ~id
-              orig# (re-frame.registrar/get-handler k# id#)]
+              orig# (registrar/get-handler k# id#)]
           (cond
             (contains? @wrapped-originals [k# id#])
             {:ok? false :reason :already-wrapped :kind k# :id id#}
@@ -144,12 +144,12 @@
             (do
               (swap! wrapped-originals assoc [k# id#] orig#)
               (case k#
-                :event (re-frame.core/reg-event-db id#
-                                                   (day8.re-frame.tracing/fn-traced ~@args+body))
-                :sub   (re-frame.core/reg-sub id#
-                                              (day8.re-frame.tracing/fn-traced ~@args+body))
-                :fx    (re-frame.core/reg-fx id#
-                                             (day8.re-frame.tracing/fn-traced ~@args+body)))
+                :event (rf/reg-event-db id#
+                                        (tracing/fn-traced ~@args+body))
+                :sub   (rf/reg-sub id#
+                                   (tracing/fn-traced ~@args+body))
+                :fx    (rf/reg-fx id#
+                                  (tracing/fn-traced ~@args+body)))
               [k# id#]))))))
 
 #?(:clj
@@ -173,7 +173,7 @@
      [id replacement]
      (let [args+body (rest replacement)]
        `(let [id#   ~id
-              orig# (re-frame.registrar/get-handler :event id#)]
+              orig# (registrar/get-handler :event id#)]
           (cond
             (contains? @wrapped-originals [:event id#])
             {:ok? false :reason :already-wrapped :kind :event :id id#}
@@ -184,8 +184,8 @@
             :else
             (do
               (swap! wrapped-originals assoc [:event id#] orig#)
-              (re-frame.core/reg-event-fx id#
-                                          (day8.re-frame.tracing/fx-traced ~@args+body))
+              (rf/reg-event-fx id#
+                               (tracing/fx-traced ~@args+body))
               [:event id#]))))))
 
 #?(:clj
@@ -206,7 +206,7 @@
      [id replacement]
      (let [args+body (rest replacement)]
        `(let [id#   ~id
-              orig# (re-frame.registrar/get-handler :event id#)]
+              orig# (registrar/get-handler :event id#)]
           (cond
             (contains? @wrapped-originals [:event id#])
             {:ok? false :reason :already-wrapped :kind :event :id id#}
@@ -217,10 +217,10 @@
             :else
             (do
               (swap! wrapped-originals assoc [:event id#] orig#)
-              (re-frame.core/reg-event-ctx id#
-                                           (day8.re-frame.tracing/fx-traced
-                                             {:ctx-mode true}
-                                             ~@args+body))
+              (rf/reg-event-ctx id#
+                                (tracing/fx-traced
+                                  {:ctx-mode true}
+                                  ~@args+body))
               [:event id#]))))))
 
 #?(:clj
