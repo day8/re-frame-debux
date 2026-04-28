@@ -71,8 +71,6 @@
 (defn insert-skip
   "Marks the form to skip."
   [form env]
-  ; (println "INSERT-SKIP" form env)
-  ; (println "SEQ ZIP" (z/node (ut/sequential-zip form)))
   (loop [loc (ut/sequential-zip form)]
     (let [node (z/node loc)]
       ; (ut/d node)
@@ -173,7 +171,6 @@
   ([form d-sym env seen verbose?]
    (insert-trace form d-sym env seen verbose? trace-opts-omitted))
   ([form d-sym env seen verbose? trace-opts]
-  ; (println "INSERT-TRACE" (prn-str form))
   (loop [loc          (ut/sequential-zip form)
           indent       0
           syntax-order 0
@@ -483,7 +480,6 @@
                    indent syntax-order num-seen trace-meta))
 
 (defmacro trace [& args]
-  ;; (println "TRACE" args)
   (apply trace* args))
 
 
@@ -493,7 +489,6 @@
 
 ;;; remove skip
 (defn remove-skip [form]
-;   (println "REMOVE-SKIP")
   (loop [loc (ut/sequential-zip form)]
     (let [node (z/node loc)]
       ;(ut/d node)
@@ -565,7 +560,6 @@
      :verbose also trace leaf literals normally skipped for noise
               reduction; :show-all is parsed as an alias by parse-opts"
   [form & [opts]]
-  ; (println "FULLFORM" &form)
   `(let [~'+debux-dbg-opts+   ~(if (ut/cljs-env? &env)
                                  (dissoc opts :style :js)
                                  opts)
