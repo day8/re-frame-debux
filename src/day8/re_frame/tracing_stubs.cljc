@@ -87,3 +87,10 @@
    release build (no per-form trace machinery to indent)."
   []
   nil)
+
+(defn reset-once-state!
+  "Production stub. No-op — the dev-side fn drops `:once` dedup state;
+   in a release build the dedup atom is never populated (no trace
+   emitters fire), so there is nothing to reset."
+  []
+  nil)

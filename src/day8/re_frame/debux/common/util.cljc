@@ -577,7 +577,8 @@
 ;;;   across runs of the same body.
 ;;;
 ;;; Lifecycle: process-local atom; resets only on explicit
-;;; `-reset-once-state!`. Hot-reload of a macro-call site produces a
+;;; `-reset-once-state!` (public re-export:
+;;; `day8.re-frame.tracing/reset-once-state!`). Hot-reload of a macro-call site produces a
 ;;; fresh `trace-id` (the gensym is re-generated), so old keys for
 ;;; that site become orphaned. To keep long-running sessions bounded,
 ;;; the state prunes the oldest half of entries when it grows past
@@ -624,7 +625,12 @@
    (so cross-test contamination doesn't make a previous test's last
    emission silence the next one) and exposed publicly so REPL callers
    running a long live-debug session can clear the slate without
-   waiting for a hot-reload to invalidate keys."
+   waiting for a hot-reload to invalidate keys.
+
+   Public callers should prefer the re-export at
+   `day8.re-frame.tracing/reset-once-state!`; this internal name (with
+   the leading dash) stays for in-tree call sites that already require
+   `common.util` directly."
   []
   (reset! once-state {:next-order 0
                       :entries    {}}))

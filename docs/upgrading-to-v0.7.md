@@ -81,7 +81,7 @@ whose `(form, result)` pair matches the previous one, per call site.
 State survives across handler invocations until the result actually
 changes — useful for periodic timer-driven dispatches that recompute
 the same value every tick. Composes cleanly with `:if`. Public reset
-via `day8.re-frame.debux.common.util/-reset-once-state!`.
+via `day8.re-frame.tracing/reset-once-state!`.
 
 ### `:msg` / `:m` — per-handler labelling
 
