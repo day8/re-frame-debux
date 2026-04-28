@@ -33,6 +33,9 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-maven-
 
+      - name: Run Clojure tests
+        run: bb test
+
       - name: shadow-cljs compiler cache
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
@@ -45,9 +48,6 @@ jobs:
         id: setup-chrome
         with:
           chrome-version: 811961
-
-      - name: Run Clojure tests
-        run: bb test
 
       - name: Run ClojureScript browser tests
         run: bb test-browser
