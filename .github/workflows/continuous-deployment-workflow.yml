@@ -63,10 +63,23 @@ jobs:
       - uses: browser-actions/setup-chrome@3ba2f2bc81ddf8088ecbacdea69d476631049f8b # v2.1.1
         id: setup-chrome
         with:
-          chrome-version: 811961
+          chrome-version: stable
 
       - name: Run ClojureScript browser tests
-        run: bb test-browser
+        # day8.chrome-shadow-test-runner closes Chrome at a fixed
+        # 60s --virtual-time-budget. On cold-cache CI runs the page
+        # occasionally serializes before tests register, surfacing as
+        # "Failed to serialize document: Uncaught" + "No test results
+        # found". Retry up to 3 times before failing the job.
+        run: |
+          for attempt in 1 2 3; do
+            if bb test-browser; then
+              exit 0
+            fi
+            echo "::warning::bb test-browser flaked on attempt $attempt"
+            sleep 5
+          done
+          exit 1
         env:
           CHROME_BIN: ${{ steps.setup-chrome.outputs.chrome-path }}
 
