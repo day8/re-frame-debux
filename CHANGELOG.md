@@ -3,6 +3,10 @@ All notable changes to this project will be documented in this file. This change
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.9.2] - 2026-04-29
+
 #### Fixed
 
 * Trace pretty-print bounds now apply to all collections, not only seqs. `set-print-length!` is the clearer public setter; `set-print-seq-length!` remains as a backward-compatible alias. Production stubs expose both names.
