@@ -70,7 +70,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-shadow-cljs-
 
-      - uses: browser-actions/setup-chrome@c785b87e244131f27c9f19c1a33e2ead956ab7ce # v1
+      - uses: browser-actions/setup-chrome@3ba2f2bc81ddf8088ecbacdea69d476631049f8b # v2.1.1
         id: setup-chrome
         with:
           chrome-version: 811961
